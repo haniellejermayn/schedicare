@@ -1,0 +1,72 @@
+{
+  "at": "2026-07-07T19:35:46.243Z",
+  "mode": {
+    "mode": "resilience",
+    "reasons": [
+      "AI_PROVIDER is set to fallback.",
+      "CALENDAR_PROVIDER is set to simulated.",
+      "MAIL_PROVIDER is set to simulated."
+    ],
+    "services": {
+      "ai": {
+        "live": false,
+        "detail": "AI_PROVIDER=fallback — deterministic agents"
+      },
+      "calendar": {
+        "live": false,
+        "detail": "Simulated calendar provider (configured)"
+      },
+      "mail": {
+        "live": false,
+        "detail": "Simulated mail provider (configured)"
+      }
+    }
+  },
+  "replyUnderstanding": {
+    "cases": 50,
+    "correct": 50,
+    "accuracy": 1,
+    "confusion": {},
+    "misses": []
+  },
+  "pipeline": {
+    "caseState": "resolving",
+    "planningMsToApprovalGate": 383,
+    "recommendations": 6,
+    "optionFeasibility": {
+      "checked": 19,
+      "valid": 19,
+      "rate": 1
+    },
+    "approvedByStaff": 6,
+    "scoreboard": {
+      "affected": 6,
+      "proposed": 0,
+      "approved": 0,
+      "executed": 7,
+      "rebooked": 6,
+      "confirmed": 5,
+      "declinedOrCallback": 0,
+      "minutesRecovered": 130
+    },
+    "slotRecoveryRate": 1,
+    "confirmationRate": 0.833,
+    "repliesInjected": 6,
+    "repliesAutoHandled": 6,
+    "manualActionsAvoided": 1,
+    "agentRuns": {
+      "total": 14,
+      "live": 0,
+      "fallback": 14,
+      "errors": 0,
+      "avgLatencyMs": 47,
+      "toolCalls": 0,
+      "toolErrors": 0,
+      "toolSuccessRate": 1
+    }
+  },
+  "mcp": {
+    "state": "disabled",
+    "detail": "MCP_TRANSPORT=disabled — direct Google APIs are the active integration path."
+  }
+}

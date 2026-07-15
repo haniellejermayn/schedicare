@@ -1,0 +1,129 @@
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/core/db/client";
+import { env } from "@/core/env";
+import { timeline } from "@/core/timeline";
+import { audit } from "@/core/audit";
+import { serviceHealth, setServiceHealth, isForcedFallback } from "@/core/status";
+import { runGeminiLoop } from "./gemini";
+import { AgentFailure, type AgentCtx, type AgentDef, type AgentRunResult } from "./types";
+
+export function aiLiveWanted(): boolean {
+  const e = env();
+  if (e.AI_PROVIDER !== "gemini") return false;
+  if (!e.GEMINI_API_KEY) return false;
+  if (isForcedFallback()) return false;
+  if (serviceHealth("gemini").status === "error") return false;
+  return true;
+}
+
+function fallbackReasonNow(): string {
+  const e = env();
+  if (isForcedFallback()) return "Presentation Resilience Mode forced from /admin";
+  if (e.AI_PROVIDER !== "gemini") return "AI_PROVIDER=fallback";
+  if (!e.GEMINI_API_KEY) return "GEMINI_API_KEY not configured";
+  const h = serviceHealth("gemini");
+  if (h.status === "error") return `Gemini unavailable: ${h.detail ?? "recent API failure"}`;
+  return "deterministic mode";
+}
+
+/**
+ * Run one agent. Live Agentic Mode uses the Gemini function-calling loop; any
+ * live failure (network, quota, schema-invalid output twice, step cap) is
+ * recorded, marks Gemini unhealthy, and — when FALLBACK_ENABLED — degrades
+ * VISIBLY to the deterministic implementation with the same result shape.
+ * If the fallback itself throws, the caller escalates the case.
+ */
+export async function runAgent<In, Out>(
+  def: AgentDef<In, Out>,
+  input: In,
+  ctx: AgentCtx
+): Promise<AgentRunResult<Out>> {
+  const started = Date.now();
+  const wantLive = aiLiveWanted();
+  const run = db
+    .insert(schema.agentRuns)
+    .values({
+      caseId: ctx.caseId,
+      agent: def.name,
+      mode: wantLive ? "live" : "fallback",
+      status: "running",
+      input: input as unknown,
+      createdAt: new Date().toISOString(),
+    })
+    .returning()
+    .get();
+
+  if (ctx.caseId) timeline(ctx.caseId, def.name, "status", `${def.feedVerb(input)}…`, wantLive ? "Gemini reasoning live" : `Deterministic mode — ${fallbackReasonNow()}`);
+
+  const onToolEvent = (kind: "call" | "result" | "error", name: string, detail: string) => {
+    if (!ctx.caseId) return;
+    if (kind === "call") timeline(ctx.caseId, def.name, "tool_call", `${name}()`, detail);
+    else if (kind === "result") timeline(ctx.caseId, def.name, "tool_result", `${name} → done`, detail);
+    else timeline(ctx.caseId, def.name, "error", `${name} failed`, detail);
+  };
+
+  let liveError: string | null = null;
+  if (wantLive) {
+    try {
+      const { output, stats } = await runGeminiLoop(def, def.buildPrompt(input), ctx, onToolEvent);
+      db.update(schema.agentRuns)
+        .set({
+          status: "ok",
+          output: output as unknown,
+          steps: stats.steps,
+          toolCalls: stats.toolCalls,
+          toolErrors: stats.toolErrors,
+          latencyMs: Date.now() - started,
+        })
+        .where(eq(schema.agentRuns.id, run.id))
+        .run();
+      setServiceHealth("gemini", { status: "ok", detail: "last agent run ok" });
+      return { output, mode: "live", runId: run.id, steps: stats.steps, toolCalls: stats.toolCalls, latencyMs: Date.now() - started };
+    } catch (e) {
+      liveError = String((e as Error).message ?? e).slice(0, 300);
+      setServiceHealth("gemini", { status: "error", detail: liveError });
+      audit({ actor: def.name, action: "agent.live_failed", caseId: ctx.caseId, detail: { error: liveError } });
+      if (ctx.caseId)
+        timeline(ctx.caseId, def.name, "error", "Live Gemini run failed — switching to deterministic fallback", liveError);
+      if (!env().FALLBACK_ENABLED) {
+        db.update(schema.agentRuns)
+          .set({ status: "error", error: liveError, latencyMs: Date.now() - started })
+          .where(eq(schema.agentRuns.id, run.id))
+          .run();
+        throw new AgentFailure(`${def.name}: ${liveError}`, "live");
+      }
+    }
+  }
+
+  // Deterministic fallback path (Presentation Resilience Mode).
+  try {
+    const output = def.resultSchema.parse(await def.fallback(input, ctx));
+    db.update(schema.agentRuns)
+      .set({
+        mode: "fallback",
+        status: "fallback_ok",
+        output: output as unknown,
+        error: liveError,
+        latencyMs: Date.now() - started,
+      })
+      .where(eq(schema.agentRuns.id, run.id))
+      .run();
+    return {
+      output,
+      mode: "fallback",
+      fallbackReason: liveError ?? fallbackReasonNow(),
+      runId: run.id,
+      steps: 1,
+      toolCalls: 0,
+      latencyMs: Date.now() - started,
+    };
+  } catch (e) {
+    const msg = String((e as Error).message ?? e).slice(0, 300);
+    db.update(schema.agentRuns)
+      .set({ status: "error", error: liveError ? `${liveError} | fallback: ${msg}` : msg, latencyMs: Date.now() - started })
+      .where(eq(schema.agentRuns.id, run.id))
+      .run();
+    if (ctx.caseId) timeline(ctx.caseId, def.name, "error", "Deterministic fallback also failed", msg);
+    throw new AgentFailure(`${def.name} fallback failed: ${msg}`, "fallback");
+  }
+}
