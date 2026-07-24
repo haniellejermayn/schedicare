@@ -15,10 +15,7 @@ const EnvSchema = z.object({
   MAIL_PROVIDER: z.enum(["gmail", "simulated"]).default("gmail"),
   GOOGLE_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
-  GOOGLE_REDIRECT_URI: z
-    .string()
-    .optional()
-    .default("http://localhost:3000/api/oauth/callback"),
+  GOOGLE_REDIRECT_URI: z.string().optional().default("http://localhost:3000/api/oauth/callback"),
   MCP_TRANSPORT: z.enum(["disabled", "http"]).default("disabled"),
   GOOGLE_CALENDAR_MCP_URL: z.string().optional().default(""),
   GOOGLE_GMAIL_MCP_URL: z.string().optional().default(""),
@@ -61,8 +58,7 @@ export function geminiModel(): string {
 /** Whether simulated patient replies should be generated automatically. */
 export function autoSimulateReplies(): boolean {
   const e = env();
-  if (e.AUTO_SIMULATE_REPLIES != null)
-    return e.AUTO_SIMULATE_REPLIES !== "false";
+  if (e.AUTO_SIMULATE_REPLIES != null) return e.AUTO_SIMULATE_REPLIES !== "false";
   return e.MAIL_PROVIDER === "simulated";
 }
 

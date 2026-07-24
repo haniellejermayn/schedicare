@@ -1,6 +1,6 @@
 import { seed } from "@/sim/seed";
 import { claimNextEvent, completeEvent, failEvent } from "@/worker/queue";
-import { routeEvent } from "@/worker/router";
+import { dispatchEvent } from "@/graph/dispatch";
 import { db, schema } from "@/core/db/client";
 import { and, eq, isNull, lte, or } from "drizzle-orm";
 
@@ -24,7 +24,7 @@ export async function pump(opts: { includeFuture?: boolean; maxEvents?: number }
     const ev = claimNextEvent();
     if (!ev) break;
     try {
-      await routeEvent(ev);
+      await dispatchEvent(ev);
       completeEvent(ev.id);
     } catch (e) {
       failEvent(ev.id, ev.attempts < 2);

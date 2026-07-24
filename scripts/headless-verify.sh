@@ -2,12 +2,19 @@
 # Headless verification: production server + worker, full flagship flow via HTTP.
 set -u
 cd "$(dirname "$0")/.."
-PORT=3007
+PORT="${HEADLESS_PORT:-$((3100 + RANDOM % 400))}"
 BASE="http://localhost:$PORT"
 export DATABASE_URL="file:./.tmp/headless.db"
 export PACING_MS=200
-export AUTO_SIMULATE_REPLIES=true
-rm -f .tmp/headless.db*
+# Intentionally no AUTO_SIMULATE_REPLIES / MAIL_PROVIDER overrides: this mirrors
+# `npm run dev` + `npm run worker` with no .env (MAIL_PROVIDER defaults to gmail,
+# degrades to simulated) and verifies auto-replies key off the EFFECTIVE provider.
+# Clear any stale servers from a previous run, then start clean
+NEXT_PAT="[n]ext-server"; WORKER_PAT="[t]sx worker/index.ts"
+pkill -f "$NEXT_PAT" 2>/dev/null; pkill -f "$WORKER_PAT" 2>/dev/null
+command -v fuser >/dev/null 2>&1 && fuser -k "$PORT/tcp" 2>/dev/null
+sleep 1
+rm -f .tmp/headless.db* .tmp/headless.graph.db*
 
 pass=0; fail=0
 ok()  { pass=$((pass+1)); echo "  ✓ $1"; }
@@ -33,9 +40,17 @@ STATUS=$(jget /api/status)
 echo "$STATUS" | grep -q '"mode":"resilience"' && ok "status: resilience mode active" || bad "status mode: $STATUS"
 
 # Pages render
-for p in /ops /book /doctor /integrations /admin; do
+for p in /ops /book /doctor /settings; do
   code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$p")
   [ "$code" = "200" ] && ok "GET $p → 200" || bad "GET $p → $code"
+done
+# Legacy URLs redirect into /settings
+for p in /integrations /admin; do
+  loc=$(curl -s -o /dev/null -w "%{redirect_url}" "$BASE$p")
+  case "$loc" in
+    *"/settings"*) ok "GET $p → redirects to /settings" ;;
+    *) bad "GET $p → no /settings redirect (got: $loc)" ;;
+  esac
 done
 
 # Wait for the boot sweep to open the secondary cases

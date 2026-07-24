@@ -11,7 +11,8 @@ import { ensureSchema } from "@/core/db/migrate";
 import { env } from "@/core/env";
 import { audit } from "@/core/audit";
 import { claimNextEvent, completeEvent, failEvent, enqueueEvent } from "./queue";
-import { routeEvent, bootBanner } from "./router";
+import { dispatchEvent } from "@/graph/dispatch";
+import { demoToday } from "@/core/clock";
 import { runDailySweep } from "./sweep";
 import { pickMailProvider } from "@/integrations/factory";
 
@@ -28,7 +29,7 @@ async function loop() {
     }
     try {
       console.log(`[worker] event ${ev.type} (${ev.id})`);
-      await routeEvent(ev);
+      await dispatchEvent(ev);
       completeEvent(ev.id);
     } catch (e) {
       const msg = String((e as Error)?.message ?? e).slice(0, 300);
@@ -100,7 +101,7 @@ async function pollGmailInbound() {
 
 async function main() {
   ensureSchema();
-  console.log(bootBanner());
+  console.log(`[worker] SchediCare worker up — demo day ${demoToday()} · LangGraph case orchestration (SQLite checkpoints)`);
   audit({ actor: "worker", action: "worker.started", detail: { pid: process.pid } });
   await runDailySweep().catch((e) => console.error(`[worker] sweep failed: ${e?.message ?? e}`));
   void pollGmailInbound();

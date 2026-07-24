@@ -66,7 +66,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   let transitioned = false;
   if (counts.proposed === 0) {
     transitionCase(rec.caseId, "executing", "staff", "All recommendations decided — executing approved actions.");
-    enqueueEvent("execute_case", { caseId: rec.caseId });
+    enqueueEvent("resume_case", { caseId: rec.caseId });
     transitioned = true;
   }
   return json({ ok: true, transitioned, remainingProposed: counts.proposed });

@@ -52,7 +52,7 @@ export async function runDailySweep(): Promise<void> {
       title: `Unconfirmed: ${p.name} in ${hours}h`,
       meta: { appointmentId: a.id, patientId: a.patientId },
     });
-    enqueueEvent("orchestrate_case", { caseId: c.id });
+    enqueueEvent("start_case", { caseId: c.id });
   }
 
   // 2) High no-show risk (Attendance-Risk agent) → no_show_risk case.
@@ -69,7 +69,7 @@ export async function runDailySweep(): Promise<void> {
       title: `No-show risk ${flag.score}/100: ${flag.patientName}`,
       meta: { appointmentId: flag.appointmentId, patientId: flag.patientId, flag },
     });
-    enqueueEvent("orchestrate_case", { caseId: c.id });
+    enqueueEvent("start_case", { caseId: c.id });
   }
 
   // 3) Vacated future slots → slot_recovery case.
@@ -88,7 +88,7 @@ export async function runDailySweep(): Promise<void> {
       title: `Vacated slot: ${p.name} cancelled`,
       meta: { appointmentId: a.id, patientId: a.patientId },
     });
-    enqueueEvent("orchestrate_case", { caseId: c.id });
+    enqueueEvent("start_case", { caseId: c.id });
   }
 
   audit({ actor: "system", action: "sweep.finished", detail: { day: demoToday() } });

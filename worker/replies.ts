@@ -16,10 +16,10 @@ import { getPatient } from "@/agents/tools";
 import { replanSingle } from "./steps";
 import type { ReplyInterpretation } from "@/core/types";
 
-export async function handlePatientReply(messageId: string): Promise<void> {
+export async function handlePatientReply(messageId: string): Promise<string | null> {
   const msg = db.select().from(schema.messages).where(eq(schema.messages.id, messageId)).get();
-  if (!msg || msg.direction !== "inbound") return;
-  if (msg.status === "interpreted") return; // idempotent
+  if (!msg || msg.direction !== "inbound") return null;
+  if (msg.status === "interpreted") return msg.caseId; // idempotent
   const caseId = msg.caseId;
   const rec = msg.recommendationId
     ? db.select().from(schema.recommendations).where(eq(schema.recommendations.id, msg.recommendationId)).get()
@@ -58,8 +58,9 @@ export async function handlePatientReply(messageId: string): Promise<void> {
   audit({ actor: "comms", action: "reply.interpreted", refType: "message", refId: messageId, caseId, detail: interp });
   if (caseId) timeline(caseId, "comms", "status", `Interpreted as ${interp.intent.replace(/_/g, " ")}`, interp.summary, { intent: interp.intent });
 
-  if (!caseId || !rec) return;
+  if (!caseId || !rec) return caseId;
   await route(caseId, rec, msg, patient.name, interp);
+  return caseId;
 }
 
 async function route(

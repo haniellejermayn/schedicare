@@ -1,23 +1,18 @@
 /**
- * Event router. Maps queue events to handlers. Case-opening triggers go
- * through the Orchestrator (live Gemini when available, deterministic playbook
- * otherwise); mechanical events (execution, replies) go straight to their
- * handlers — they are not agent decisions.
+ * Event → graph dispatch. The SQLite event queue stays the ingress (delayed
+ * events power simulated reply timing); every event either opens a case and
+ * starts its graph, or wakes a paused graph after new information landed.
  */
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
-import { demoNowIso, demoToday, fmtWhen } from "@/core/clock";
-import { timeline } from "@/core/timeline";
+import { openCase } from "@/core/cases";
 import { audit } from "@/core/audit";
-import { escalateCase, getCase, openCase } from "@/core/cases";
-import { AgentFailure } from "@/agents/runtime/types";
-import { orchestrate } from "@/agents/orchestrator";
+import { demoNowIso, fmtWhen } from "@/core/clock";
 import { getDoctor, getPatient } from "@/agents/tools";
-import { executeCase } from "./executor";
-import { handlePatientReply } from "./replies";
-import { enqueueEvent } from "./queue";
+import { handlePatientReply } from "@/worker/replies";
+import { startCase, resumeCase } from "@/graph/caseGraph";
 
-export async function routeEvent(ev: typeof schema.events.$inferSelect): Promise<void> {
+export async function dispatchEvent(ev: typeof schema.events.$inferSelect): Promise<void> {
   const payload = ev.payload as any;
   switch (ev.type) {
     case "doctor_emergency": {
@@ -30,7 +25,7 @@ export async function routeEvent(ev: typeof schema.events.$inferSelect): Promise
         openedByEvent: ev.id,
         meta: { doctorId: payload.doctorId, date: payload.date, reason: payload.reason ?? "emergency" },
       });
-      await runOrchestration(c.id);
+      await startCase(c.id);
       return;
     }
     case "patient_cancelled": {
@@ -45,23 +40,25 @@ export async function routeEvent(ev: typeof schema.events.$inferSelect): Promise
         openedByEvent: ev.id,
         meta: { appointmentId: appt.id, patientId: appt.patientId },
       });
-      await runOrchestration(c.id);
+      await startCase(c.id);
       return;
     }
-    case "orchestrate_case": {
-      await runOrchestration(payload.caseId);
+    case "start_case": {
+      await startCase(payload.caseId);
       return;
     }
-    case "execute_case": {
-      await executeCase(payload.caseId);
+    case "resume_case": {
+      await resumeCase(payload.caseId);
       return;
     }
     case "patient_reply": {
-      await handlePatientReply(payload.messageId);
+      const caseId = await handlePatientReply(payload.messageId);
+      if (caseId) await resumeCase(caseId);
       return;
     }
     case "simulate_reply": {
-      await injectSimulatedReply(payload.messageId, payload.body);
+      const caseId = await injectSimulatedReply(payload.messageId, payload.body);
+      if (caseId) await resumeCase(caseId);
       return;
     }
     default:
@@ -69,38 +66,10 @@ export async function routeEvent(ev: typeof schema.events.$inferSelect): Promise
   }
 }
 
-async function runOrchestration(caseId: string): Promise<void> {
-  const c = getCase(caseId);
-  if (!["open", "assessing", "planning"].includes(c.state)) {
-    timeline(caseId, "orchestrator", "status", `Orchestration skipped — case already ${c.state}`);
-    return;
-  }
-  try {
-    await orchestrate(
-      {
-        caseId,
-        caseType: c.type as any,
-        title: c.title,
-        contextSummary: JSON.stringify(c.meta ?? {}).slice(0, 600),
-      },
-      { caseId }
-    );
-  } catch (e) {
-    if (e instanceof AgentFailure) {
-      escalateCase(caseId, "orchestrator", `Automated handling failed (${e.stage}): ${e.message.slice(0, 200)}`);
-      return;
-    }
-    throw e;
-  }
-}
-
-/**
- * Presentation Resilience Mode: a persona reply lands in the same thread as
- * the outbound message and flows through the normal inbound pipeline.
- */
-async function injectSimulatedReply(outboundMessageId: string, body: string): Promise<void> {
+/** Insert a simulated inbound message on an outbound thread, then handle it. */
+export async function injectSimulatedReply(outboundMessageId: string, body: string): Promise<string | null> {
   const outbound = db.select().from(schema.messages).where(eq(schema.messages.id, outboundMessageId)).get();
-  if (!outbound) return;
+  if (!outbound) return null;
   const patient = getPatient(outbound.patientId);
   const inbound = db
     .insert(schema.messages)
@@ -120,9 +89,5 @@ async function injectSimulatedReply(outboundMessageId: string, body: string): Pr
     .returning()
     .get();
   audit({ actor: "sim", action: "mail.inbound_simulated", refType: "message", refId: inbound.id, caseId: outbound.caseId, detail: { from: patient.email } });
-  await handlePatientReply(inbound.id);
-}
-
-export function bootBanner(): string {
-  return `[worker] SchediCare worker up — demo day ${demoToday()}`;
+  return handlePatientReply(inbound.id);
 }

@@ -31,7 +31,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const counts = pendingRecommendationCounts(c.id);
   if (counts.proposed === 0) {
     transitionCase(c.id, "executing", "staff", "All recommendations decided — executing approved actions.");
-    enqueueEvent("execute_case", { caseId: c.id });
+    enqueueEvent("resume_case", { caseId: c.id });
   }
   return json({ ok: true, approved: proposed.length });
 }

@@ -2,47 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --scd-primary: #5b2fce;
-  --scd-deep: #3d2a8c;
-  --scd-lavender: #ede8ff;
-  --scd-bg: #f4f2fb;
-  --scd-ink: #241a4a;
+html, body {
+  background: #f7f8fa;
+  color: #101828;
 }
-
-html,
-body {
-  background: var(--scd-bg);
-  color: var(--scd-ink);
-  font-feature-settings: "ss01" on, "cv05" on;
-}
-
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+}
+::selection { background: #dbe6ff; }
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #667085;
+}
+.tnum { font-variant-numeric: tabular-nums; }
+
+:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
-::selection {
-  background: #d8ccff;
-}
-
-/* Thin, calm scrollbars for the ops panels */
-.scd-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.scd-scroll::-webkit-scrollbar-thumb {
-  background: #d9d2ee;
-  border-radius: 999px;
-}
-.scd-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
+.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #d5d9e2; border-radius: 999px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

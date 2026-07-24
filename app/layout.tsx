@@ -4,8 +4,7 @@ import { Nav } from "@/components/Nav";
 
 export const metadata: Metadata = {
   title: "SchediCare — Riverside Family Clinic",
-  description:
-    "Multi-agent scheduling copilot for a small clinic. SchediCare proposes; clinic staff approve.",
+  description: "Scheduling copilot for a small clinic. SchediCare proposes; clinic staff approve.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen">
         <Nav />
-        <main className="mx-auto max-w-[1400px] px-4 py-5">{children}</main>
+        <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
       </body>
     </html>
   );

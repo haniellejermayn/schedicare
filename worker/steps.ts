@@ -429,30 +429,9 @@ export async function waitlistStep(caseId: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic orchestration sequences (Presentation Resilience Mode) and
-// replan entry (used by the reply handler for counter-proposals).
+// Replan entry (used by the reply handler for counter-proposals). Sequencing
+// of the full pipeline lives in graph/caseGraph.ts.
 // ---------------------------------------------------------------------------
-
-export async function fallbackSequence(caseId: string): Promise<string> {
-  const c = getCase(caseId);
-  switch (c.type) {
-    case "doctor_emergency": {
-      await assessStep(caseId);
-      await scheduleStep(caseId);
-      await recoverStep(caseId);
-      return commsStep(caseId);
-    }
-    case "confirmation":
-      return nudgeStep(caseId, "confirm_nudge");
-    case "no_show_risk":
-      return nudgeStep(caseId, "preventive");
-    case "slot_recovery":
-    case "patient_cancellation":
-      return waitlistStep(caseId);
-    default:
-      throw new Error(`No deterministic sequence for case type ${c.type}`);
-  }
-}
 
 export async function replanSingle(
   caseId: string,

@@ -18,7 +18,7 @@ import { and, eq } from "drizzle-orm";
 import { seed } from "@/sim/seed";
 import { db, schema } from "@/core/db/client";
 import { claimNextEvent, completeEvent, failEvent, enqueueEvent } from "@/worker/queue";
-import { routeEvent } from "@/worker/router";
+import { dispatchEvent } from "@/graph/dispatch";
 import { handlePatientReply } from "@/worker/replies";
 import { ruleClassifyReply, guardReply } from "@/agents/comms";
 import { validatePlacementNow } from "@/core/scheduling";
@@ -38,7 +38,7 @@ async function pump(max = 300): Promise<number> {
     const ev = claimNextEvent();
     if (!ev) break;
     try {
-      await routeEvent(ev);
+      await dispatchEvent(ev);
       completeEvent(ev.id);
     } catch (e) {
       failEvent(ev.id, ev.attempts < 2);
@@ -95,7 +95,7 @@ function approveAll(caseId: string) {
   timeline(caseId, "staff", "decision", `Eval: approved ${proposed.length} recommendations`);
   if (pendingRecommendationCounts(caseId).proposed === 0) {
     transitionCase(caseId, "executing", "staff", "Eval approval");
-    enqueueEvent("execute_case", { caseId });
+    enqueueEvent("resume_case", { caseId });
   }
   return proposed.length;
 }

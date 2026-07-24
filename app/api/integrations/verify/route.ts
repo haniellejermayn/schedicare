@@ -23,10 +23,10 @@ export async function POST(req: Request) {
       const e = env();
       if (e.AI_PROVIDER !== "gemini") return json({ ok: false, detail: "AI_PROVIDER is set to fallback" });
       if (!e.GEMINI_API_KEY) return json({ ok: false, detail: "GEMINI_API_KEY is not set" });
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: e.GEMINI_API_KEY });
-      const res = await ai.models.generateContent({ model: geminiModel(), contents: "Reply with exactly: pong" });
-      const text = (res.text ?? "").slice(0, 40);
+      const { ChatGoogleGenerativeAI } = await import("@langchain/google-genai");
+      const model = new ChatGoogleGenerativeAI({ apiKey: e.GEMINI_API_KEY, model: geminiModel(), maxRetries: 0 });
+      const res = await model.invoke("Reply with exactly: pong");
+      const text = String(res.content).slice(0, 40);
       setServiceHealth("gemini", { status: "ok", detail: `verified (${Date.now() - started}ms)` });
       return json({ ok: true, detail: `Model ${geminiModel()} responded: "${text.trim()}"` });
     }

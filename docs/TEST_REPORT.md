@@ -6,9 +6,9 @@ Vitest 2). Reproduce with the listed commands.
 ## Suite summary — `npm test`
 
 ```
-Test Files  7 passed (7)
-Tests       41 passed (41)
-Duration    ~12s
+Test Files  8 passed (8)
+Tests       42 passed (42)
+Duration    ~20s
 ```
 
 | File | Tests | What it proves |
@@ -20,6 +20,7 @@ Duration    ~12s
 | `tests/providers.test.ts` | 7 | Factory picks simulated + labels non-live; simulated calendar round-trip feeding busy intervals; simulated mail draft→send→inbound→poll with seen-dedupe; **Google Calendar & Gmail providers against injected API doubles** (event mapping, RFC-822 draft raw, draft-id send, thread reply parsing incl. base64url decode + SENT/DRAFT filtering, profile); MCP disabled state + unreachable endpoint → `unavailable` without throwing |
 | `tests/sweep.test.ts` | 1 | Boot sweep opens exactly Paolo (confirmation), Dennis (risk, band high), Liza (slot recovery); same-day bookings excluded; idempotent; all three reach `awaiting_approval` with the right recommendation kinds and Rosa as the waitlist pick |
 | `tests/cascade.test.ts` | 2 | **Flagship end-to-end through the real route handlers** (below), plus cancellation → waitlist backfill → offer → accept → `wl` scheduled → resolved |
+| `tests/graph.test.ts` | 1 | **LangGraph lifecycle**: thread pauses at `gate` (approval), resumes on the final staff decision, executor auto-schedules simulated replies off the *effective* mail provider (MAIL_PROVIDER=gmail, no Google connected), pauses at `watch`, Miguel's counter loops it back to `gate` with a ≥16:00 replan, approval resolves the case and the thread ends |
 
 ### What the cascade test asserts (the spine of the product)
 
@@ -39,20 +40,22 @@ rejection, the modification, and the doctor's emergency action.
 
 ## Static checks
 
-- `npm run typecheck` — clean (`strict: true`, no `any` leaks in core paths)
+- `npm run typecheck` — clean (`strict: true`, no `any` leaks in core paths); the LangGraph layer typechecks against `@langchain/langgraph` 1.4
 - `npm run lint` — clean (`next/core-web-vitals`)
 - `npm run build` — clean production build, all routes compile
 
 ## Headless E2E — `bash scripts/headless-verify.sh`
 
-Production server (`next start`) + real worker, driven purely over HTTP:
+Production server (`next start`) + real worker, driven purely over HTTP, with
+NO env overrides (mirrors `npm run dev` + `npm run worker` with no `.env`):
 
 ```
-19 checks, 0 failures
+20 checks, 0 failures
 ```
 
-Covers: resilience status, all five pages return 200, boot sweep opens the
-three secondary cases, emergency endpoint, cascade reaches approval with 6
+Covers: resilience status, the four pages return 200, the legacy
+`/integrations` and `/admin` URLs redirect into `/settings`, boot sweep opens
+the three secondary cases, emergency endpoint, cascade reaches approval with 6
 recs, mixed decisions accepted, Miguel replan appears and resolves after
 approval, final scoreboard `rebooked=5 confirmed=5 needsCall=1 minutes=130`,
 SSE feed streams, audit contains the rejection.

@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { usePoll } from "@/lib/usePoll";
-import { jfetch, fmtTimeManila, fmtWhenManila, typeLabel } from "@/lib/format";
-import { Badge, Button, Card, Dialog, EmptyState, Logo, SectionTitle, Spinner, StatusBadge, cn } from "@/components/ui";
+import { jfetch, fmtTimeManila, fmtWhenManila, fmtDayManila, typeLabel } from "@/lib/format";
+import { Button, Card, Chip, Empty, Modal, Spinner, cn } from "@/components/ui";
+import { APPT_STATUS } from "@/components/copy";
 
 const TYPES = [
   { id: "routine", label: "Routine", blurb: "30 min consult" },
@@ -10,11 +11,15 @@ const TYPES = [
   { id: "urgent", label: "Urgent", blurb: "same-week concern" },
 ] as const;
 
+const DOCTORS = [
+  { id: "doc_santos", name: "Dr. Elena Santos", initials: "ES" },
+  { id: "doc_reyes", name: "Dr. Marco Reyes", initials: "MR" },
+];
+
 export default function BookPage() {
   const { data: patientsData } = usePoll<any>("/api/patients", 30000);
   const patients = patientsData?.patients ?? [];
   const [patientId, setPatientId] = useState("pat_maria");
-  const patient = patients.find((p: any) => p.id === patientId);
 
   const { data: apptData, refresh: refreshAppts } = usePoll<any>(`/api/appointments?patientId=${patientId}`, 4000);
   const myAppts = (apptData?.appointments ?? []).filter((a: any) => a.patientId === patientId);
@@ -75,129 +80,126 @@ export default function BookPage() {
     }
   }
 
+  const firstName = (patients.find((p: any) => p.id === patientId)?.name ?? "").split(" ")[0];
+
   return (
-    <div className="mx-auto max-w-[430px]">
-      {/* Phone-ish header */}
-      <div className="rounded-hero bg-gradient-to-br from-scd-primary to-scd-deep p-5 text-white shadow-floating">
-        <div className="flex items-center gap-2.5">
-          <Logo size={24} />
-          <span className="text-[16px] font-extrabold">SchediCare</span>
-          <span className="ml-auto rounded-pill bg-white/15 px-2.5 py-0.5 text-[11px] font-bold">Riverside Family Clinic</span>
+    <div className="mx-auto max-w-[430px] space-y-3">
+      {/* Header */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <span className="eyebrow">Riverside Family Clinic</span>
+          <Chip tone="neutral">Patient view</Chip>
         </div>
-        <p className="mt-4 text-[13px] text-white/75">Kumusta,</p>
-        <div className="flex items-center gap-2">
-          <select
-            value={patientId}
-            onChange={(e) => setPatientId(e.target.value)}
-            className="rounded-xl border border-white/25 bg-white/10 px-2 py-1 text-[18px] font-extrabold text-white outline-none [&>option]:text-scd-ink"
-            aria-label="Demo as patient"
-          >
-            {patients.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-        <p className="mt-1 text-[11px] text-white/60">Demo patient switcher — each patient sees only their own visits.</p>
-      </div>
+        <p className="mt-3 text-[13px] text-muted">Hi{firstName ? "," : ""}</p>
+        <select
+          value={patientId}
+          onChange={(e) => setPatientId(e.target.value)}
+          className="mt-0.5 w-full rounded-ctl border border-line bg-white px-2 py-1.5 text-[17px] font-bold text-ink outline-none focus:border-accent"
+          aria-label="Demo as patient"
+        >
+          {patients.map((p: any) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-[11px] text-muted">Demo patient switcher — each patient sees only their own visits.</p>
+      </Card>
 
       {toast && (
-        <div className="animate-scd-pop mt-3 rounded-card border border-scd-primary/40 bg-scd-lavender/70 px-4 py-2.5 text-[13px] font-semibold text-scd-deep" role="status">
+        <div className="animate-pop rounded-card border border-accent-line bg-accent-soft px-4 py-2.5 text-[13px] font-semibold text-ink" role="status">
           {toast}
-          <button className="ml-2 text-scd-primary underline" onClick={() => setToast(null)}>ok</button>
+          <button className="ml-2 font-bold text-accent underline" onClick={() => setToast(null)}>ok</button>
         </div>
       )}
 
       {/* Disruption notice */}
       {disrupted.length > 0 && (
-        <Card className="mt-3 border-scd-warning/50 bg-[#FFFDF6] p-4">
-          <SectionTitle>Schedule change</SectionTitle>
+        <Card className="border-warn-line bg-warn-soft p-4">
+          <p className="eyebrow">Schedule change</p>
           {disrupted.slice(-2).map((a: any) => (
-            <p key={a.id} className="mt-2 text-[13px] text-scd-ink/90">
-              Your {typeLabel(a.type).toLowerCase()} on <b>{fmtWhenManila(a.startUtc)}</b> with {a.doctorName} had to be moved (doctor emergency). Check
-              your email — we sent you a new time, and it also appears below once confirmed.
+            <p key={a.id} className="mt-2 text-[13px] leading-relaxed text-ink/90">
+              Your {typeLabel(a.type).toLowerCase()} on <b className="tnum">{fmtWhenManila(a.startUtc)}</b> with {a.doctorName} had to be moved (doctor
+              emergency). Check your email — we sent you a new time, and it also appears below once confirmed.
             </p>
           ))}
         </Card>
       )}
 
       {/* Upcoming */}
-      <Card className="mt-3 p-4">
-        <SectionTitle>Your visits</SectionTitle>
+      <Card className="p-4">
+        <p className="eyebrow">Your visits</p>
         <div className="mt-2 space-y-2">
-          {upcoming.length === 0 && <EmptyState>No upcoming visits. Book one below 👇</EmptyState>}
-          {upcoming.map((a: any) => (
-            <div key={a.id} className="animate-scd-in rounded-card border border-scd-line/70 bg-white p-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[14px] font-extrabold text-scd-ink">{fmtWhenManila(a.startUtc)}</span>
-                <StatusBadge status={a.status} />
-              </div>
-              <p className="mt-0.5 text-[12px] text-scd-muted">
-                {typeLabel(a.type)} · {a.doctorName}
-              </p>
-              <div className="mt-2 flex gap-2">
-                {a.status === "booked" && (
-                  <Button variant="success" className="!px-3 !py-1.5 text-[12px]" disabled={busy} onClick={() => act(a, "confirm")}>
-                    Confirm ✓
+          {upcoming.length === 0 && <Empty>No upcoming visits — book one below.</Empty>}
+          {upcoming.map((a: any) => {
+            const st = APPT_STATUS[a.status] ?? { label: a.status, tone: "neutral" as const };
+            return (
+              <div key={a.id} className="animate-rise rounded-card border border-line bg-white p-3">
+                <div className="flex items-center gap-2">
+                  <span className="tnum text-[14px] font-bold text-ink">{fmtWhenManila(a.startUtc)}</span>
+                  <Chip tone={st.tone}>{st.label}</Chip>
+                </div>
+                <p className="mt-0.5 text-[12px] text-muted">
+                  {typeLabel(a.type)} · {a.doctorName}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  {a.status === "booked" && (
+                    <Button variant="success" small disabled={busy} onClick={() => act(a, "confirm")}>
+                      Confirm ✓
+                    </Button>
+                  )}
+                  <Button variant="quiet" small className="text-bad" disabled={busy} onClick={() => setCancelTarget(a)}>
+                    Cancel
                   </Button>
-                )}
-                <Button variant="ghost" className="!px-3 !py-1.5 text-[12px] text-scd-danger" disabled={busy} onClick={() => setCancelTarget(a)}>
-                  Cancel
-                </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
       {/* Booking */}
-      <Card className="mt-3 p-4">
-        <SectionTitle>Book a visit</SectionTitle>
+      <Card className="p-4">
+        <p className="eyebrow">Book a visit</p>
 
-        <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-scd-muted">Doctor</p>
+        <p className="mt-3 text-[12px] font-bold text-muted">Doctor</p>
         <div className="mt-1.5 grid grid-cols-2 gap-2">
-          {[
-            { id: "doc_santos", name: "Dr. Elena Santos", initials: "ES", color: "#5B2FCE" },
-            { id: "doc_reyes", name: "Dr. Marco Reyes", initials: "MR", color: "#3D2A8C" },
-          ].map((d) => (
+          {DOCTORS.map((d) => (
             <button
               key={d.id}
               onClick={() => setDoctorId(d.id)}
               className={cn(
                 "flex items-center gap-2 rounded-card border p-2.5 text-left",
-                doctorId === d.id ? "border-scd-primary bg-scd-lavender/50 shadow-glow" : "border-scd-line/70 bg-white"
+                doctorId === d.id ? "border-accent bg-accent-soft" : "border-line bg-white hover:border-[#c8cdd8]"
               )}
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-pill text-[12px] font-extrabold text-white" style={{ background: d.color }}>
+              <span className={cn("flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-bold", doctorId === d.id ? "bg-accent text-white" : "bg-paper text-muted")}>
                 {d.initials}
               </span>
-              <span className="text-[12px] font-bold leading-tight text-scd-ink">{d.name}</span>
+              <span className="text-[12px] font-bold leading-tight text-ink">{d.name}</span>
             </button>
           ))}
         </div>
 
-        <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-scd-muted">Visit type</p>
+        <p className="mt-3 text-[12px] font-bold text-muted">Visit type</p>
         <div className="mt-1.5 flex gap-2">
           {TYPES.map((t) => (
             <button
               key={t.id}
               onClick={() => setType(t.id)}
-              className={cn(
-                "flex-1 rounded-card border p-2 text-center",
-                type === t.id ? "border-scd-primary bg-scd-lavender/50" : "border-scd-line/70 bg-white"
-              )}
+              className={cn("flex-1 rounded-card border p-2 text-center", type === t.id ? "border-accent bg-accent-soft" : "border-line bg-white hover:border-[#c8cdd8]")}
             >
-              <span className="block text-[12px] font-extrabold text-scd-ink">{t.label}</span>
-              <span className="block text-[10px] text-scd-muted">{t.blurb}</span>
+              <span className="block text-[12px] font-bold text-ink">{t.label}</span>
+              <span className="block text-[10px] text-muted">{t.blurb}</span>
             </button>
           ))}
         </div>
 
-        <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-scd-muted">Available times (rule-checked live)</p>
+        <p className="mt-3 text-[12px] font-bold text-muted">Available times</p>
+        <p className="text-[11px] text-muted">Only times that fit the doctor&apos;s rules are shown.</p>
         <div className="mt-1.5 space-y-2">
-          {slotsByDay.length === 0 && <EmptyState>No open slots match — try another doctor or type.</EmptyState>}
+          {slotsByDay.length === 0 && <Empty>No open slots match — try another doctor or type.</Empty>}
           {slotsByDay.map(([day, list]) => (
             <div key={day}>
-              <p className="text-[12px] font-bold text-scd-deep">
+              <p className="text-[12px] font-bold text-ink">
                 {new Date(`${day}T00:00:00+08:00`).toLocaleDateString("en-PH", { weekday: "long", month: "short", day: "numeric", timeZone: "Asia/Manila" })}
               </p>
               <div className="mt-1 flex flex-wrap gap-1.5">
@@ -205,7 +207,7 @@ export default function BookPage() {
                   <button
                     key={s.startUtc}
                     onClick={() => setPicked(s)}
-                    className="rounded-pill border border-scd-line bg-white px-3 py-1.5 text-[12px] font-bold text-scd-deep hover:border-scd-primary hover:bg-scd-lavender/50"
+                    className="tnum rounded-full border border-line bg-white px-3 py-1.5 text-[12px] font-bold text-ink hover:border-accent hover:bg-accent-soft"
                   >
                     {fmtTimeManila(s.startUtc)}
                   </button>
@@ -216,19 +218,21 @@ export default function BookPage() {
         </div>
       </Card>
 
-      <p className="mt-3 pb-6 text-center text-[11px] text-scd-muted">
-        SchediCare proposes. Clinic staff approve. · Scheduling assistant only — for medical concerns call (02) 8641 0117.
+      <p className="pb-6 text-center text-[11px] leading-relaxed text-muted">
+        SchediCare proposes. Clinic staff approve.
+        <br />
+        Scheduling assistant only — for medical concerns call (02) 8641 0117.
       </p>
 
-      {/* Confirm booking dialog */}
-      <Dialog
+      {/* Confirm booking */}
+      <Modal
         open={!!picked}
         onClose={() => setPicked(null)}
         title="Confirm this booking?"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setPicked(null)}>Back</Button>
-            <Button variant="primary" disabled={busy} onClick={book}>
+            <Button variant="secondary" onClick={() => setPicked(null)}>Back</Button>
+            <Button disabled={busy} onClick={book}>
               {busy ? <Spinner /> : "Book it"}
             </Button>
           </>
@@ -236,21 +240,21 @@ export default function BookPage() {
       >
         {picked && (
           <p>
-            <b>{typeLabel(type)}</b> with <b>{doctorId === "doc_santos" ? "Dr. Elena Santos" : "Dr. Marco Reyes"}</b>
+            <b>{typeLabel(type)}</b> with <b>{DOCTORS.find((d) => d.id === doctorId)?.name}</b>
             <br />
-            {fmtWhenManila(picked.startUtc)} · Riverside Family Clinic
+            <span className="tnum">{fmtWhenManila(picked.startUtc)}</span> · Riverside Family Clinic
           </p>
         )}
-      </Dialog>
+      </Modal>
 
-      {/* Cancel dialog */}
-      <Dialog
+      {/* Cancel */}
+      <Modal
         open={!!cancelTarget}
         onClose={() => setCancelTarget(null)}
         title="Cancel this visit?"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setCancelTarget(null)}>Keep it</Button>
+            <Button variant="secondary" onClick={() => setCancelTarget(null)}>Keep it</Button>
             <Button variant="danger" disabled={busy} onClick={() => act(cancelTarget, "cancel")}>
               {busy ? <Spinner /> : "Yes, cancel"}
             </Button>
@@ -259,11 +263,11 @@ export default function BookPage() {
       >
         {cancelTarget && (
           <p>
-            {fmtWhenManila(cancelTarget.startUtc)} with {cancelTarget.doctorName}. If you cancel, the slot goes back to the clinic — patients on the
-            waitlist may be offered it.
+            <span className="tnum">{fmtWhenManila(cancelTarget.startUtc)}</span> with {cancelTarget.doctorName}. If you cancel, the slot goes back to the
+            clinic — patients on the waitlist may be offered it.
           </p>
         )}
-      </Dialog>
+      </Modal>
     </div>
   );
 }

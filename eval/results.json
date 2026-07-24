@@ -1,5 +1,5 @@
 {
-  "at": "2026-07-07T19:35:46.243Z",
+  "at": "2026-07-23T08:54:37.463Z",
   "mode": {
     "mode": "resilience",
     "reasons": [
@@ -31,7 +31,7 @@
   },
   "pipeline": {
     "caseState": "resolving",
-    "planningMsToApprovalGate": 383,
+    "planningMsToApprovalGate": 493,
     "recommendations": 6,
     "optionFeasibility": {
       "checked": 19,
@@ -55,11 +55,11 @@
     "repliesAutoHandled": 6,
     "manualActionsAvoided": 1,
     "agentRuns": {
-      "total": 14,
+      "total": 13,
       "live": 0,
-      "fallback": 14,
+      "fallback": 13,
       "errors": 0,
-      "avgLatencyMs": 47,
+      "avgLatencyMs": 25,
       "toolCalls": 0,
       "toolErrors": 0,
       "toolSuccessRate": 1

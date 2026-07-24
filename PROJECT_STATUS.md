@@ -4,6 +4,28 @@ Status date: build verified against `npm test` (41/41), `npm run eval`
 (all targets met), `npm run build` (clean), and `scripts/headless-verify.sh`
 (19/19 checks against the production server + worker).
 
+## v2 — LangGraph orchestration + front-desk redesign
+
+**Orchestration** now runs on LangGraph (TypeScript, same repo): each case is a
+checkpointed graph thread that pauses at the approval gate (`interrupt()`),
+resumes on the final staff decision, pauses again while patients reply, and
+loops back through planning on counter-proposals. All conditional edges route
+on DB state, so the database remains the single source of truth and
+`core/cases.ts` remains the hard staff-only gate. Deleted in the process: the
+LLM orchestrator agent, the hand-rolled router/sequencer, and the custom
+Gemini schema converter (agents now run on `@langchain/google-genai` with the
+same Zod contracts). Details: docs/LANGGRAPH.md.
+
+**Frontend** was rebuilt from scratch as a clean clinical-neutral, single-column
+UI in secretary language. Front desk (`/ops`) is an inbox — Needs your review /
+In progress / Done — opening into a full-page case with decision cards
+(Approve / Change time / Can't do this), a plain-language Activity feed
+(technical detail behind a toggle), and a Messages thread. Doctor and Patient
+pages use tabs and modals; Integrations + Admin merged into `/settings`
+(Connections · Demo & data · Audit log), with the old URLs redirecting. Case
+states read as: Finding times · Needs your review · Booking & notifying ·
+Waiting on patients · Done · Needs a person.
+
 ## Shipped
 
 **Flagship flow (end-to-end, tested):** doctor emergency → assessment →
@@ -20,11 +42,11 @@ unconfirmed-appointment nudge, no-show-risk preventive outreach, reply guard
 (medical / anger / prompt-injection → human), draft content lint, and case
 escalation with manual staff resolution.
 
-**Surfaces:** `/book` (mobile-first patient app), `/doctor` (day + week,
-rules visualization/editor, at-risk list, emergency button), `/ops`
-(three-panel ops center), `/ops/cases/[id]` (full case record), `/integrations`
-(config, health, verify buttons, OAuth, doctor→calendar mapping),
-`/admin` (metrics, demo controls, force-resilience, audit search).
+**Surfaces (v2):** `/book` (patient), `/doctor` (Today · This week · Rules
+tabs, emergency button), `/ops` (front-desk inbox), `/ops/cases/[id]` (full
+case: decisions, patient outcomes, Activity/Messages tabs), `/settings`
+(Connections · Demo & data · Audit log; `/integrations` and `/admin`
+redirect here).
 
 **Runtime modes:** Gemini function-calling agents (`@google/genai`, tool loop
 with Zod-validated results) and deterministic fallbacks producing the same
