@@ -4,6 +4,7 @@ import { usePoll } from "@/lib/usePoll";
 import { jfetch, fmtTimeManila, typeLabel } from "@/lib/format";
 import { Button, Card, Chip, Empty, Modal, PageTitle, RailRow, Spinner, Tabs, cn } from "@/components/ui";
 import { APPT_STATUS } from "@/components/copy";
+import { WeekCalendar } from "@/components/WeekCalendar";
 
 const DEMO_DAY = "2026-08-10";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -174,30 +175,7 @@ export default function DoctorPage() {
         </div>
       )}
 
-      {tab === "week" && (
-        <div className="space-y-2">
-          {Object.entries(week).map(([dayKey, list], i) => (
-            <Card key={dayKey} className="px-4 py-2.5">
-              <div className="flex items-baseline gap-2">
-                <span className="w-14 text-[13px] font-bold text-ink">{WEEKDAYS[i]}</span>
-                <span className="tnum text-[12px] text-muted">{dayKey.slice(5)}</span>
-                <span className="ml-auto text-[12px] font-semibold text-muted">
-                  {list.length === 0 ? "Free" : `${list.length} visit${list.length === 1 ? "" : "s"}`}
-                </span>
-              </div>
-              {list.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {list.map((a: any) => (
-                    <span key={a.id} className={cn("tnum rounded-full border px-2 py-0.5 text-[11px] font-semibold", a.status === "confirmed" ? "border-ok-line bg-ok-soft text-ok" : "border-line bg-paper text-muted")}>
-                      {fmtTimeManila(a.startUtc)} {a.patientName.split(" ")[0]}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      )}
+      {tab === "week" && <WeekCalendar week={week} riskById={riskById} today={DEMO_DAY} rules={rules} externalBusy={data?.externalBusy ?? []} />}
 
       {tab === "rules" && (
         <Card className="p-4">

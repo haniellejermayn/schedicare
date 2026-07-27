@@ -1,10 +1,12 @@
 import { boot, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { addDays } from "date-fns";
 import { demoNow } from "@/core/clock";
 import { getRules } from "@/core/rules";
 import { scoreNoShowRisk } from "@/core/risk";
 import { patientHistory } from "@/agents/tools";
+import { getBusyIntervals } from "@/integrations/factory";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,10 +34,30 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     .sort((a, b) => b.score - a.score)
     .slice(0, 8);
 
+  /**
+   * External busy blocks: whatever the doctor's real Google Calendar (or its
+   * simulated twin) shows as busy that ISN'T already one of our own tracked
+   * appointments — e.g. "Barangay health outreach", personal blocks, other
+   * clinics. freebusy.query only ever returns time ranges (no title/summary),
+   * so this is rendered honestly downstream as anonymous "Busy" stripes, not
+   * fabricated event names. Window: yesterday through +14 days, covering both
+   * the Today and This-week tabs without hardcoding a specific demo date.
+   */
+  const rangeStart = addDays(demoNow(), -1).toISOString();
+  const rangeEnd = addDays(demoNow(), 14).toISOString();
+  const rawBusy = doctor.calendarId ? await getBusyIntervals(doctor.calendarId, { startUtc: rangeStart, endUtc: rangeEnd }) : [];
+  const knownIntervals = appts
+    .filter((a) => ["booked", "confirmed"].includes(a.status))
+    .map((a) => ({ startUtc: a.startUtc, endUtc: a.endUtc }));
+  const externalBusy = rawBusy.filter(
+    (b) => !knownIntervals.some((k) => k.startUtc === b.startUtc || (b.startUtc >= k.startUtc && b.endUtc <= k.endUtc))
+  );
+
   return json({
     doctor,
     rules,
     appointments: appts.map((a) => ({ ...a, patientName: patients.find((p) => p.id === a.patientId)?.name ?? a.patientId })),
     atRisk,
+    externalBusy,
   });
 }
