@@ -43,12 +43,12 @@ orchestration-level mirror. Defense in depth, not a relocation of the gate.
 The SQLite event queue stays the ingress (delayed events power the simulated
 reply timing):
 
-| Event | Effect |
-|---|---|
-| `doctor_emergency`, `patient_cancelled` | open the case, `startCase()` (runs to the first interrupt) |
-| `start_case` (daily sweep) | `startCase()` |
-| `resume_case` (final staff decision) | `resumeCase()` → gate falls through to execute |
-| `simulate_reply` / `patient_reply` | insert/read inbound, `handlePatientReply()`, then `resumeCase()` |
+| Event                                   | Effect                                                           |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| `doctor_emergency`, `patient_cancelled` | open the case, `startCase()` (runs to the first interrupt)       |
+| `start_case` (daily sweep)              | `startCase()`                                                    |
+| `resume_case` (final staff decision)    | `resumeCase()` → gate falls through to execute                   |
+| `simulate_reply` / `patient_reply`      | insert/read inbound, `handlePatientReply()`, then `resumeCase()` |
 
 `resumeCase()` no-ops when the thread has no pending interrupt, so late events
 against finished cases are harmless.
@@ -56,7 +56,7 @@ against finished cases are harmless.
 ## Agents on LangChain
 
 The per-agent Gemini function-calling loop now runs on
-`@langchain/google-genai` (`agents/runtime/gemini.ts`): domain tools plus a
+`@langchain/google` (`agents/runtime/gemini.ts`): domain tools plus a
 `submit_result` tool whose schema is the agent's Zod result schema; the result
 is validated with the same schema the deterministic fallback satisfies. Any
 live failure still degrades visibly to the fallback — the graph shape is

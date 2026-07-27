@@ -1,5 +1,5 @@
 /**
- * Live agent loop on LangChain's Gemini binding (@langchain/google-genai).
+ * Live agent loop using LangChain's unified Google binding.
  *
  * The model gets the agent's domain tools PLUS a `submit_result` tool whose
  * schema is the agent's Zod result schema. The loop runs tool calls until the
@@ -8,9 +8,15 @@
  * Any failure (network, quota, cap, schema-invalid) throws AgentFailure and
  * runAgent() degrades to the fallback.
  */
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGoogle } from "@langchain/google/node";
 import { tool } from "@langchain/core/tools";
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  ToolMessage,
+  type BaseMessage,
+} from "@langchain/core/messages";
 import { env, geminiModel } from "@/core/env";
 import { AgentFailure, type AgentCtx, type AgentDef } from "./types";
 
@@ -20,11 +26,19 @@ export async function runGeminiLoop<In, Out>(
   def: AgentDef<In, Out>,
   prompt: string,
   ctx: AgentCtx,
-  onToolEvent: (kind: "call" | "result" | "error", name: string, detail: string) => void
-): Promise<{ output: Out; stats: { steps: number; toolCalls: number; toolErrors: number } }> {
-  const model = new ChatGoogleGenerativeAI({
+  onToolEvent: (
+    kind: "call" | "result" | "error",
+    name: string,
+    detail: string,
+  ) => void,
+): Promise<{
+  output: Out;
+  stats: { steps: number; toolCalls: number; toolErrors: number };
+}> {
+  const model = new ChatGoogle({
     apiKey: env().GEMINI_API_KEY,
     model: geminiModel(),
+    platformType: "gcp",
     temperature: 0.2,
     maxRetries: 1,
   });
@@ -34,17 +48,20 @@ export async function runGeminiLoop<In, Out>(
       name: t.name,
       description: t.description,
       schema: t.schema as any,
-    })
+    }),
   );
   const submitTool = tool(async () => "ok", {
     name: SUBMIT,
-    description: "Submit your final answer in the required shape. Call exactly once, when done.",
+    description:
+      "Submit your final answer in the required shape. Call exactly once, when done.",
     schema: def.resultSchema as any,
   });
   const bound = model.bindTools([...domainTools, submitTool]);
 
   const messages: BaseMessage[] = [
-    new SystemMessage(`${def.system}\n\nWhen you have gathered what you need, call ${SUBMIT} with the final answer. Never answer in plain text.`),
+    new SystemMessage(
+      `${def.system}\n\nWhen you have gathered what you need, call ${SUBMIT} with the final answer. Never answer in plain text.`,
+    ),
     new HumanMessage(prompt),
   ];
 
@@ -59,7 +76,11 @@ export async function runGeminiLoop<In, Out>(
 
     if (calls.length === 0) {
       // Nudge once; plain-text answers are not accepted.
-      messages.push(new HumanMessage(`Call ${SUBMIT} with your final answer in the required schema.`));
+      messages.push(
+        new HumanMessage(
+          `Call ${SUBMIT} with your final answer in the required schema.`,
+        ),
+      );
       continue;
     }
 
@@ -68,31 +89,68 @@ export async function runGeminiLoop<In, Out>(
         const parsed = def.resultSchema.safeParse(call.args);
         if (parsed.success) return { output: parsed.data, stats };
         stats.toolErrors++;
-        onToolEvent("error", SUBMIT, parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ").slice(0, 200));
-        messages.push(new ToolMessage({ tool_call_id: call.id ?? SUBMIT, content: `Invalid result: ${parsed.error.message.slice(0, 400)}. Fix and resubmit.` }));
+        onToolEvent(
+          "error",
+          SUBMIT,
+          parsed.error.issues
+            .map((i) => `${i.path.join(".")}: ${i.message}`)
+            .join("; ")
+            .slice(0, 200),
+        );
+        messages.push(
+          new ToolMessage({
+            tool_call_id: call.id ?? SUBMIT,
+            content: `Invalid result: ${parsed.error.message.slice(0, 400)}. Fix and resubmit.`,
+          }),
+        );
         continue;
       }
       const t = def.tools.find((x) => x.name === call.name);
       stats.toolCalls++;
       if (!t) {
         stats.toolErrors++;
-        messages.push(new ToolMessage({ tool_call_id: call.id ?? call.name, content: `Unknown tool ${call.name}` }));
+        messages.push(
+          new ToolMessage({
+            tool_call_id: call.id ?? call.name,
+            content: `Unknown tool ${call.name}`,
+          }),
+        );
         continue;
       }
-      if (!t.quiet) onToolEvent("call", t.name, JSON.stringify(call.args).slice(0, 160));
+      if (!t.quiet)
+        onToolEvent("call", t.name, JSON.stringify(call.args).slice(0, 160));
       try {
         const checked = t.schema.safeParse(call.args);
-        if (!checked.success) throw new Error(checked.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+        if (!checked.success)
+          throw new Error(
+            checked.error.issues
+              .map((i) => `${i.path.join(".")}: ${i.message}`)
+              .join("; "),
+          );
         const result = await t.run(checked.data, ctx);
-        if (!t.quiet) onToolEvent("result", t.name, JSON.stringify(result).slice(0, 160));
-        messages.push(new ToolMessage({ tool_call_id: call.id ?? t.name, content: JSON.stringify(result).slice(0, 8000) }));
+        if (!t.quiet)
+          onToolEvent("result", t.name, JSON.stringify(result).slice(0, 160));
+        messages.push(
+          new ToolMessage({
+            tool_call_id: call.id ?? t.name,
+            content: JSON.stringify(result).slice(0, 8000),
+          }),
+        );
       } catch (e) {
         stats.toolErrors++;
         const msg = String((e as Error).message).slice(0, 200);
         onToolEvent("error", t.name, msg);
-        messages.push(new ToolMessage({ tool_call_id: call.id ?? t.name, content: `Tool error: ${msg}` }));
+        messages.push(
+          new ToolMessage({
+            tool_call_id: call.id ?? t.name,
+            content: `Tool error: ${msg}`,
+          }),
+        );
       }
     }
   }
-  throw new AgentFailure(`Gemini did not submit a valid result within ${maxSteps} steps`, "live");
+  throw new AgentFailure(
+    `Gemini did not submit a valid result within ${maxSteps} steps`,
+    "live",
+  );
 }

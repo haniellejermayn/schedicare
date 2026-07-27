@@ -13,7 +13,7 @@ loops back through planning on counter-proposals. All conditional edges route
 on DB state, so the database remains the single source of truth and
 `core/cases.ts` remains the hard staff-only gate. Deleted in the process: the
 LLM orchestrator agent, the hand-rolled router/sequencer, and the custom
-Gemini schema converter (agents now run on `@langchain/google-genai` with the
+Gemini schema converter (agents now run on `@langchain/google` with the
 same Zod contracts). Details: docs/LANGGRAPH.md.
 
 **Frontend** was rebuilt from scratch as a clean clinical-neutral, single-column
@@ -65,7 +65,7 @@ labeled degradation on any live failure; MCP transport stub with health check.
    search is independent, so two plans could choose the same slot; the executor
    would (correctly) veto the second. A deterministic post-pass now shifts
    lower-priority patients to their next open option and prunes alternates
-   claimed by others — applied to live *and* fallback output, with the shift
+   claimed by others — applied to live _and_ fallback output, with the shift
    surfaced as a `reorderReason`.
 3. **Confirmation sweep skips same-day appointments.** Emailing "please
    confirm" 2 hours before a visit is front-desk phone territory; the sweep
