@@ -1,8 +1,15 @@
 "use client";
 import { clsx } from "clsx";
-import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect, useRef } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type HTMLAttributes,
+  type ReactNode,
+  useEffect,
+  useRef,
+} from "react";
 import { fmtWhenManila } from "@/lib/format";
 import type { Tone } from "@/components/copy";
+import { createPortal } from "react-dom";
 
 export function cn(...args: Parameters<typeof clsx>) {
   return clsx(...args);
@@ -12,8 +19,15 @@ export function cn(...args: Parameters<typeof clsx>) {
 
 export function Logo({ size = 22 }: { size?: number }) {
   return (
-    <span aria-hidden className="inline-flex items-center justify-center rounded-[6px] bg-accent" style={{ width: size, height: size }}>
-      <span className="rounded-[2px] bg-white" style={{ width: size * 0.32, height: size * 0.32 }} />
+    <span
+      aria-hidden
+      className="inline-flex items-center justify-center rounded-[6px] bg-accent"
+      style={{ width: size, height: size }}
+    >
+      <span
+        className="rounded-[2px] bg-white"
+        style={{ width: size * 0.32, height: size * 0.32 }}
+      />
     </span>
   );
 }
@@ -26,9 +40,13 @@ export function Button({
   small = false,
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; small?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  small?: boolean;
+}) {
   const styles: Record<Variant, string> = {
-    primary: "bg-accent text-white hover:bg-[#1a44bd] border border-transparent",
+    primary:
+      "bg-accent text-white hover:bg-[#1a44bd] border border-transparent",
     secondary: "bg-white text-ink border border-line hover:border-[#c8cdd8]",
     quiet: "bg-transparent text-muted hover:text-ink border border-transparent",
     danger: "bg-bad text-white hover:brightness-95 border border-transparent",
@@ -40,7 +58,7 @@ export function Button({
         "inline-flex items-center justify-center gap-1.5 rounded-ctl font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none",
         small ? "px-3 py-1.5 text-[13px]" : "px-4 py-2 text-[14px]",
         styles[variant],
-        className
+        className,
       )}
       {...props}
     />
@@ -48,13 +66,23 @@ export function Button({
 }
 
 export function Spinner() {
-  return <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent align-middle" aria-label="loading" />;
+  return (
+    <span
+      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent align-middle"
+      aria-label="loading"
+    />
+  );
 }
 
 /* ------------------------------------------------------------------ cards */
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-card border border-line bg-white", className)} {...props} />;
+  return (
+    <div
+      className={cn("rounded-card border border-line bg-white", className)}
+      {...props}
+    />
+  );
 }
 
 /** Row with the 3px status rail — the list unit across the app. */
@@ -76,9 +104,10 @@ export function RailRow({
       className={cn(
         "animate-rise rounded-card border border-line border-l-[3px] bg-white",
         rail[tone],
-        interactive && "cursor-pointer transition-colors hover:border-[#c8cdd8] hover:border-l-[3px]",
+        interactive &&
+          "cursor-pointer transition-colors hover:border-[#c8cdd8] hover:border-l-[3px]",
         interactive && `hover:${rail[tone]}`,
-        className
+        className,
       )}
       {...props}
     />
@@ -94,10 +123,18 @@ const chipTone: Record<Tone, string> = {
   bad: "bg-bad-soft text-bad border-bad-line",
   neutral: "bg-paper text-muted border-line",
 };
-export function Chip({ tone = "neutral", className, ...props }: HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
+export function Chip({
+  tone = "neutral",
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
   return (
     <span
-      className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[12px] font-semibold", chipTone[tone], className)}
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[12px] font-semibold",
+        chipTone[tone],
+        className,
+      )}
       {...props}
     />
   );
@@ -105,11 +142,23 @@ export function Chip({ tone = "neutral", className, ...props }: HTMLAttributes<H
 
 /* ------------------------------------------ the signature: reschedule line */
 
-export function RescheduleLine({ fromLabel, toUtc, doctorName }: { fromLabel?: string | null; toUtc: string; doctorName?: string }) {
+export function RescheduleLine({
+  fromLabel,
+  toUtc,
+  doctorName,
+}: {
+  fromLabel?: string | null;
+  toUtc: string;
+  doctorName?: string;
+}) {
   return (
     <p className="tnum text-[14px] leading-6">
       {fromLabel && <s className="text-muted decoration-line">{fromLabel}</s>}
-      {fromLabel && <span className="mx-2 text-muted" aria-hidden>⟶</span>}
+      {fromLabel && (
+        <span className="mx-2 text-muted" aria-hidden>
+          ⟶
+        </span>
+      )}
       <b className="font-bold text-ink">{fmtWhenManila(toUtc)}</b>
       {doctorName && <span className="text-muted"> · {doctorName}</span>}
     </p>
@@ -140,12 +189,21 @@ export function Tabs<T extends string>({
             onClick={() => onChange(t.id)}
             className={cn(
               "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[14px] font-semibold",
-              value === t.id ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
+              value === t.id
+                ? "border-accent text-ink"
+                : "border-transparent text-muted hover:text-ink",
             )}
           >
             {t.label}
             {typeof t.count === "number" && t.count > 0 && (
-              <span className={cn("rounded-full px-1.5 text-[11px] font-bold", value === t.id ? "bg-accent-soft text-accent" : "bg-paper text-muted")}>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-[11px] font-bold",
+                  value === t.id
+                    ? "bg-accent-soft text-accent"
+                    : "bg-paper text-muted",
+                )}
+              >
                 {t.count}
               </span>
             )}
@@ -175,40 +233,95 @@ export function Modal({
   wide?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  // Always retain the latest callback without rerunning the modal-open effect.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+      }
+    };
+
     window.addEventListener("keydown", onKey);
-    panelRef.current?.focus();
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-ink/30" onClick={onClose} />
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  if (!open || typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] isolate flex items-end justify-center p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        aria-label="Close modal"
+        className="absolute inset-0 cursor-default bg-ink/40"
+        onClick={() => onCloseRef.current()}
+      />
+
       <div
         ref={panelRef}
         tabIndex={-1}
-        className={cn("relative w-full animate-pop rounded-card border border-line bg-white p-5 shadow-[0_20px_50px_rgba(16,24,40,0.18)] outline-none", wide ? "max-w-xl" : "max-w-md")}
+        className={cn(
+          "relative z-10 max-h-[calc(100vh-2rem)] w-full overflow-y-auto",
+          "animate-pop rounded-card border border-line bg-white p-5",
+          "shadow-[0_20px_50px_rgba(16,24,40,0.18)] outline-none",
+          wide ? "max-w-xl" : "max-w-md",
+        )}
       >
         <h3 className="text-[16px] font-bold text-ink">{title}</h3>
-        <div className="mt-3 text-[14px] leading-relaxed text-ink/90">{children}</div>
+
+        <div className="mt-3 text-[14px] leading-relaxed text-ink/90">
+          {children}
+        </div>
+
         {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 /* ------------------------------------------------------------------- misc */
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="rounded-card border border-dashed border-line bg-white/60 p-8 text-center text-[14px] text-muted">{children}</div>;
+  return (
+    <div className="rounded-card border border-dashed border-line bg-white/60 p-8 text-center text-[14px] text-muted">
+      {children}
+    </div>
+  );
 }
 
-export function PageTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
+export function PageTitle({
+  children,
+  right,
+}: {
+  children: ReactNode;
+  right?: ReactNode;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-[22px] font-bold tracking-tight text-ink">{children}</h1>
+      <h1 className="text-[22px] font-bold tracking-tight text-ink">
+        {children}
+      </h1>
       {right}
     </div>
   );
