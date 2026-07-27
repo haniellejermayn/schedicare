@@ -8,7 +8,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "worker": "tsx worker/index.ts",
+    "worker": "tsx watch worker/bootstrap.ts",
     "demo": "tsx scripts/demo.ts",
     "demo:reset": "tsx scripts/reset.ts",
     "demo:cascade": "tsx scripts/cascade.ts",
