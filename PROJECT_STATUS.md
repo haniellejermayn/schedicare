@@ -4,6 +4,14 @@ Status date: build verified against `npm test` (41/41), `npm run eval`
 (all targets met), `npm run build` (clean), and `scripts/headless-verify.sh`
 (19/19 checks against the production server + worker).
 
+## Final capstone polish
+
+- The Messages tab keeps one operational case while grouping messages by patient. Outbound and inbound messages stay chronological, patients with no email still appear, and common Gmail/Outlook quoted history is hidden from the normal UI while the raw inbound body remains stored.
+- Patient outcome cards support **Mark called**, **Mark handled**, and **Release hold** using existing recommendation outcomes, callback flags, Calendar deletion, timeline, and audit records.
+- Front desk staff can create a patient with name/email and optional phone, then create a confirmed appointment from existing doctors, appointment types, and validator-approved slots. The booking uses the doctor rule duration and existing live/simulated Calendar provider factory.
+- The Doctor view follows the demo clock, labels SchediCare `booked` appointments as **Temporary hold**, and shows whole-day unavailability with existing external Calendar busy blocks.
+- Duplicate-slot protection required no scheduling change: booked and confirmed appointments, selected-slot deduplication, live busy intervals, and executor revalidation remain authoritative.
+
 ## v2 — LangGraph orchestration + front-desk redesign
 
 **Orchestration** now runs on LangGraph (TypeScript, same repo): each case is a

@@ -24,42 +24,7 @@ import {
   updateCalendarEvent,
 } from "./executor";
 import type { ReplyInterpretation } from "@/core/types";
-
-function latestReplyOnly(raw: string): string {
-  const text = raw.replace(/\r\n/g, "\n").trim();
-
-  const quotedMarkers = [
-    // Normal Gmail text reply
-    /\nOn [^\n]{1,500}?wrote:\s*\n/i,
-
-    // Gmail may place the quote marker on the same line
-    /\sOn [^\n]{1,500}?wrote:\s*(?=>)/i,
-
-    // Outlook-style forwarding/replies
-    /\n-{2,}\s*Original Message\s*-{2,}\s*\n/i,
-
-    // Header-style quoted block
-    /\nFrom:\s.+\nSent:\s.+\nTo:\s.+\nSubject:\s.+/i,
-  ];
-
-  let cutAt = text.length;
-
-  for (const marker of quotedMarkers) {
-    const match = marker.exec(text);
-    if (match && match.index < cutAt) {
-      cutAt = match.index;
-    }
-  }
-
-  const latest = text
-    .slice(0, cutAt)
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith(">"))
-    .join("\n")
-    .trim();
-
-  return latest || text.slice(0, 1000);
-}
+import { latestReplyOnly } from "@/core/messages";
 
 export async function handlePatientReply(
   messageId: string,

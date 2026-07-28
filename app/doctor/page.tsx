@@ -3,10 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { usePoll } from "@/lib/usePoll";
 import { jfetch, fmtTimeManila, typeLabel } from "@/lib/format";
 import { Button, Card, Chip, Empty, Modal, PageTitle, RailRow, Spinner, Tabs, cn } from "@/components/ui";
-import { APPT_STATUS } from "@/components/copy";
+import { appointmentStatus } from "@/components/copy";
 import { WeekCalendar } from "@/components/WeekCalendar";
 
-const DEMO_DAY = "2026-08-10";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 type Tab = "today" | "week" | "rules";
 
@@ -46,6 +45,7 @@ export default function DoctorPage() {
 
   const doctor = data?.doctor;
   const rules = data?.rules;
+  const demoDay = data?.demoToday ?? "";
   useEffect(() => {
     setRulesDraft(null);
     setRulesMsg(null);
@@ -53,7 +53,7 @@ export default function DoctorPage() {
   }, [doctorId]);
 
   const appts = data?.appointments ?? [];
-  const today = appts.filter((a: any) => manilaDay(a.startUtc) === DEMO_DAY);
+  const today = appts.filter((a: any) => manilaDay(a.startUtc) === demoDay);
   const activeToday = today.filter((a: any) => ["booked", "confirmed"].includes(a.status));
   const riskById = useMemo(() => {
     const m: Record<string, any> = {};
@@ -62,21 +62,22 @@ export default function DoctorPage() {
   }, [data]);
   const week = useMemo(() => {
     const days: Record<string, any[]> = {};
+    if (!demoDay) return days;
     for (let i = 0; i < 6; i++) {
-      const d = new Date(`${DEMO_DAY}T00:00:00+08:00`);
+      const d = new Date(`${demoDay}T00:00:00+08:00`);
       d.setDate(d.getDate() + i);
       const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(d);
       days[key] = appts.filter((a: any) => manilaDay(a.startUtc) === key && !["superseded"].includes(a.status));
     }
     return days;
-  }, [appts]);
+  }, [appts, demoDay]);
 
-  const isUnavailableToday = (doctor?.unavailableDates ?? []).includes(DEMO_DAY);
+  const isUnavailableToday = (doctor?.unavailableDates ?? []).includes(demoDay);
 
   async function markUnavailable() {
     setBusy(true);
     try {
-      const res = await jfetch<any>(`/api/doctor/${doctorId}/unavailable`, { method: "POST", body: JSON.stringify({ date: DEMO_DAY, reason }) });
+      const res = await jfetch<any>(`/api/doctor/${doctorId}/unavailable`, { method: "POST", body: JSON.stringify({ date: demoDay, reason }) });
       setEmergencyOpen(false);
       setDone(`Told the front desk. ${res.affected} patient${res.affected === 1 ? "" : "s"} today will get new suggestions to review.`);
       refresh();
@@ -157,7 +158,7 @@ export default function DoctorPage() {
           )}
           {today.length === 0 && <Empty>No visits scheduled today.</Empty>}
           {today.map((a: any) => {
-            const st = APPT_STATUS[a.status] ?? { label: a.status, tone: "neutral" as const };
+            const st = appointmentStatus(a);
             const risk = riskById[a.id];
             return (
               <RailRow key={a.id} tone={a.status === "confirmed" ? "ok" : a.status === "booked" ? "warn" : "neutral"} className="flex items-center gap-3 px-4 py-2.5">
@@ -175,7 +176,16 @@ export default function DoctorPage() {
         </div>
       )}
 
-      {tab === "week" && <WeekCalendar week={week} riskById={riskById} today={DEMO_DAY} rules={rules} externalBusy={data?.externalBusy ?? []} />}
+      {tab === "week" && (
+        <WeekCalendar
+          week={week}
+          riskById={riskById}
+          today={demoDay}
+          rules={rules}
+          externalBusy={data?.externalBusy ?? []}
+          unavailableDates={doctor?.unavailableDates ?? []}
+        />
+      )}
 
       {tab === "rules" && (
         <Card className="p-4">

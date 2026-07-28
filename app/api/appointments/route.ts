@@ -8,11 +8,10 @@ import { pickCalendarProvider, markCalendarHealthy, markCalendarUnhealthy } from
 import { SimulatedCalendarProvider } from "@/integrations/calendar/simulated";
 import { getDoctor, getPatient } from "@/agents/tools";
 import { addMinutes } from "date-fns";
+import { getRules } from "@/core/rules";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const DUR: Record<string, number> = { routine: 30, follow_up: 20, urgent: 30 };
 
 export async function GET(req: Request) {
   boot();
@@ -41,13 +40,25 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   boot();
-  const b = await body<{ patientId: string; doctorId: string; type: "routine" | "follow_up" | "urgent"; startUtc: string }>(req);
+  const b = await body<{
+    patientId: string;
+    doctorId: string;
+    type: "routine" | "follow_up" | "urgent";
+    startUtc: string;
+    bookedBy?: "patient" | "staff";
+  }>(req);
   if (!b.patientId || !b.doctorId || !b.type || !b.startUtc) return err("patientId, doctorId, type, startUtc are required");
+  if (!["routine", "follow_up", "urgent"].includes(b.type)) return err("unknown appointment type");
+  if (!db.select().from(schema.patients).where(eq(schema.patients.id, b.patientId)).get()) return err("patient not found", 404);
+  if (!db.select().from(schema.doctors).where(eq(schema.doctors.id, b.doctorId)).get()) return err("doctor not found", 404);
 
   const check = await validatePlacementNow({ doctorId: b.doctorId, type: b.type, startUtc: b.startUtc });
   if (!check.ok) return err(`That slot is no longer available: ${check.reason}`, 409);
 
-  const endUtc = addMinutes(new Date(b.startUtc), DUR[b.type]).toISOString();
+  const bookedBy = b.bookedBy === "staff" ? "staff" : "patient";
+  const durationMin = getRules(b.doctorId).durationMin[b.type];
+  if (!durationMin) return err(`doctor has no duration configured for ${b.type}`, 409);
+  const endUtc = addMinutes(new Date(b.startUtc), durationMin).toISOString();
   const appt = db
     .insert(schema.appointments)
     .values({
@@ -57,9 +68,9 @@ export async function POST(req: Request) {
       type: b.type,
       startUtc: b.startUtc,
       endUtc,
-      status: "confirmed", // self-booked patients confirm by booking
+      status: "confirmed",
       bookedAt: demoNowIso(),
-      source: "patient_app",
+      source: bookedBy === "staff" ? "front_desk" : "patient_app",
       createdAt: demoNowIso(),
     })
     .returning()
@@ -67,14 +78,15 @@ export async function POST(req: Request) {
 
   const doctor = getDoctor(b.doctorId);
   const patient = getPatient(b.patientId);
+  const sourceLabel = bookedBy === "staff" ? "front desk" : "patient app";
   let calendarLabel = "not written";
   if (doctor.calendarId) {
     const pick = pickCalendarProvider();
     try {
       const ev = await pick.provider.createEvent({
         calendarId: doctor.calendarId,
-        summary: `${patient.name} — ${b.type.replace("_", " ")} (patient booking)`,
-        description: `Booked via SchediCare patient app.`,
+        summary: `${patient.name} — ${b.type.replace("_", " ")} (${sourceLabel})`,
+        description: `Booked via SchediCare ${sourceLabel}.`,
         startUtc: b.startUtc,
         endUtc,
       });
@@ -86,8 +98,8 @@ export async function POST(req: Request) {
         markCalendarUnhealthy(e);
         const ev = await new SimulatedCalendarProvider().createEvent({
           calendarId: doctor.calendarId,
-          summary: `${patient.name} — ${b.type.replace("_", " ")} (patient booking)`,
-          description: "Booked via SchediCare patient app (fallback).",
+          summary: `${patient.name} — ${b.type.replace("_", " ")} (${sourceLabel})`,
+          description: `Booked via SchediCare ${sourceLabel} (fallback).`,
           startUtc: b.startUtc,
           endUtc,
         });
@@ -98,11 +110,11 @@ export async function POST(req: Request) {
   }
 
   audit({
-    actor: "patient",
+    actor: bookedBy,
     action: "appointment.booked",
     refType: "appointment",
     refId: appt.id,
-    detail: { doctorId: b.doctorId, startUtc: b.startUtc, type: b.type, calendar: calendarLabel },
+    detail: { doctorId: b.doctorId, startUtc: b.startUtc, type: b.type, source: appt.source, calendar: calendarLabel },
   });
   return json({ appointment: appt, calendar: calendarLabel, when: fmtWhen(appt.startUtc) });
 }

@@ -57,7 +57,17 @@ Within seconds the feed shows replies: four accepts flip appointments to
 **Confirmed**. Then Miguel: *"Anything after 4 PM?"* → intent
 `counter_proposal`, constraint `after 16:00` → a **replan for one patient**
 appears, all options after 4 PM. **Approve** → offer goes out → he accepts →
-**Case resolved.**
+the automated items are settled.
+
+Open **Messages** and point out that this is still one doctor-emergency case,
+but each patient has a separate chronological conversation. If a real Gmail
+reply includes the prior email underneath, only the patient's newest text is
+shown; the original raw reply remains stored for debugging.
+
+For Grace's rejected item, use **Mark called** or **Mark handled** after the
+front desk follows up. For an unanswered offer with a temporary appointment,
+use **Release hold** to remove its `[HOLD]` Calendar event and close that patient
+item. The case moves to **Done** when no patient item remains outstanding.
 
 Close on the summary line: **6 patients → 5 confirmed, 1 to call, 130 care
 minutes saved** — then the case's Activity tab for the full replay and
@@ -68,10 +78,20 @@ minutes saved** — then the case's Activity tab for the full replay and
 - **Patient tab:** book a slot live (only rule-valid times are offered);
   cancel Maria's Wednesday visit → a waitlist-backfill case opens → approve →
   Nica gets the offer and accepts.
+- **Front desk:** press **New appointment**, add a patient with name/email
+  (phone optional), select a doctor and visit type, then choose one of the
+  validator-approved times. The confirmed appointment is written through the
+  mapped Google Calendar or simulated fallback.
 - **Paolo / Dennis cases:** approve the reminder and the check-in — Paolo
-  confirms, Dennis stays silent (the honest outcome).
+  confirms, Dennis stays silent; record **Mark called** or **Mark handled**
+  after manual follow-up.
 - **Doctor → Rules tab:** tighten Reyes's PM cap; re-run a search and the
   system obeys immediately.
+
+On the Doctor week view, point out **Temporary hold** versus **Confirmed**,
+whole-day unavailability, and external Calendar busy blocks. The same workflow
+works with Gemini or `AI_PROVIDER=fallback`; deterministic validation remains
+authoritative in both.
 
 ## Failure drills (rehearse once)
 

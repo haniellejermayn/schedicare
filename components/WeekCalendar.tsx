@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { usePoll } from "@/lib/usePoll";
 import { fmtTimeManila, typeLabel } from "@/lib/format";
 import { Card, Chip, Modal, RescheduleLine, cn } from "@/components/ui";
-import { APPT_STATUS } from "@/components/copy";
+import { APPT_STATUS, appointmentStatus } from "@/components/copy";
 
 /**
  * Weekly time-grid calendar for the Doctor page. Replaces the flat per-day
@@ -109,6 +109,7 @@ export function WeekCalendar({
   today,
   rules,
   externalBusy = [],
+  unavailableDates = [],
 }: {
   /** dayKey (yyyy-MM-dd, Manila) -> active appointments for that day. */
   week: Record<string, any[]>;
@@ -119,6 +120,8 @@ export function WeekCalendar({
   rules?: RuleWindows | null;
   /** Flat list of external-calendar busy intervals (no titles by design — see file header). */
   externalBusy?: BusyInterval[];
+  /** Clinic-local dates the doctor has marked unavailable. */
+  unavailableDates?: string[];
 }) {
   const { data: status } = usePoll<any>("/api/status", 30000);
   const [selected, setSelected] = useState<any | null>(null);
@@ -144,6 +147,10 @@ export function WeekCalendar({
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-[3px] border border-dashed border-muted bg-paper" />
           Busy elsewhere (external calendar)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-[3px] bg-bad-soft ring-1 ring-bad-line" />
+          Doctor unavailable
         </span>
         <span className="text-muted/70">F/R/U = Follow-up / Routine / Urgent</span>
       </div>
@@ -181,6 +188,7 @@ export function WeekCalendar({
             const laned = packLanes(week[day] ?? []);
             const busy = busyByDay[day] ?? [];
             const isToday = day === today;
+            const unavailable = unavailableDates.includes(day);
             return (
               <div
                 key={day}
@@ -190,6 +198,13 @@ export function WeekCalendar({
                   backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PX_PER_HOUR - 1}px, #E4E7EC ${PX_PER_HOUR - 1}px, #E4E7EC ${PX_PER_HOUR}px)`,
                 }}
               >
+                {unavailable && (
+                  <div className="pointer-events-none absolute inset-0 z-[4] flex items-start justify-center bg-bad-soft/70 pt-2">
+                    <span className="rounded-full border border-bad-line bg-white/90 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-bad">
+                      Unavailable
+                    </span>
+                  </div>
+                )}
                 {/* External calendar busy blocks — behind everything, non-interactive, no fabricated titles */}
                 {busy.map((b, i) => {
                   const top = Math.max(0, (manilaHourFraction(b.startUtc) - HOUR_START) * PX_PER_HOUR);
@@ -214,7 +229,7 @@ export function WeekCalendar({
                   </div>
                 )}
                 {laned.map(({ appt: a, lane, laneCount }) => {
-                  const st = APPT_STATUS[a.status] ?? { label: a.status, tone: "neutral" as const };
+                  const st = appointmentStatus(a);
                   const top = (manilaHourFraction(a.startUtc) - HOUR_START) * PX_PER_HOUR;
                   const height = Math.max(18, (durationMin(a) / 60) * PX_PER_HOUR - 2);
                   const risky = riskById[a.id] && riskById[a.id].band !== "low";
@@ -264,8 +279,8 @@ export function WeekCalendar({
             <RescheduleLine toUtc={selected.startUtc} />
             <div className="flex flex-wrap items-center gap-2">
               <Chip tone="neutral">{typeLabel(selected.type)}</Chip>
-              <Chip tone={(APPT_STATUS[selected.status] ?? { tone: "neutral" as const }).tone}>
-                {(APPT_STATUS[selected.status] ?? { label: selected.status }).label}
+              <Chip tone={appointmentStatus(selected).tone}>
+                {appointmentStatus(selected).label}
               </Chip>
               {riskById[selected.id] && riskById[selected.id].band !== "low" && <Chip tone="warn">May not show</Chip>}
             </div>

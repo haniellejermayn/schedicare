@@ -87,7 +87,7 @@ export class GmailProvider implements MailProvider {
           providerMessageId: msg.id,
           threadId,
           from,
-          body: decodeBody(msg.payload).slice(0, 4000),
+          body: decodeBody(msg.payload),
           receivedAt: msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString(),
         });
       }

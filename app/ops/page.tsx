@@ -2,8 +2,9 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePoll } from "@/lib/usePoll";
-import { Chip, Empty, PageTitle, RailRow, Tabs } from "@/components/ui";
+import { Button, Chip, Empty, PageTitle, RailRow, Tabs } from "@/components/ui";
 import { CASE_STATE } from "@/components/copy";
+import { ManualAppointmentModal } from "@/components/ManualAppointmentModal";
 
 type Filter = "review" | "working" | "done";
 
@@ -30,6 +31,8 @@ export default function FrontDeskPage() {
   const { data } = usePoll<any>("/api/cases", 2500);
   const { data: status } = usePoll<any>("/api/status", 5000);
   const [filter, setFilter] = useState<Filter>("review");
+  const [appointmentOpen, setAppointmentOpen] = useState(false);
+  const [appointmentMessage, setAppointmentMessage] = useState<string | null>(null);
 
   const cases = data?.cases ?? [];
   const buckets = useMemo(() => {
@@ -45,15 +48,24 @@ export default function FrontDeskPage() {
     <div className="space-y-5">
       <PageTitle
         right={
-          status && (
-            <span className="tnum text-[13px] text-muted">
-              {new Date(status.demoNow).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone: "Asia/Manila" })}
-            </span>
-          )
+          <div className="flex items-center gap-3">
+            {status && (
+              <span className="tnum text-[13px] text-muted">
+                {new Date(status.demoNow).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone: "Asia/Manila" })}
+              </span>
+            )}
+            <Button onClick={() => setAppointmentOpen(true)}>New appointment</Button>
+          </div>
         }
       >
         Front desk
       </PageTitle>
+
+      {appointmentMessage && (
+        <p className="rounded-ctl border border-ok-line bg-ok-soft px-3 py-2 text-[13px] font-semibold text-ok">
+          {appointmentMessage}
+        </p>
+      )}
 
       <Tabs<Filter>
         value={filter}
@@ -100,6 +112,11 @@ export default function FrontDeskPage() {
       </div>
 
       <p className="pt-2 text-center text-[12px] text-muted">Nothing is sent or booked without your approval.</p>
+      <ManualAppointmentModal
+        open={appointmentOpen}
+        onClose={() => setAppointmentOpen(false)}
+        onCreated={setAppointmentMessage}
+      />
     </div>
   );
 }

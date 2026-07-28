@@ -2,7 +2,7 @@ import { boot, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { addDays } from "date-fns";
-import { demoNow } from "@/core/clock";
+import { demoNow, demoToday } from "@/core/clock";
 import { getRules } from "@/core/rules";
 import { scoreNoShowRisk } from "@/core/risk";
 import { patientHistory } from "@/agents/tools";
@@ -55,6 +55,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   return json({
     doctor,
+    demoToday: demoToday(),
     rules,
     appointments: appts.map((a) => ({ ...a, patientName: patients.find((p) => p.id === a.patientId)?.name ?? a.patientId })),
     atRisk,

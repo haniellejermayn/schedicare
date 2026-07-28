@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, schema } from "./db/client";
 import { demoNowIso } from "./clock";
 import { timeline } from "./timeline";
@@ -116,22 +116,33 @@ export function pendingRecommendationCounts(caseId: string) {
  */
 export function maybeResolveCase(caseId: string, actor = "orchestrator"): boolean {
   const c = getCase(caseId);
-  if (c.state !== "resolving") return false;
+  if (c.state !== "resolving" && c.state !== "escalated") return false;
   const counts = pendingRecommendationCounts(caseId);
   if (counts.proposed > 0 || counts.approvedUnexecuted > 0) return false;
-  const awaitingReply = db
-    .select({ id: schema.recommendations.id })
+  const recommendations = db
+    .select()
     .from(schema.recommendations)
-    .where(
-      and(
-        eq(schema.recommendations.caseId, caseId),
-        eq(schema.recommendations.status, "executed"),
-        inArray(schema.recommendations.kind, ["reschedule", "waitlist_fill"]),
-        eq(schema.recommendations.outcome, "pending")
-      )
-    )
+    .where(eq(schema.recommendations.caseId, caseId))
     .all();
-  if (awaitingReply.length > 0) return false;
+  const terminalManual = new Set(["called", "handled", "released"]);
+  const awaitingPatientOrStaff = recommendations.some((r) => {
+    if (r.outcome && terminalManual.has(r.outcome)) return false;
+    if (r.status === "rejected" || r.status === "failed") return true;
+    if (r.outcome === "needs_human" || r.outcome === "declined") return true;
+    return r.status === "executed" && (r.outcome === "pending" || r.outcome === "sent");
+  });
+  if (awaitingPatientOrStaff) return false;
+  const heldAppointmentIds = recommendations
+    .map((r) => (r.payload as any)?.createdAppointmentId as string | undefined)
+    .filter((id): id is string => !!id);
+  if (
+    heldAppointmentIds.some(
+      (id) =>
+        db.select().from(schema.appointments).where(eq(schema.appointments.id, id)).get()?.status === "booked",
+    )
+  ) {
+    return false;
+  }
   transitionCase(caseId, "resolved", actor, "All items handled — recoveries executed and patient replies accounted for.");
   return true;
 }

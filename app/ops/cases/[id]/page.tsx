@@ -29,11 +29,13 @@ export default function CasePage() {
   const [tab, setTab] = useState<Tab>("activity");
   const [tech, setTech] = useState(false);
   const [busyAll, setBusyAll] = useState(false);
+  const [busyPatient, setBusyPatient] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
 
   const c = data?.case;
   const recs = data?.recommendations ?? [];
   const messages = data?.messages ?? [];
+  const conversations = data?.conversations ?? [];
   const proposed = recs.filter((r: any) => r.status === "proposed");
   const decidedSubstantive = recs.filter((r: any) => r.status !== "proposed" && r.outcome !== "superseded");
 
@@ -56,6 +58,18 @@ export default function CasePage() {
     setResolveOpen(false);
     refresh();
   }
+  async function patientAction(patientId: string, action: "mark_called" | "mark_handled" | "release_hold") {
+    setBusyPatient(`${patientId}:${action}`);
+    try {
+      await jfetch(`/api/cases/${c.id}/patients/${patientId}/actions`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+      refresh();
+    } finally {
+      setBusyPatient(null);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -75,9 +89,11 @@ export default function CasePage() {
       {c.state === "escalated" && (
         <RailRow tone="bad" className="flex items-center gap-3 px-4 py-3">
           <p className="text-[14px] font-semibold text-ink">This one needs a person — the system stopped on purpose.</p>
-          <Button variant="secondary" small className="ml-auto" onClick={() => setResolveOpen(true)}>
-            Mark handled
-          </Button>
+          {conversations.length === 0 && (
+            <Button variant="secondary" small className="ml-auto" onClick={() => setResolveOpen(true)}>
+              Mark handled
+            </Button>
+          )}
         </RailRow>
       )}
 
@@ -106,8 +122,11 @@ export default function CasePage() {
             const p = r.payload ?? {};
             const oc = outcomeLabel(r);
             const to = (p.options ?? []).find((o: any) => o.id === (p.executedOptionId ?? p.modifiedOptionId ?? p.chosenOptionId));
+            const conversation = conversations.find((x: any) => x.patientId === r.patientId);
+            const actions = conversation?.currentRecommendationId === r.id ? conversation.actions : null;
             return (
-              <RailRow key={r.id} tone={oc.tone} className="flex items-center gap-3 px-4 py-2.5">
+              <RailRow key={r.id} tone={oc.tone} className="px-4 py-2.5">
+                <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-[14px] font-semibold text-ink">{p.patientName}</p>
                   {r.kind === "reschedule" && to ? (
@@ -117,6 +136,26 @@ export default function CasePage() {
                   )}
                 </div>
                 <Chip tone={oc.tone}>{oc.label}</Chip>
+                </div>
+                {actions && (actions.markCalled || actions.markHandled || actions.releaseHold) && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {actions.markCalled && (
+                      <Button variant="secondary" small disabled={!!busyPatient} onClick={() => patientAction(r.patientId, "mark_called")}>
+                        {busyPatient === `${r.patientId}:mark_called` ? <Spinner /> : "Mark called"}
+                      </Button>
+                    )}
+                    {actions.markHandled && (
+                      <Button variant="secondary" small disabled={!!busyPatient} onClick={() => patientAction(r.patientId, "mark_handled")}>
+                        {busyPatient === `${r.patientId}:mark_handled` ? <Spinner /> : "Mark handled"}
+                      </Button>
+                    )}
+                    {actions.releaseHold && (
+                      <Button variant="danger" small disabled={!!busyPatient} onClick={() => patientAction(r.patientId, "release_hold")}>
+                        {busyPatient === `${r.patientId}:release_hold` ? <Spinner /> : "Release hold"}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </RailRow>
             );
           })}
@@ -166,19 +205,38 @@ export default function CasePage() {
         )}
 
         {tab === "messages" && (
-          <div className="mt-3 space-y-2">
-            {messages.length === 0 && <Empty>No messages yet.</Empty>}
-            {messages.map((m: any) => (
-              <div key={m.id} className={cn("max-w-[92%] rounded-card border p-3", m.direction === "inbound" ? "border-line bg-white" : "ml-auto border-accent-line bg-accent-soft/60")}>
-                <div className="flex items-center gap-2 text-[12px] text-muted">
-                  <b className="text-ink/80">{m.direction === "inbound" ? "Patient" : "Clinic"}</b>
-                  {m.status === "draft_created" && <Chip tone="warn">Draft — not sent</Chip>}
-                  <span className="tnum ml-auto">{fmtWhenManila(m.createdAt)}</span>
-                </div>
-                {m.subject && <p className="mt-1 text-[13px] font-bold text-ink">{m.subject}</p>}
-                <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">{m.body}</p>
-              </div>
-            ))}
+          <div className="mt-3 space-y-4">
+            {conversations.length === 0 && <Empty>No patient conversations yet.</Empty>}
+            {conversations.map((conversation: any) => {
+              const latestRec = conversation.recommendations.at(-1);
+              const oc = latestRec ? outcomeLabel(latestRec) : null;
+              return (
+                <section key={conversation.patientId} className="rounded-card border border-line bg-paper p-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[14px] font-bold text-ink">{conversation.patientName}</h3>
+                    {oc && <Chip tone={oc.tone}>{oc.label}</Chip>}
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {conversation.messages.length === 0 && (
+                      <p className="text-[13px] text-muted">No email sent for this patient.</p>
+                    )}
+                    {conversation.messages.map((m: any) => (
+                      <div key={m.id} className={cn("max-w-[92%] rounded-card border p-3", m.direction === "inbound" ? "border-line bg-white" : "ml-auto border-accent-line bg-accent-soft/60")}>
+                        <div className="flex items-center gap-2 text-[12px] text-muted">
+                          <b className="text-ink/80">{m.direction === "inbound" ? "Patient" : "Clinic"}</b>
+                          {m.status === "draft_created" && <Chip tone="warn">Draft — not sent</Chip>}
+                          <span className="tnum ml-auto">{fmtWhenManila(m.createdAt)}</span>
+                        </div>
+                        {m.subject && <p className="mt-1 text-[13px] font-bold text-ink">{m.subject}</p>}
+                        <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">
+                          {m.body || "No new text above the quoted history."}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
       </section>
