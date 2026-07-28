@@ -19,7 +19,7 @@ function ModeDot() {
       className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-muted"
       title={
         live
-          ? "Connected to Google — real calendar events and email drafts."
+          ? "Connected to Google — approved recommendations reserve slots and send reviewed messages."
           : `Demo mode — nothing external is touched. ${data.reasons?.length ? data.reasons.join("; ") : ""}`
       }
     >

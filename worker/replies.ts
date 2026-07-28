@@ -17,8 +17,12 @@ import {
   updateCaseMeta,
 } from "@/core/cases";
 import { guardReply, runCommsInterpret } from "@/agents/comms";
-import { getPatient } from "@/agents/tools";
+import { getDoctor, getPatient } from "@/agents/tools";
 import { replanSingle } from "./steps";
+import {
+  deleteCalendarEvent,
+  updateCalendarEvent,
+} from "./executor";
 import type { ReplyInterpretation } from "@/core/types";
 
 function latestReplyOnly(raw: string): string {
@@ -170,15 +174,42 @@ async function route(
     case "confirm":
     case "accept_offer": {
       if (targetApptId) {
-        db.update(schema.appointments)
-          .set({ status: "confirmed" })
-          .where(eq(schema.appointments.id, targetApptId))
-          .run();
         const appt = db
           .select()
           .from(schema.appointments)
           .where(eq(schema.appointments.id, targetApptId))
           .get();
+        if (appt && !["booked", "confirmed"].includes(appt.status)) {
+          db.update(schema.recommendations)
+            .set({ outcome: "needs_human" })
+            .where(eq(schema.recommendations.id, rec.id))
+            .run();
+          timeline(
+            caseId,
+            "orchestrator",
+            "escalation",
+            `${patientName} accepted after the hold was released — staff follow-up needed`,
+            "The slot must be checked again before confirming.",
+            { appointmentId: targetApptId, recommendationId: rec.id },
+          );
+          break;
+        }
+        db.update(schema.appointments)
+          .set({ status: "confirmed" })
+          .where(eq(schema.appointments.id, targetApptId))
+          .run();
+        if (appt?.calendarEventId) {
+          const doctor = getDoctor(appt.doctorId);
+          await updateCalendarEvent(
+            caseId,
+            doctor.calendarId,
+            appt.calendarEventId,
+            {
+              summary: `${patientName} — ${String(appt.type).replace("_", " ")}`,
+              description: `Confirmed by patient through SchediCare. Case ${caseId}.`,
+            },
+          );
+        }
         if (rec.kind === "waitlist_fill") {
           db.update(schema.waitlist)
             .set({ status: "scheduled" })
@@ -219,10 +250,23 @@ async function route(
         .where(eq(schema.recommendations.id, rec.id))
         .run();
       if (targetApptId) {
+        const appt = db
+          .select()
+          .from(schema.appointments)
+          .where(eq(schema.appointments.id, targetApptId))
+          .get();
         db.update(schema.appointments)
           .set({ status: "cancelled_by_patient", needsCallback: true })
           .where(eq(schema.appointments.id, targetApptId))
           .run();
+        if (appt) {
+          await deleteCalendarEvent(
+            caseId,
+            getDoctor(appt.doctorId).calendarId,
+            appt.calendarEventId,
+            "Patient declined or cancelled the offered time.",
+          );
+        }
         if (rec.kind === "waitlist_fill") {
           db.update(schema.waitlist)
             .set({ status: "waiting" })

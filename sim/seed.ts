@@ -33,7 +33,9 @@ function day(offsetFromDemoDay: number): string {
 function email(key: string): string {
   const base = env().DEMO_PATIENT_EMAIL;
   if (base && base.includes("@")) {
-    const [user, domain] = base.split("@");
+    const at = base.lastIndexOf("@");
+    const user = base.slice(0, at);
+    const domain = base.slice(at + 1);
     return `${user}+${key}@${domain}`;
   }
   return `${key}@riverside-demo.example`;
@@ -71,6 +73,32 @@ const FILLER_NAMES = [
   "Gio Dizon", "Hannah Pascual", "Ivan Robles", "Jasmine Uy", "Kiko Fernandez", "Lea Marasigan",
   "Marco Lim", "Nina Padilla", "Oscar Trinidad", "Pia Salcedo", "Quintin Ferrer", "Rhea Manalo",
 ];
+
+function patientSeeds(): PatientSeed[] {
+  return [
+    ...NAMED,
+    ...FILLER_NAMES.map((name, i) => ({
+      id: `pat_f${String(i + 1).padStart(2, "0")}`,
+      key: name.toLowerCase().replace(/[^a-z]+/g, "."),
+      name,
+      prefDayPart: (["am", "pm", "any"] as const)[i % 3],
+    })),
+  ];
+}
+
+/** Refresh seeded patient aliases without resetting appointments or integration state. */
+export function syncSeededPatientEmails(): number {
+  let updated = 0;
+  for (const patient of patientSeeds()) {
+    const result = db
+      .update(schema.patients)
+      .set({ email: email(patient.key) })
+      .where(eq(schema.patients.id, patient.id))
+      .run();
+    updated += result.changes;
+  }
+  return updated;
+}
 
 export interface SeedSummary {
   patients: number;
@@ -122,15 +150,7 @@ export function seed(): SeedSummary {
     { doctorId: REYES, rules: REYES_RULES as any, updatedAt: now },
   ]).run();
 
-  const patients: PatientSeed[] = [
-    ...NAMED,
-    ...FILLER_NAMES.map((name, i) => ({
-      id: `pat_f${String(i + 1).padStart(2, "0")}`,
-      key: name.toLowerCase().replace(/[^a-z]+/g, "."),
-      name,
-      prefDayPart: (["am", "pm", "any"] as const)[i % 3],
-    })),
-  ];
+  const patients = patientSeeds();
   db.insert(schema.patients)
     .values(
       patients.map((p) => ({

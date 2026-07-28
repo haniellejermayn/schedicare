@@ -31,7 +31,7 @@ const calLabel = (live: boolean) =>
   live ? "Google Calendar" : "Simulated calendar";
 const mailLabel = (live: boolean) => (live ? "Gmail" : "Simulated mail");
 
-async function deleteCalendarEvent(
+export async function deleteCalendarEvent(
   caseId: string,
   calendarId: string | null,
   eventId: string | null,
@@ -97,6 +97,38 @@ async function deleteCalendarEvent(
         String((e as Error).message).slice(0, 160),
       );
     }
+  }
+}
+
+export async function updateCalendarEvent(
+  caseId: string,
+  calendarId: string | null,
+  eventId: string | null,
+  patch: { summary: string; description: string },
+) {
+  if (!calendarId || !eventId) return;
+  const pick = pickCalendarProvider();
+  try {
+    await pick.provider.updateEvent(calendarId, eventId, patch);
+    if (pick.live) markCalendarHealthy();
+    timeline(
+      caseId,
+      "executor",
+      "effect",
+      `${calLabel(pick.live)}: hold confirmed`,
+      patch.summary,
+      { eventId },
+    );
+  } catch (e) {
+    if (pick.live) markCalendarUnhealthy(e);
+    timeline(
+      caseId,
+      "executor",
+      "error",
+      `${calLabel(pick.live)} update failed`,
+      String((e as Error).message).slice(0, 160),
+      { eventId },
+    );
   }
 }
 
@@ -576,8 +608,8 @@ async function executeReschedule(
 
   const created = await createCalendarEvent(caseId, {
     calendarId: newDoctor.calendarId,
-    summary: `${patient.name} — ${String(payload.type).replace("_", " ")} (SchediCare)`,
-    description: `Rescheduled by SchediCare after staff approval. Case ${caseId}.`,
+    summary: `[HOLD] ${patient.name} — ${String(payload.type).replace("_", " ")}`,
+    description: `Slot held by SchediCare pending patient confirmation. Case ${caseId}.`,
     startUtc: option.startUtc,
     endUtc: option.endUtc,
   });
@@ -624,8 +656,8 @@ async function executeReschedule(
     caseId,
     "executor",
     "effect",
-    `${patient.name} rebooked — ${fmtWhen(option.startUtc)} with ${newDoctor.name}`,
-    "Awaiting the patient's confirmation reply.",
+    `${patient.name}: slot held pending patient confirmation`,
+    `${fmtWhen(option.startUtc)} with ${newDoctor.name}.`,
     { appointmentId: newAppt.id },
   );
 
@@ -689,8 +721,8 @@ async function executeWaitlistFill(
     .get();
   const created = await createCalendarEvent(caseId, {
     calendarId: doctor.calendarId,
-    summary: `${patient.name} — ${String(payload.slotType).replace("_", " ")} (SchediCare waitlist)`,
-    description: `Waitlist backfill approved by staff. Case ${caseId}.`,
+    summary: `[HOLD] ${patient.name} — ${String(payload.slotType).replace("_", " ")}`,
+    description: `Waitlist slot held by SchediCare pending patient confirmation. Case ${caseId}.`,
     startUtc: slot.startUtc,
     endUtc: slot.endUtc,
   });
@@ -732,8 +764,8 @@ async function executeWaitlistFill(
     caseId,
     "executor",
     "effect",
-    `${patient.name} penciled into the vacated slot — ${fmtWhen(slot.startUtc)}`,
-    "Held as booked until they accept.",
+    `${patient.name}: slot held pending patient confirmation`,
+    `${fmtWhen(slot.startUtc)} with ${doctor.name}.`,
     { appointmentId: newAppt.id },
   );
   scheduleSimReply(caseId, rec, msgId);

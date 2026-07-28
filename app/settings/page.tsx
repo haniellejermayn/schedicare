@@ -185,7 +185,7 @@ function Connections() {
 
       <ServiceCard
         title="Google Calendar & Gmail"
-        subtitle="Real calendar events and real email drafts. Emails always stay as drafts until someone presses Send."
+        subtitle="Approving a recommendation reserves the selected slot and sends the reviewed message."
         health={data.google.calendarHealth}
         onVerify={() => verify("calendar")}
         verifying={verifying === "calendar"}
