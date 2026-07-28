@@ -51,8 +51,32 @@ async function deleteCalendarEvent(
       { eventId },
     );
   } catch (e) {
+    const status =
+      (e as any)?.code ??
+      (e as any)?.response?.status ??
+      (e as any)?.response?.statusCode;
+
+    // Deleting an event that is already absent is an idempotent success.
+    // Seeded demo appointments may reference simulated event IDs that never
+    // existed in Google Calendar.
+    if (pick.live && status === 404) {
+      markCalendarHealthy("Original event was already absent");
+
+      timeline(
+        caseId,
+        "executor",
+        "effect",
+        "Google Calendar: original event already absent",
+        why,
+        { eventId },
+      );
+
+      return;
+    }
+
     if (pick.live) {
       markCalendarUnhealthy(e);
+
       timeline(
         caseId,
         "executor",
@@ -60,6 +84,7 @@ async function deleteCalendarEvent(
         "Google Calendar delete failed — retrying on simulated provider",
         String((e as Error).message).slice(0, 160),
       );
+
       await new SimulatedCalendarProvider()
         .deleteEvent(calendarId, eventId)
         .catch(() => undefined);

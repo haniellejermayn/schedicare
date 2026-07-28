@@ -9,22 +9,30 @@ import { env } from "@/core/env";
  * to touch its Calendar and Gmail; this is NOT an application login and creates
  * no user accounts. Scopes are minimal:
  *   calendar.events — read/write events on mapped calendars
+ *   calendar.events.freebusy — read free/busy on mapped calendars
  *   gmail.compose   — create/update/send drafts
  *   gmail.readonly  — read replies on known threads only
  */
-export const GOOGLE_SCOPES = [
+const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.events.freebusy",
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.readonly",
 ];
 
 export function googleConfigured(): boolean {
   const e = env();
-  return Boolean(e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET && e.GOOGLE_REDIRECT_URI);
+  return Boolean(
+    e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET && e.GOOGLE_REDIRECT_URI,
+  );
 }
 
 export function getStoredTokens(): Record<string, unknown> | null {
-  const row = db.select().from(schema.oauthTokens).where(eq(schema.oauthTokens.provider, "google")).get();
+  const row = db
+    .select()
+    .from(schema.oauthTokens)
+    .where(eq(schema.oauthTokens.provider, "google"))
+    .get();
   return row ? (row.tokens as Record<string, unknown>) : null;
 }
 
@@ -34,17 +42,26 @@ export function storeTokens(tokens: Record<string, unknown>): void {
   const now = new Date().toISOString();
   db.insert(schema.oauthTokens)
     .values({ provider: "google", tokens: merged, updatedAt: now })
-    .onConflictDoUpdate({ target: schema.oauthTokens.provider, set: { tokens: merged, updatedAt: now } })
+    .onConflictDoUpdate({
+      target: schema.oauthTokens.provider,
+      set: { tokens: merged, updatedAt: now },
+    })
     .run();
 }
 
 export function clearTokens(): void {
-  db.delete(schema.oauthTokens).where(eq(schema.oauthTokens.provider, "google")).run();
+  db.delete(schema.oauthTokens)
+    .where(eq(schema.oauthTokens.provider, "google"))
+    .run();
 }
 
 export function newOAuthClient(): OAuth2Client {
   const e = env();
-  return new google.auth.OAuth2(e.GOOGLE_CLIENT_ID, e.GOOGLE_CLIENT_SECRET, e.GOOGLE_REDIRECT_URI);
+  return new google.auth.OAuth2(
+    e.GOOGLE_CLIENT_ID,
+    e.GOOGLE_CLIENT_SECRET,
+    e.GOOGLE_REDIRECT_URI,
+  );
 }
 
 /** Authorized client or null when not configured/connected. Persists refreshed tokens. */
