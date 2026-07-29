@@ -59,8 +59,7 @@ export async function runDailySweep(): Promise<void> {
   const risk = await runRisk({ caseId: null, horizonDays: 7, minBand: "high" }, { caseId: null });
   for (const flag of risk.output.flags) {
     const appt = db.select().from(schema.appointments).where(eq(schema.appointments.id, flag.appointmentId)).get();
-    if (!appt || appt.status !== "confirmed" && appt.status !== "booked") continue;
-    if (appt.status === "booked" && differenceInHours(new Date(appt.startUtc), demoNow()) <= 36) continue; // confirmation case already covers it
+    if (!appt || appt.status !== "confirmed") continue;
     if (caseExistsFor("no_show_risk", flag.appointmentId)) continue;
     const c = openCase({
       clinicId: appt.clinicId,

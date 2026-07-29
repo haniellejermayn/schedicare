@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { usePoll, useFeed } from "@/lib/usePoll";
@@ -9,6 +9,7 @@ import { CASE_STATE, isPlainEntry, outcomeLabel, plainDetail, plainTitle } from 
 import { DecisionCard } from "@/components/DecisionCard";
 
 type Tab = "activity" | "messages";
+type FollowUpOutcome = "accept_current" | "decline" | "choose_another" | "no_answer";
 
 function SummaryLine({ s, state }: { s: any; state: string }) {
   if (!s || s.affected === 0) return null;
@@ -31,6 +32,11 @@ export default function CasePage() {
   const [busyAll, setBusyAll] = useState(false);
   const [busyPatient, setBusyPatient] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
+  const [followUp, setFollowUp] = useState<any | null>(null);
+  const [followOutcome, setFollowOutcome] = useState<FollowUpOutcome | null>(null);
+  const [followSlots, setFollowSlots] = useState<any[]>([]);
+  const [followSlot, setFollowSlot] = useState("");
+  const [followError, setFollowError] = useState<string | null>(null);
 
   const c = data?.case;
   const recs = data?.recommendations ?? [];
@@ -40,6 +46,20 @@ export default function CasePage() {
   const decidedSubstantive = recs.filter((r: any) => r.status !== "proposed" && r.outcome !== "superseded");
 
   const activity = useMemo(() => (tech ? feed.items : feed.items.filter(isPlainEntry)), [feed.items, tech]);
+
+  useEffect(() => {
+    if (!followUp || followOutcome !== "choose_another") return;
+    const appointment = followUp.currentAppointment;
+    if (!appointment) return;
+    const activeAppointment = ["booked", "confirmed"].includes(appointment.status);
+    const ignore = activeAppointment ? `&ignoreAppointmentId=${appointment.id}` : "";
+    setFollowSlots([]);
+    setFollowSlot("");
+    setFollowError(null);
+    jfetch<any>(`/api/slots?doctorId=${appointment.doctorId}&type=${appointment.type}${ignore}`)
+      .then((result) => setFollowSlots(result.slots ?? []))
+      .catch((error) => setFollowError((error as Error).message));
+  }, [followUp, followOutcome]);
 
   if (!c) return <Empty>Loading…</Empty>;
   const st = CASE_STATE[c.state] ?? { label: c.state, tone: "neutral" as const };
@@ -53,19 +73,29 @@ export default function CasePage() {
       setBusyAll(false);
     }
   }
-  async function markHandled() {
+  async function resolveCase() {
     await jfetch(`/api/cases/${c.id}/resolve`, { method: "POST" });
     setResolveOpen(false);
     refresh();
   }
-  async function patientAction(patientId: string, action: "mark_called" | "mark_handled" | "release_hold") {
-    setBusyPatient(`${patientId}:${action}`);
+  async function submitFollowUp() {
+    if (!followUp || !followOutcome) return;
+    setBusyPatient(followUp.patientId);
+    setFollowError(null);
     try {
-      await jfetch(`/api/cases/${c.id}/patients/${patientId}/actions`, {
+      await jfetch(`/api/cases/${c.id}/patients/${followUp.patientId}/actions`, {
         method: "POST",
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action: followOutcome,
+          startUtc: followOutcome === "choose_another" ? followSlot : undefined,
+        }),
       });
+      setFollowUp(null);
+      setFollowOutcome(null);
+      setFollowSlot("");
       refresh();
+    } catch (error) {
+      setFollowError((error as Error).message);
     } finally {
       setBusyPatient(null);
     }
@@ -91,7 +121,7 @@ export default function CasePage() {
           <p className="text-[14px] font-semibold text-ink">This one needs a person — the system stopped on purpose.</p>
           {conversations.length === 0 && (
             <Button variant="secondary" small className="ml-auto" onClick={() => setResolveOpen(true)}>
-              Mark handled
+              Resolve manually
             </Button>
           )}
         </RailRow>
@@ -137,23 +167,20 @@ export default function CasePage() {
                 </div>
                 <Chip tone={oc.tone}>{oc.label}</Chip>
                 </div>
-                {actions && (actions.markCalled || actions.markHandled || actions.releaseHold) && (
+                {actions?.followUp && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {actions.markCalled && (
-                      <Button variant="secondary" small disabled={!!busyPatient} onClick={() => patientAction(r.patientId, "mark_called")}>
-                        {busyPatient === `${r.patientId}:mark_called` ? <Spinner /> : "Mark called"}
-                      </Button>
-                    )}
-                    {actions.markHandled && (
-                      <Button variant="secondary" small disabled={!!busyPatient} onClick={() => patientAction(r.patientId, "mark_handled")}>
-                        {busyPatient === `${r.patientId}:mark_handled` ? <Spinner /> : "Mark handled"}
-                      </Button>
-                    )}
-                    {actions.releaseHold && (
-                      <Button variant="danger" small disabled={!!busyPatient} onClick={() => patientAction(r.patientId, "release_hold")}>
-                        {busyPatient === `${r.patientId}:release_hold` ? <Spinner /> : "Release hold"}
-                      </Button>
-                    )}
+                    <Button
+                      variant="secondary"
+                      small
+                      disabled={!!busyPatient}
+                      onClick={() => {
+                        setFollowUp(conversation);
+                        setFollowOutcome(null);
+                        setFollowError(null);
+                      }}
+                    >
+                      {busyPatient === r.patientId ? <Spinner /> : "Follow up"}
+                    </Button>
                   </div>
                 )}
               </RailRow>
@@ -242,13 +269,96 @@ export default function CasePage() {
       </section>
 
       <Modal
+        open={!!followUp}
+        onClose={() => {
+          setFollowUp(null);
+          setFollowOutcome(null);
+          setFollowError(null);
+        }}
+        title={`Follow up with ${followUp?.patientName ?? "patient"}`}
+        wide
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setFollowUp(null)}>Cancel</Button>
+            <Button
+              disabled={
+                !!busyPatient ||
+                !followOutcome ||
+                (followOutcome === "choose_another" && !followSlot)
+              }
+              onClick={submitFollowUp}
+            >
+              {busyPatient ? <Spinner /> : followOutcome === "no_answer" ? "Record attempt" : "Save outcome"}
+            </Button>
+          </>
+        }
+      >
+        {followError && (
+          <p className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-[13px] font-semibold text-bad">
+            {followError}
+          </p>
+        )}
+        <div className="grid gap-2 sm:grid-cols-2">
+          {followUp?.activeHold && (
+            <button
+              className={cn("rounded-card border p-3 text-left", followOutcome === "accept_current" ? "border-accent bg-accent-soft" : "border-line")}
+              onClick={() => setFollowOutcome("accept_current")}
+            >
+              <b className="text-[13px] text-ink">Accepted current time</b>
+              <span className="mt-0.5 block text-[12px] text-muted">Confirm the temporary hold.</span>
+            </button>
+          )}
+          <button
+            className={cn("rounded-card border p-3 text-left", followOutcome === "decline" ? "border-accent bg-accent-soft" : "border-line")}
+            onClick={() => setFollowOutcome("decline")}
+          >
+            <b className="text-[13px] text-ink">Declined</b>
+            <span className="mt-0.5 block text-[12px] text-muted">
+              {followUp?.activeHold ? "Release the temporary hold." : "Record as handled manually."}
+            </span>
+          </button>
+          {followUp?.currentAppointment && (
+            <button
+              className={cn("rounded-card border p-3 text-left", followOutcome === "choose_another" ? "border-accent bg-accent-soft" : "border-line")}
+              onClick={() => setFollowOutcome("choose_another")}
+            >
+              <b className="text-[13px] text-ink">Choose another time</b>
+              <span className="mt-0.5 block text-[12px] text-muted">Book a valid confirmed time.</span>
+            </button>
+          )}
+          <button
+            className={cn("rounded-card border p-3 text-left", followOutcome === "no_answer" ? "border-accent bg-accent-soft" : "border-line")}
+            onClick={() => setFollowOutcome("no_answer")}
+          >
+            <b className="text-[13px] text-ink">No answer</b>
+            <span className="mt-0.5 block text-[12px] text-muted">Keep this open for later.</span>
+          </button>
+        </div>
+        {followOutcome === "choose_another" && (
+          <label className="mt-3 block text-[12px] font-bold text-muted">
+            Valid date and time
+            <select
+              value={followSlot}
+              onChange={(event) => setFollowSlot(event.target.value)}
+              className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink"
+            >
+              <option value="">Select a time</option>
+              {followSlots.map((slot: any) => (
+                <option key={slot.startUtc} value={slot.startUtc}>{fmtWhenManila(slot.startUtc)}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </Modal>
+
+      <Modal
         open={resolveOpen}
         onClose={() => setResolveOpen(false)}
-        title="Mark this case handled?"
+        title="Resolve this case manually?"
         footer={
           <>
             <Button variant="secondary" onClick={() => setResolveOpen(false)}>Back</Button>
-            <Button onClick={markHandled}>Yes, it&apos;s handled</Button>
+            <Button onClick={resolveCase}>Yes, resolve it</Button>
           </>
         }
       >

@@ -34,7 +34,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const activeHold = appointments.find(
       (a) =>
         a.status === "booked" &&
+        a.source === "schedicare" &&
         a.id === (payload.createdAppointmentId ?? payload.appointmentId),
+    );
+    const currentAppointment = appointments.find(
+      (a) => a.id === (payload.createdAppointmentId ?? payload.appointmentId),
     );
     const manuallyResolved = ["called", "handled", "released"].includes(currentRecommendation?.outcome ?? "");
     const needsManualAction =
@@ -48,11 +52,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       patientName: patient?.name ?? (patientRecommendations.at(-1)?.payload as any)?.patientName ?? patientId,
       recommendations: patientRecommendations,
       currentRecommendationId: currentRecommendation?.id ?? null,
+      currentAppointment: currentAppointment ?? null,
       activeHold: activeHold ?? null,
       actions: {
-        markCalled: needsManualAction,
-        markHandled: needsManualAction,
-        releaseHold: !!activeHold,
+        followUp: needsManualAction || !!activeHold,
       },
       messages: messages
         .filter((m) => m.patientId === patientId)

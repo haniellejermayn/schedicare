@@ -130,13 +130,18 @@ export function DecisionCard({
           </p>
         )}
         {(rec.kind === "confirm_nudge" || rec.kind === "preventive") && (
-          <p className="text-[14px]">
-            {rec.kind === "confirm_nudge"
-              ? "Ask them to confirm"
-              : "Friendly check-in for"}{" "}
-            <b className="tnum">{p.from?.when}</b>
-            <span className="text-muted"> with {p.from?.doctorName}</span>
-          </p>
+          <>
+            <p className="text-[14px]">
+              {rec.kind === "confirm_nudge"
+                ? "Ask them to confirm"
+                : "Friendly check-in for"}{" "}
+              <b className="tnum">{p.from?.when}</b>
+              <span className="text-muted"> with {p.from?.doctorName}</span>
+            </p>
+            {rec.kind === "preventive" && p.rationale && (
+              <p className="mt-1 text-[12px] text-muted">{p.rationale}</p>
+            )}
+          </>
         )}
       </div>
 

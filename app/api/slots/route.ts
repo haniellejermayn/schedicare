@@ -15,8 +15,9 @@ export async function GET(req: Request) {
   const fromDay = u.searchParams.get("fromDay") ?? demoToday();
   const toDay = u.searchParams.get("toDay") ?? searchWindow(fromDay, 7).toDay;
   const dayPart = (u.searchParams.get("dayPart") as "am" | "pm" | null) ?? undefined;
+  const ignoreAppointmentId = u.searchParams.get("ignoreAppointmentId") ?? undefined;
   try {
-    const slots = await findOpenSlots({ doctorId, type, fromDay, toDay, dayPart, limit: 60 });
+    const slots = await findOpenSlots({ doctorId, type, fromDay, toDay, dayPart, ignoreAppointmentId, limit: 60 });
     return json({ slots });
   } catch (e) {
     return err(String((e as Error).message), 500);

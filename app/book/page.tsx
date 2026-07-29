@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { usePoll } from "@/lib/usePoll";
 import { jfetch, fmtTimeManila, fmtWhenManila, fmtDayManila, typeLabel } from "@/lib/format";
 import { Button, Card, Chip, Empty, Modal, Spinner, cn } from "@/components/ui";
-import { APPT_STATUS } from "@/components/copy";
+import { appointmentStatus } from "@/components/copy";
 
 const TYPES = [
   { id: "routine", label: "Routine", blurb: "30 min consult" },
@@ -130,7 +130,7 @@ export default function BookPage() {
         <div className="mt-2 space-y-2">
           {upcoming.length === 0 && <Empty>No upcoming visits — book one below.</Empty>}
           {upcoming.map((a: any) => {
-            const st = APPT_STATUS[a.status] ?? { label: a.status, tone: "neutral" as const };
+            const st = appointmentStatus(a);
             return (
               <div key={a.id} className="animate-rise rounded-card border border-line bg-white p-3">
                 <div className="flex items-center gap-2">

@@ -22,7 +22,7 @@ export const CASE_STATE: Record<string, { label: string; tone: Tone }> = {
 export const APPT_STATUS: Record<string, { label: string; tone: Tone }> = {
   booked: { label: "Unconfirmed", tone: "warn" },
   confirmed: { label: "Confirmed", tone: "ok" },
-  completed: { label: "Seen", tone: "neutral" },
+  completed: { label: "Completed", tone: "neutral" },
   no_show: { label: "No-show", tone: "bad" },
   cancelled_by_patient: { label: "Cancelled by patient", tone: "bad" },
   cancelled_by_doctor: { label: "Cancelled by clinic", tone: "bad" },

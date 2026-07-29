@@ -36,8 +36,8 @@ export async function deleteCalendarEvent(
   calendarId: string | null,
   eventId: string | null,
   why: string,
-) {
-  if (!calendarId || !eventId) return;
+): Promise<boolean> {
+  if (!calendarId || !eventId) return true;
   const pick = pickCalendarProvider();
   try {
     await pick.provider.deleteEvent(calendarId, eventId);
@@ -50,6 +50,7 @@ export async function deleteCalendarEvent(
       why,
       { eventId },
     );
+    return true;
   } catch (e) {
     const status =
       (e as any)?.code ??
@@ -71,7 +72,7 @@ export async function deleteCalendarEvent(
         { eventId },
       );
 
-      return;
+      return true;
     }
 
     if (pick.live) {
@@ -97,6 +98,7 @@ export async function deleteCalendarEvent(
         String((e as Error).message).slice(0, 160),
       );
     }
+    return false;
   }
 }
 
@@ -105,8 +107,8 @@ export async function updateCalendarEvent(
   calendarId: string | null,
   eventId: string | null,
   patch: { summary: string; description: string },
-) {
-  if (!calendarId || !eventId) return;
+): Promise<boolean> {
+  if (!calendarId || !eventId) return true;
   const pick = pickCalendarProvider();
   try {
     await pick.provider.updateEvent(calendarId, eventId, patch);
@@ -119,6 +121,7 @@ export async function updateCalendarEvent(
       patch.summary,
       { eventId },
     );
+    return true;
   } catch (e) {
     if (pick.live) markCalendarUnhealthy(e);
     timeline(
@@ -129,10 +132,11 @@ export async function updateCalendarEvent(
       String((e as Error).message).slice(0, 160),
       { eventId },
     );
+    return false;
   }
 }
 
-async function createCalendarEvent(
+export async function createCalendarEvent(
   caseId: string,
   input: {
     calendarId: string | null;

@@ -53,8 +53,12 @@ export default function DoctorPage() {
   }, [doctorId]);
 
   const appts = data?.appointments ?? [];
-  const today = appts.filter((a: any) => manilaDay(a.startUtc) === demoDay);
-  const activeToday = today.filter((a: any) => ["booked", "confirmed"].includes(a.status));
+  const operationalAppts = useMemo(
+    () => appts.filter((a: any) => ["booked", "confirmed"].includes(a.status)),
+    [appts],
+  );
+  const today = operationalAppts.filter((a: any) => manilaDay(a.startUtc) === demoDay);
+  const activeToday = today;
   const riskById = useMemo(() => {
     const m: Record<string, any> = {};
     for (const r of data?.atRisk ?? []) m[r.appointmentId] = r;
@@ -67,10 +71,10 @@ export default function DoctorPage() {
       const d = new Date(`${demoDay}T00:00:00+08:00`);
       d.setDate(d.getDate() + i);
       const key = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(d);
-      days[key] = appts.filter((a: any) => manilaDay(a.startUtc) === key && !["superseded"].includes(a.status));
+      days[key] = operationalAppts.filter((a: any) => manilaDay(a.startUtc) === key);
     }
     return days;
-  }, [appts, demoDay]);
+  }, [operationalAppts, demoDay]);
 
   const isUnavailableToday = (doctor?.unavailableDates ?? []).includes(demoDay);
 

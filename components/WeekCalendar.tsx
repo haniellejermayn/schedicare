@@ -134,9 +134,9 @@ export function WeekCalendar({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
-        {(["confirmed", "booked", "completed", "no_show"] as const).map((k) => (
+        {(["confirmed", "booked"] as const).map((k) => (
           <span key={k} className="flex items-center gap-1.5">
-            <span className={cn("h-2 w-2 rounded-full", { confirmed: "bg-ok", booked: "bg-warn", completed: "bg-line", no_show: "bg-bad" }[k])} />
+            <span className={cn("h-2 w-2 rounded-full", { confirmed: "bg-ok", booked: "bg-warn" }[k])} />
             {APPT_STATUS[k].label}
           </span>
         ))}

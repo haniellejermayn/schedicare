@@ -159,13 +159,9 @@ async function route(
           );
           break;
         }
-        db.update(schema.appointments)
-          .set({ status: "confirmed" })
-          .where(eq(schema.appointments.id, targetApptId))
-          .run();
         if (appt?.calendarEventId) {
           const doctor = getDoctor(appt.doctorId);
-          await updateCalendarEvent(
+          const updated = await updateCalendarEvent(
             caseId,
             doctor.calendarId,
             appt.calendarEventId,
@@ -174,7 +170,26 @@ async function route(
               description: `Confirmed by patient through SchediCare. Case ${caseId}.`,
             },
           );
+          if (!updated) {
+            db.update(schema.recommendations)
+              .set({ outcome: "needs_human" })
+              .where(eq(schema.recommendations.id, rec.id))
+              .run();
+            timeline(
+              caseId,
+              "orchestrator",
+              "escalation",
+              `${patientName} accepted, but Calendar could not confirm the hold`,
+              "The appointment remains on hold for staff follow-up.",
+              { appointmentId: targetApptId, recommendationId: rec.id },
+            );
+            break;
+          }
         }
+        db.update(schema.appointments)
+          .set({ status: "confirmed", needsCallback: false })
+          .where(eq(schema.appointments.id, targetApptId))
+          .run();
         if (rec.kind === "waitlist_fill") {
           db.update(schema.waitlist)
             .set({ status: "scheduled" })
@@ -210,28 +225,39 @@ async function route(
     }
     case "reject_offer":
     case "cancel": {
-      db.update(schema.recommendations)
-        .set({ outcome: "declined" })
-        .where(eq(schema.recommendations.id, rec.id))
-        .run();
       if (targetApptId) {
         const appt = db
           .select()
           .from(schema.appointments)
           .where(eq(schema.appointments.id, targetApptId))
           .get();
-        db.update(schema.appointments)
-          .set({ status: "cancelled_by_patient", needsCallback: true })
-          .where(eq(schema.appointments.id, targetApptId))
-          .run();
         if (appt) {
-          await deleteCalendarEvent(
+          const deleted = await deleteCalendarEvent(
             caseId,
             getDoctor(appt.doctorId).calendarId,
             appt.calendarEventId,
             "Patient declined or cancelled the offered time.",
           );
+          if (!deleted) {
+            db.update(schema.recommendations)
+              .set({ outcome: "needs_human" })
+              .where(eq(schema.recommendations.id, rec.id))
+              .run();
+            timeline(
+              caseId,
+              "orchestrator",
+              "escalation",
+              `${patientName} declined, but Calendar could not release the hold`,
+              "The appointment remains active for staff follow-up.",
+              { appointmentId: targetApptId, recommendationId: rec.id },
+            );
+            break;
+          }
         }
+        db.update(schema.appointments)
+          .set({ status: "cancelled_by_patient", needsCallback: true })
+          .where(eq(schema.appointments.id, targetApptId))
+          .run();
         if (rec.kind === "waitlist_fill") {
           db.update(schema.waitlist)
             .set({ status: "waiting" })
@@ -239,6 +265,10 @@ async function route(
             .run();
         }
       }
+      db.update(schema.recommendations)
+        .set({ outcome: "declined" })
+        .where(eq(schema.recommendations.id, rec.id))
+        .run();
       const m = (getCase(caseId).meta as any) ?? {};
       updateCaseMeta(caseId, {
         needsCallback: [
