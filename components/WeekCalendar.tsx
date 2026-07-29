@@ -178,7 +178,7 @@ export function WeekCalendar({
           <div className="relative" style={{ height: GRID_HEIGHT }}>
             {HOURS.map((h) => (
               <div key={h} className="tnum absolute right-1.5 -translate-y-1/2 text-[10px] text-muted" style={{ top: (h - HOUR_START) * PX_PER_HOUR }}>
-                {h % 12 === 0 ? 12 : h % 12}{h < 12 ? "a" : "p"}
+                {h % 12 === 0 ? 12 : h % 12}{h < 12 ? "am" : "pm"}
               </div>
             ))}
           </div>
@@ -247,7 +247,7 @@ export function WeekCalendar({
                         left: `${(lane / laneCount) * 100}%`,
                         width: `calc(${100 / laneCount}% - 3px)`,
                       }}
-                      title={`${a.patientName} · ${typeLabel(a.type)} · ${fmtTimeManila(a.startUtc)}`}
+                      title={`${a.patientName} · ${typeLabel(a.type)} · ${fmtTimeManila(a.startUtc)}–${fmtTimeManila(a.endUtc)}`}
                     >
                       <span className="flex items-center gap-1 font-bold">
                         {risky && <span className="h-1.5 w-1.5 shrink-0 rounded-full border border-current" />}
@@ -256,7 +256,7 @@ export function WeekCalendar({
                       </span>
                       {height > 30 && (
                         <span className="tnum block truncate opacity-80">
-                          {fmtTimeManila(a.startUtc)} · {typeLabel(a.type)}
+                          {fmtTimeManila(a.startUtc)}–{fmtTimeManila(a.endUtc)}
                         </span>
                       )}
                     </button>
