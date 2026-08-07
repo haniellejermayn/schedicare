@@ -1,8 +1,42 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (41/41), `npm run eval`
-(all targets met), `npm run build` (clean), and `scripts/headless-verify.sh`
-(19/19 checks against the production server + worker).
+Status date: build verified against `npm test` (59/59), `npm run eval`
+(all targets met), `npm run eval:constraints` (baseline benchmarked), and
+`npm run build` (clean).
+
+## Constraint foundation + resolution fixes (v2.1)
+
+**Two bug fixes.** (1) `maybeResolveCase` held any rejected recommendation
+hostage until a "Mark called" click — introduced by the patient-outcome-card
+polish — which left the flagship cascade stuck in `resolving`. A staff
+rejection with a reason is now the terminal human decision; the callback
+lives on the appointment's `needsCallback` flag. Failed executions still
+block. (2) The daily sweep required `status === "confirmed"` before opening a
+no-show-risk case, while the risk scorer awards +25 for being _unconfirmed_ —
+the filter contradicted the model, so the riskiest patients never got cases.
+Booked and confirmed appointments are now both eligible.
+
+**Constraint core (deterministic, pre-AI).** `core/constraints.ts` defines
+`SchedulingConstraintSet`: compound hard constraints (date/weekday
+allow+exclude, OR'd time windows, earliest/latest date, required or
+same-doctor), soft preferences, unresolved statements, and evidence spans,
+plus a lossy bridge down to the legacy four-field `ReplyInterpretation`
+(anything richer forces `needs_human` rather than silently narrowing).
+`core/constraintValidation.ts` normalizes and rejects impossible sets;
+`core/constraintMatching.ts` turns validated sets into engine slots — hard
+constraints filter, soft preferences rank, and only `findOpenSlots` ever
+produces a time.
+
+**The yardstick.** `eval/constraintCorpus.json` (65 labeled messy replies:
+compound, negation, relative dates, Taglish, doctor preferences, ambiguity,
+mixed clinical) + `eval/constraintBaseline.ts` scoring the deterministic
+guard+rules path field-by-field. Baseline: 63% intent, **34% full match**
+(88% on simple counters, **0% on compound/negation/relative-date**), field
+precision 48% / recall 26%, guard recall 2/4. Notable finds: "Wag po sa
+Friday" extracts Friday as _preferred_ (negation inversion); Tagalog "dose"
+(twelve) false-quarantines as medication; "nahihilo" slips past the English
+medical guard. This table is the baseline the constraint-extractor agent must
+beat on the same scorer.
 
 ## Final capstone polish
 
