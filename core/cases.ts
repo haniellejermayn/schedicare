@@ -24,7 +24,11 @@ const LEGAL: Record<CaseState, CaseState[]> = {
 export class TransitionError extends Error {}
 
 export function getCase(caseId: string) {
-  const c = db.select().from(schema.cases).where(eq(schema.cases.id, caseId)).get();
+  const c = db
+    .select()
+    .from(schema.cases)
+    .where(eq(schema.cases.id, caseId))
+    .get();
   if (!c) throw new Error(`case ${caseId} not found`);
   return c;
 }
@@ -52,21 +56,42 @@ export function openCase(input: {
     })
     .returning()
     .get();
-  timeline(row.id, "orchestrator", "status", `Case opened — ${input.title}`, null, { severity: input.severity });
-  audit({ actor: "orchestrator", action: "case.opened", refType: "case", refId: row.id, caseId: row.id, detail: { type: input.type, severity: input.severity } });
+  timeline(
+    row.id,
+    "orchestrator",
+    "status",
+    `Case opened — ${input.title}`,
+    null,
+    { severity: input.severity },
+  );
+  audit({
+    actor: "orchestrator",
+    action: "case.opened",
+    refType: "case",
+    refId: row.id,
+    caseId: row.id,
+    detail: { type: input.type, severity: input.severity },
+  });
   return row;
 }
 
-export function transitionCase(caseId: string, to: CaseState, actor: string, reason: string): void {
+export function transitionCase(
+  caseId: string,
+  to: CaseState,
+  actor: string,
+  reason: string,
+): void {
   const c = getCase(caseId);
   const from = c.state as CaseState;
   if (from === to) return;
   if (!LEGAL[from]?.includes(to)) {
-    throw new TransitionError(`Illegal transition ${from} → ${to} (case ${caseId})`);
+    throw new TransitionError(
+      `Illegal transition ${from} → ${to} (case ${caseId})`,
+    );
   }
   if (to === "executing" && !actor.startsWith("staff")) {
     throw new TransitionError(
-      `Only a staff decision can move a case from awaiting_approval to executing (actor was "${actor}")`
+      `Only a staff decision can move a case from awaiting_approval to executing (actor was "${actor}")`,
     );
   }
   db.update(schema.cases)
@@ -77,22 +102,55 @@ export function transitionCase(caseId: string, to: CaseState, actor: string, rea
     })
     .where(eq(schema.cases.id, caseId))
     .run();
-  timeline(caseId, actor, "transition", `${from.replace(/_/g, " ")} → ${to.replace(/_/g, " ")}`, reason);
-  audit({ actor, action: "case.transition", refType: "case", refId: caseId, caseId, detail: { from, to, reason } });
+  timeline(
+    caseId,
+    actor,
+    "transition",
+    `${from.replace(/_/g, " ")} → ${to.replace(/_/g, " ")}`,
+    reason,
+  );
+  audit({
+    actor,
+    action: "case.transition",
+    refType: "case",
+    refId: caseId,
+    caseId,
+    detail: { from, to, reason },
+  });
 }
 
-export function escalateCase(caseId: string, actor: string, reason: string): void {
+export function escalateCase(
+  caseId: string,
+  actor: string,
+  reason: string,
+): void {
   const c = getCase(caseId);
   if (c.state === "escalated" || c.state === "resolved") return;
-  db.update(schema.cases).set({ state: "escalated", updatedAt: demoNowIso() }).where(eq(schema.cases.id, caseId)).run();
+  db.update(schema.cases)
+    .set({ state: "escalated", updatedAt: demoNowIso() })
+    .where(eq(schema.cases.id, caseId))
+    .run();
   timeline(caseId, actor, "escalation", "Escalated to clinic staff", reason);
-  audit({ actor, action: "case.escalated", refType: "case", refId: caseId, caseId, detail: { reason } });
+  audit({
+    actor,
+    action: "case.escalated",
+    refType: "case",
+    refId: caseId,
+    caseId,
+    detail: { reason },
+  });
 }
 
-export function updateCaseMeta(caseId: string, patch: Record<string, unknown>): void {
+export function updateCaseMeta(
+  caseId: string,
+  patch: Record<string, unknown>,
+): void {
   const c = getCase(caseId);
   const meta = { ...((c.meta as Record<string, unknown>) ?? {}), ...patch };
-  db.update(schema.cases).set({ meta, updatedAt: demoNowIso() }).where(eq(schema.cases.id, caseId)).run();
+  db.update(schema.cases)
+    .set({ meta, updatedAt: demoNowIso() })
+    .where(eq(schema.cases.id, caseId))
+    .run();
 }
 
 /** Any recommendation still needing staff or executor attention? */
@@ -104,7 +162,9 @@ export function pendingRecommendationCounts(caseId: string) {
     .all();
   return {
     proposed: recs.filter((r) => r.status === "proposed").length,
-    approvedUnexecuted: recs.filter((r) => r.status === "approved" || r.status === "modified").length,
+    approvedUnexecuted: recs.filter(
+      (r) => r.status === "approved" || r.status === "modified",
+    ).length,
     total: recs.length,
   };
 }
@@ -114,7 +174,10 @@ export function pendingRecommendationCounts(caseId: string) {
  * approved-but-unexecuted recommendations, and every executed reschedule has a
  * recorded patient outcome.
  */
-export function maybeResolveCase(caseId: string, actor = "orchestrator"): boolean {
+export function maybeResolveCase(
+  caseId: string,
+  actor = "orchestrator",
+): boolean {
   const c = getCase(caseId);
   if (c.state !== "resolving" && c.state !== "escalated") return false;
   const counts = pendingRecommendationCounts(caseId);
@@ -127,9 +190,16 @@ export function maybeResolveCase(caseId: string, actor = "orchestrator"): boolea
   const terminalManual = new Set(["called", "handled", "released"]);
   const awaitingPatientOrStaff = recommendations.some((r) => {
     if (r.outcome && terminalManual.has(r.outcome)) return false;
-    if (r.status === "rejected" || r.status === "failed") return true;
+    // A staff rejection WITH a reason is itself the terminal human decision;
+    // the follow-up phone call is tracked on the appointment (needsCallback),
+    // not by holding the whole case open. Failed executions still block.
+    if (r.status === "rejected") return false;
+    if (r.status === "failed") return true;
     if (r.outcome === "needs_human" || r.outcome === "declined") return true;
-    return r.status === "executed" && (r.outcome === "pending" || r.outcome === "sent");
+    return (
+      r.status === "executed" &&
+      (r.outcome === "pending" || r.outcome === "sent")
+    );
   });
   if (awaitingPatientOrStaff) return false;
   const heldAppointmentIds = recommendations
@@ -138,11 +208,20 @@ export function maybeResolveCase(caseId: string, actor = "orchestrator"): boolea
   if (
     heldAppointmentIds.some(
       (id) =>
-        db.select().from(schema.appointments).where(eq(schema.appointments.id, id)).get()?.status === "booked",
+        db
+          .select()
+          .from(schema.appointments)
+          .where(eq(schema.appointments.id, id))
+          .get()?.status === "booked",
     )
   ) {
     return false;
   }
-  transitionCase(caseId, "resolved", actor, "All items handled — recoveries executed and patient replies accounted for.");
+  transitionCase(
+    caseId,
+    "resolved",
+    actor,
+    "All items handled — recoveries executed and patient replies accounted for.",
+  );
   return true;
 }
