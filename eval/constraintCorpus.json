@@ -1,83 +1,109 @@
 {
-  "note": "Constraint-extraction eval corpus. Anchored to DEMO_NOW = Monday 2026-08-10 (Asia/Manila): Tue=11 Wed=12 Thu=13 Fri=14 Sat=15 Sun=16, next Mon=17. Every `expected` is a partial SchedulingConstraintSet (core/constraints.ts). Labeling conventions: morning={end:12:00}, afternoon={start:12:00}, after lunch={start:13:00}; bare weekday mention → allowedDaysOfWeek (ISO 1=Mon…7=Sun); explicit or resolvable date → allowedDates; 'from X onwards' → earliestDate; 'this week only' → latestDate; approximate times ('mga 8:30', 'around 3') and references to the original booking ('same time') → unresolved=true; named-doctor insistence ('lang talaga', 'only') → hard.requiredDoctorId, polite preference → soft.preferredDoctorId; unnamed 'keep my doctor' → soft.preferSameDoctor, refusal of a new doctor → hard.requireSameDoctor. guard=true means the message must reach a human regardless of extraction (clinical content, anger). Doctor roster for labels: doc_santos = Dr. Elena Santos, doc_reyes = Dr. Marco Reyes. Starter set (65) — grow toward 150+ by adding real (anonymized) clinic phrasings per category.",
+  "note": "Constraint-extraction eval corpus. Anchored to DEMO_NOW = Monday 2026-08-10 (Asia/Manila): Tue=11 Wed=12 Thu=13 Fri=14 Sat=15 Sun=16, next Mon=17. Every `expected` is a partial SchedulingConstraintSet (core/constraints.ts). Labeling conventions: morning={end:12:00}, afternoon={start:12:00}, after lunch={start:13:00}; bare weekday mention → allowedDaysOfWeek (ISO 1=Mon…7=Sun); explicit or resolvable date → allowedDates; 'from X onwards' → earliestDate; 'this week only' → latestDate; approximate times ('mga 8:30', 'around 3') and references to the original booking ('same time') → unresolved=true; named-doctor insistence ('lang talaga', 'only') → hard.requiredDoctorId, polite preference → soft.preferredDoctorId; unnamed 'keep my doctor' → soft.preferSameDoctor, refusal of a new doctor → hard.requireSameDoctor. Weeks run Monday-Sunday ('next week' from Mon 2026-08-10 = 2026-08-17..2026-08-23); preference-strength language ('would be best', 'works better', 'if possible', 'sana', 'ideally') → soft fields; 'skip <period>' → excludedDates for that period literally; availability remarks ('wide open') → soft. guard=true means the message must reach a human regardless of extraction (clinical content, anger). Doctor roster for labels: doc_santos = Dr. Elena Santos, doc_reyes = Dr. Marco Reyes. Starter set (65) — grow toward 150+ by adding real (anonymized) clinic phrasings per category.",
   "cases": [
     {
       "id": "a1",
       "category": "clean_accept",
       "body": "Yes, that works. Thank you!",
-      "expected": { "intent": "accept" }
+      "expected": {
+        "intent": "accept"
+      }
     },
     {
       "id": "a2",
       "category": "clean_accept",
       "body": "Confirmed po, see you Tuesday. Salamat!",
-      "expected": { "intent": "accept" }
+      "expected": {
+        "intent": "accept"
+      }
     },
     {
       "id": "a3",
       "category": "clean_accept",
       "body": "sige po, I'll take it",
-      "expected": { "intent": "accept" }
+      "expected": {
+        "intent": "accept"
+      }
     },
     {
       "id": "a4",
       "category": "clean_accept",
       "body": "Okay, that new time is fine with me.",
-      "expected": { "intent": "accept" }
+      "expected": {
+        "intent": "accept"
+      }
     },
     {
       "id": "a5",
       "category": "clean_accept",
       "body": "Yes yes, attending pa rin ako. See you!",
-      "expected": { "intent": "accept" }
+      "expected": {
+        "intent": "accept"
+      }
     },
     {
       "id": "d1",
       "category": "clean_decline",
       "body": "Sorry, that time doesn't work for me.",
-      "expected": { "intent": "decline" }
+      "expected": {
+        "intent": "decline"
+      }
     },
     {
       "id": "d2",
       "category": "clean_decline",
       "body": "None of those work unfortunately.",
-      "expected": { "intent": "decline" }
+      "expected": {
+        "intent": "decline"
+      }
     },
     {
       "id": "d3",
       "category": "clean_decline",
       "body": "Hindi po ako pwede sa ganyang oras.",
-      "expected": { "intent": "decline" }
+      "expected": {
+        "intent": "decline"
+      }
     },
     {
       "id": "d4",
       "category": "clean_decline",
       "body": "I'd rather not move it, please keep my original schedule.",
-      "expected": { "intent": "decline" }
+      "expected": {
+        "intent": "decline"
+      }
     },
     {
       "id": "c1",
       "category": "cancel",
       "body": "Please cancel my appointment, we're flying to Cebu.",
-      "expected": { "intent": "cancel" }
+      "expected": {
+        "intent": "cancel"
+      }
     },
     {
       "id": "c2",
       "category": "cancel",
       "body": "Need to cancel na po, sorry for the hassle.",
-      "expected": { "intent": "cancel" }
+      "expected": {
+        "intent": "cancel"
+      }
     },
     {
       "id": "c3",
       "category": "cancel",
       "body": "I won't be able to come anymore, cancel it na lang.",
-      "expected": { "intent": "cancel" }
+      "expected": {
+        "intent": "cancel"
+      }
     },
     {
       "id": "c4",
       "category": "cancel",
       "body": "Can we cancel? I'll rebook once my schedule settles.",
-      "expected": { "intent": "cancel" }
+      "expected": {
+        "intent": "cancel"
+      }
     },
     {
       "id": "s1",
@@ -85,7 +111,13 @@
       "body": "Can we do it after 4 PM instead?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "start": "16:00" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "16:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -94,7 +126,13 @@
       "body": "Mornings only please.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "end": "12:00" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -103,7 +141,13 @@
       "body": "Anything in the afternoon works better.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "start": "12:00" }] }
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -112,7 +156,9 @@
       "body": "Could we move it to Wednesday?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDaysOfWeek": [3] }
+        "hard": {
+          "allowedDaysOfWeek": [3]
+        }
       }
     },
     {
@@ -121,7 +167,13 @@
       "body": "Before noon would be best for me.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "end": "12:00" }] }
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -130,7 +182,13 @@
       "body": "Is there a slot after lunch?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "start": "13:00" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "13:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -139,7 +197,10 @@
       "body": "Can I come next week instead?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "earliestDate": "2026-08-17" }
+        "hard": {
+          "earliestDate": "2026-08-17",
+          "latestDate": "2026-08-23"
+        }
       }
     },
     {
@@ -148,7 +209,13 @@
       "body": "Anything after 3:30 pm po.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "start": "15:30" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "15:30"
+            }
+          ]
+        }
       }
     },
     {
@@ -160,10 +227,16 @@
         "hard": {
           "excludedDaysOfWeek": [2],
           "allowedDaysOfWeek": [3, 4],
-          "timeWindows": [{ "start": "14:00" }],
+          "timeWindows": [
+            {
+              "start": "14:00"
+            }
+          ],
           "excludedDates": ["2026-08-14"]
         },
-        "soft": { "preferredDoctorId": "doc_santos" }
+        "soft": {
+          "preferredDoctorId": "doc_santos"
+        }
       }
     },
     {
@@ -174,7 +247,12 @@
         "intent": "counter_proposal",
         "hard": {
           "allowedDates": ["2026-08-17", "2026-08-18"],
-          "timeWindows": [{ "start": "09:00", "end": "11:00" }]
+          "timeWindows": [
+            {
+              "start": "09:00",
+              "end": "11:00"
+            }
+          ]
         }
       }
     },
@@ -186,7 +264,11 @@
         "intent": "counter_proposal",
         "hard": {
           "allowedDaysOfWeek": [1, 2, 3, 4],
-          "timeWindows": [{ "start": "12:00" }]
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
         }
       }
     },
@@ -196,9 +278,11 @@
       "body": "Wednesday morning or Thursday afternoon, whichever has the earlier slot with Dr. Reyes.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDaysOfWeek": [3, 4] },
-        "soft": { "preferredDoctorId": "doc_reyes" },
-        "unresolved": true
+        "soft": {
+          "preferredDoctorId": "doc_reyes"
+        },
+        "unresolved": true,
+        "optional": ["hard.allowedDaysOfWeek"]
       }
     },
     {
@@ -209,7 +293,11 @@
         "intent": "counter_proposal",
         "hard": {
           "earliestDate": "2026-08-17",
-          "timeWindows": [{ "end": "12:00" }]
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
         }
       }
     },
@@ -221,9 +309,15 @@
         "intent": "counter_proposal",
         "hard": {
           "allowedDates": ["2026-08-12", "2026-08-13"],
-          "timeWindows": [{ "end": "10:00" }]
+          "timeWindows": [
+            {
+              "end": "10:00"
+            }
+          ]
         },
-        "soft": { "preferSameDoctor": true }
+        "soft": {
+          "preferSameDoctor": true
+        }
       }
     },
     {
@@ -232,10 +326,16 @@
       "body": "We're out of town until Aug 15, so anything from the 17th. Ideally Tuesday or Thursday afternoons.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "earliestDate": "2026-08-17" },
+        "hard": {
+          "earliestDate": "2026-08-17"
+        },
         "soft": {
           "preferredDaysOfWeek": [2, 4],
-          "preferredTimeWindows": [{ "start": "12:00" }]
+          "preferredTimeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
         }
       }
     },
@@ -247,7 +347,11 @@
         "intent": "counter_proposal",
         "hard": {
           "excludedDaysOfWeek": [1, 6, 7],
-          "timeWindows": [{ "start": "14:30" }]
+          "timeWindows": [
+            {
+              "start": "14:30"
+            }
+          ]
         }
       }
     },
@@ -258,7 +362,14 @@
       "expected": {
         "intent": "counter_proposal",
         "hard": {
-          "timeWindows": [{ "end": "09:00" }, { "start": "16:00" }],
+          "timeWindows": [
+            {
+              "end": "09:00"
+            },
+            {
+              "start": "16:00"
+            }
+          ],
           "allowedDaysOfWeek": [2, 3, 4]
         }
       }
@@ -269,10 +380,16 @@
       "body": "Please avoid the 12th and 13th; the following week is wide open for us, mornings preferred.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "excludedDates": ["2026-08-12", "2026-08-13"] },
+        "hard": {
+          "excludedDates": ["2026-08-12", "2026-08-13"]
+        },
         "soft": {
           "earliestPreferredDate": "2026-08-17",
-          "preferredTimeWindows": [{ "end": "12:00" }]
+          "preferredTimeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
         }
       }
     },
@@ -282,7 +399,9 @@
       "body": "Any day except Thursday is okay.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "excludedDaysOfWeek": [4] }
+        "hard": {
+          "excludedDaysOfWeek": [4]
+        }
       }
     },
     {
@@ -291,7 +410,9 @@
       "body": "Wag po sa Friday, may exam ang anak ko.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "excludedDaysOfWeek": [5] }
+        "hard": {
+          "excludedDaysOfWeek": [5]
+        }
       }
     },
     {
@@ -300,7 +421,9 @@
       "body": "Not the 14th please, anything else works.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "excludedDates": ["2026-08-14"] }
+        "hard": {
+          "excludedDates": ["2026-08-14"]
+        }
       }
     },
     {
@@ -309,7 +432,13 @@
       "body": "I said mornings DON'T work — afternoons po.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "start": "12:00" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -318,16 +447,24 @@
       "body": "Huwag na sa umaga, hapon na lang po.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "start": "12:00" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        }
       }
     },
     {
       "id": "n6",
       "category": "negation",
-      "body": "Skip next week entirely, we're in the province. The week after is fine.",
+      "body": "Skip next week entirely, we're in the province — balik kami Aug 24, any day from then works.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "earliestDate": "2026-08-24" }
+        "hard": {
+          "earliestDate": "2026-08-24"
+        }
       }
     },
     {
@@ -336,7 +473,9 @@
       "body": "This Friday na lang instead, if free pa.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDates": ["2026-08-14"] }
+        "hard": {
+          "allowedDates": ["2026-08-14"]
+        }
       }
     },
     {
@@ -345,7 +484,9 @@
       "body": "Can we do it on the 18th?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDates": ["2026-08-18"] }
+        "hard": {
+          "allowedDates": ["2026-08-18"]
+        }
       }
     },
     {
@@ -354,7 +495,9 @@
       "body": "Sa Lunes na lang po, the 17th.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDates": ["2026-08-17"] }
+        "hard": {
+          "allowedDates": ["2026-08-17"]
+        }
       }
     },
     {
@@ -363,7 +506,9 @@
       "body": "After my duty ends on the 15th, so the 16th onwards po.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "earliestDate": "2026-08-16" }
+        "hard": {
+          "earliestDate": "2026-08-16"
+        }
       }
     },
     {
@@ -372,9 +517,13 @@
       "body": "Tomorrow morning if possible?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": {
-          "allowedDates": ["2026-08-11"],
-          "timeWindows": [{ "end": "12:00" }]
+        "soft": {
+          "preferredDates": ["2026-08-11"],
+          "preferredTimeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
         }
       }
     },
@@ -384,8 +533,12 @@
       "body": "Two weeks from now, same time same doctor please.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "earliestDate": "2026-08-24" },
-        "soft": { "preferSameDoctor": true },
+        "hard": {
+          "earliestDate": "2026-08-24"
+        },
+        "soft": {
+          "preferSameDoctor": true
+        },
         "unresolved": true
       }
     },
@@ -397,7 +550,11 @@
         "intent": "counter_proposal",
         "hard": {
           "allowedDaysOfWeek": [4],
-          "timeWindows": [{ "start": "15:00" }]
+          "timeWindows": [
+            {
+              "start": "15:00"
+            }
+          ]
         }
       }
     },
@@ -407,7 +564,10 @@
       "body": "Hindi kami available bukas, sa Miyerkules na lang po.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDates": ["2026-08-12"] }
+        "hard": {
+          "allowedDates": ["2026-08-12"],
+          "excludedDates": ["2026-08-11"]
+        }
       }
     },
     {
@@ -416,7 +576,9 @@
       "body": "Kay Dra. Santos lang po talaga kami nagpapatingin.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "requiredDoctorId": "doc_santos" }
+        "hard": {
+          "requiredDoctorId": "doc_santos"
+        }
       }
     },
     {
@@ -425,7 +587,13 @@
       "body": "Okay lang kahit anong araw basta umaga, bago mag-alas dose.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "timeWindows": [{ "end": "12:00" }] }
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -434,7 +602,13 @@
       "body": "Baka pwede sa hapon? Pero kung wala, okay lang din yung offer niyo.",
       "expected": {
         "intent": "counter_proposal",
-        "soft": { "preferredTimeWindows": [{ "start": "12:00" }] }
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        }
       }
     },
     {
@@ -443,7 +617,9 @@
       "body": "Sige po sa Tuesday, pero pwede bang mas maaga, mga 8:30?",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "allowedDaysOfWeek": [2] },
+        "hard": {
+          "allowedDaysOfWeek": [2]
+        },
         "unresolved": true
       }
     },
@@ -454,7 +630,11 @@
       "expected": {
         "intent": "counter_proposal",
         "hard": {
-          "timeWindows": [{ "start": "12:00" }],
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ],
           "allowedDaysOfWeek": [3, 5]
         }
       }
@@ -465,14 +645,18 @@
       "body": "Ayaw po ni lola ng bagong doctor, yung dati na lang po ulit.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "requireSameDoctor": true }
+        "hard": {
+          "requireSameDoctor": true
+        }
       }
     },
     {
       "id": "t9",
       "category": "taglish",
       "body": "Sige po.",
-      "expected": { "intent": "accept" }
+      "expected": {
+        "intent": "accept"
+      }
     },
     {
       "id": "p1",
@@ -480,7 +664,9 @@
       "body": "If possible, Dr. Reyes na lang po this time.",
       "expected": {
         "intent": "counter_proposal",
-        "soft": { "preferredDoctorId": "doc_reyes" }
+        "soft": {
+          "preferredDoctorId": "doc_reyes"
+        }
       }
     },
     {
@@ -489,7 +675,9 @@
       "body": "Only Dr. Santos please — she knows my history.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "requiredDoctorId": "doc_santos" }
+        "hard": {
+          "requiredDoctorId": "doc_santos"
+        }
       }
     },
     {
@@ -498,7 +686,9 @@
       "body": "Kahit sinong doctor, basta this week.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": { "latestDate": "2026-08-15" }
+        "hard": {
+          "latestDate": "2026-08-16"
+        }
       }
     },
     {
@@ -507,7 +697,9 @@
       "body": "I'd rather keep my usual doctor, but the soonest slot matters more.",
       "expected": {
         "intent": "counter_proposal",
-        "soft": { "preferSameDoctor": true }
+        "soft": {
+          "preferSameDoctor": true
+        }
       }
     },
     {
@@ -516,7 +708,9 @@
       "body": "Same doctor please, and same time of day if you can.",
       "expected": {
         "intent": "counter_proposal",
-        "soft": { "preferSameDoctor": true },
+        "soft": {
+          "preferSameDoctor": true
+        },
         "unresolved": true
       }
     },
@@ -524,49 +718,69 @@
       "id": "u1",
       "category": "ambiguous",
       "body": "Depende po sa shift ko next week, I'll confirm by Sunday.",
-      "expected": { "intent": "ambiguous", "unresolved": true }
+      "expected": {
+        "intent": "ambiguous",
+        "unresolved": true
+      }
     },
     {
       "id": "u2",
       "category": "ambiguous",
       "body": "Which appointment is this for? I have two coming up.",
-      "expected": { "intent": "ambiguous", "unresolved": true }
+      "expected": {
+        "intent": "ambiguous",
+        "unresolved": true
+      }
     },
     {
       "id": "u3",
       "category": "ambiguous",
       "body": "We might move houses that week so hindi pa sure.",
-      "expected": { "intent": "ambiguous", "unresolved": true }
+      "expected": {
+        "intent": "ambiguous",
+        "unresolved": true
+      }
     },
     {
       "id": "u4",
       "category": "ambiguous",
       "body": "My husband will bring me, need to check his schedule muna.",
-      "expected": { "intent": "ambiguous", "unresolved": true }
+      "expected": {
+        "intent": "ambiguous",
+        "unresolved": true
+      }
     },
     {
       "id": "g1",
       "category": "clinical_mixed",
       "body": "I've been getting bad headaches lately, can we move it to Friday?",
-      "expected": { "guard": true }
+      "expected": {
+        "guard": true
+      }
     },
     {
       "id": "g2",
       "category": "clinical_mixed",
       "body": "Can I get my prescription refilled before the visit? Also Tuesday works.",
-      "expected": { "guard": true }
+      "expected": {
+        "guard": true
+      }
     },
     {
       "id": "g3",
       "category": "clinical_mixed",
       "body": "This is unacceptable, third time you've moved my schedule. I want to complain.",
-      "expected": { "guard": true }
+      "expected": {
+        "guard": true
+      }
     },
     {
       "id": "g4",
       "category": "clinical_mixed",
       "body": "Nahihilo pa rin ako since yesterday, should I still come in?",
-      "expected": { "guard": true }
+      "expected": {
+        "guard": true
+      }
     }
   ]
 }

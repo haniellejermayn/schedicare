@@ -85,6 +85,8 @@ export function softPreferencePoints(
     slot.doctorId === ctx.originalDoctorId
   )
     chips.push({ label: "Keeps same doctor", pts: 2 });
+  if (soft.preferredDates?.includes(slot.day))
+    chips.push({ label: "Preferred date", pts: 2 });
   if (soft.preferredDaysOfWeek?.includes(isoWeekdayOf(slot.day)))
     chips.push({ label: "Preferred day", pts: 1 });
   if (soft.preferredTimeWindows?.some((w) => inWindow(hhmm(slot.startUtc), w)))

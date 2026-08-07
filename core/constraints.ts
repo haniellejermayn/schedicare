@@ -88,6 +88,8 @@ export const SoftPreferencesSchema = z.object({
   preferSameDoctor: z.boolean().optional(),
   preferredDaysOfWeek: z.array(isoWeekday).optional(),
   preferredTimeWindows: z.array(TimeWindowSchema).optional(),
+  /** Specific dates the patient would prefer ("tomorrow if possible"). */
+  preferredDates: z.array(z.string().regex(YMD)).optional(),
   /** Patient would rather not come before this date (soft "not too soon"). */
   earliestPreferredDate: z.string().regex(YMD).optional(),
   /** Reserved for provider-eligibility (Release 1). */

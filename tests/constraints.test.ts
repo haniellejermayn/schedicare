@@ -56,11 +56,16 @@ const slot = (over: Partial<Slot>): Slot => ({
 });
 
 describe("constraint validation", () => {
-  it("normalizes a compound set without complaints", () => {
+  it("normalizes a compound set, dropping redundant exclusions", () => {
     const r = validateConstraintSet(compoundSet(), { today: TODAY });
     expect(r.ok).toBe(true);
     expect(r.errors).toHaveLength(0);
-    expect(r.warnings).toHaveLength(0);
+    // "no Tuesdays" and "not Aug 14 (a Friday)" are already outside the
+    // allowed Wed/Thu set — canonical form drops them, with warnings.
+    expect(r.warnings.every((w) => w.code === "redundant_dropped")).toBe(true);
+    expect(r.normalized.hard.excludedDaysOfWeek).toBeUndefined();
+    expect(r.normalized.hard.excludedDates).toBeUndefined();
+    expect(r.normalized.hard.allowedDaysOfWeek).toEqual([3, 4]);
   });
 
   it("drops past dates with a warning, errors when nothing survives", () => {
@@ -113,9 +118,7 @@ describe("constraint validation", () => {
     const r = validateConstraintSet(clipped, { today: TODAY });
     expect(r.ok).toBe(true);
     expect(r.warnings.some((w) => w.code === "window_clipped")).toBe(true);
-    expect(r.normalized.hard.timeWindows).toEqual([
-      { start: "08:00", end: "10:00" },
-    ]);
+    expect(r.normalized.hard.timeWindows).toEqual([{ end: "10:00" }]); // start==open stripped (canonical)
 
     const outside = compoundSet();
     outside.hard.timeWindows = [{ start: "18:00", end: "20:00" }];
@@ -131,7 +134,7 @@ describe("constraint validation", () => {
     clampable.hard.earliestDate = "2026-08-01";
     const r = validateConstraintSet(clampable, { today: TODAY });
     expect(r.ok).toBe(true);
-    expect(r.normalized.hard.earliestDate).toBe(TODAY);
+    expect(r.normalized.hard.earliestDate).toBeUndefined(); // ≤ today restricts nothing
 
     const past = compoundSet();
     past.hard.latestDate = "2026-08-05";
@@ -159,6 +162,34 @@ describe("constraint validation", () => {
         (e) => e.code === "allowed_dates_all_excluded",
       ),
     ).toBe(true);
+  });
+
+  it("canonicalizes windows: bounds at clinic open/close are stripped, full-day windows dropped", () => {
+    const set = compoundSet();
+    set.hard.timeWindows = [
+      { start: "12:00", end: "17:00" },
+      { start: "08:00", end: "17:00" },
+    ];
+    const r = validateConstraintSet(set, { today: TODAY });
+    expect(r.ok).toBe(true);
+    expect(r.normalized.hard.timeWindows).toEqual([{ start: "12:00" }]); // ≡ {start:12:00}; full-day dropped
+  });
+
+  it("strips exclusions that could never match anyway", () => {
+    const set = compoundSet(); // allowed Wed/Thu, excluded Tue via excludedDaysOfWeek? no — build explicit
+    set.hard = {
+      allowedDaysOfWeek: [1, 2, 3, 4],
+      excludedDaysOfWeek: [5],
+      earliestDate: "2026-08-24",
+      excludedDates: ["2026-08-18", "2026-08-25"], // 18th already < earliest; 25th (Tue) is live
+    };
+    const r = validateConstraintSet(set, { today: TODAY });
+    expect(r.ok).toBe(true);
+    expect(r.normalized.hard.excludedDaysOfWeek).toBeUndefined(); // Fri already not allowed
+    expect(r.normalized.hard.excludedDates).toEqual(["2026-08-25"]); // only the live exclusion survives
+    expect(
+      r.warnings.filter((w) => w.code === "redundant_dropped").length,
+    ).toBe(2);
   });
 
   it("computes ISO weekdays independent of host timezone", () => {
@@ -275,6 +306,28 @@ describe("constraint search against the seeded engine", () => {
     });
     expect(results.length).toBeGreaterThan(0);
     for (const { slot: s } of results) expect(s.doctorId).toBe("doc_reyes");
+  });
+});
+
+describe("constraint extractor (fallback mode)", () => {
+  beforeEach(() => {
+    freshSeed();
+  });
+
+  it("degrades to a review handoff, never a regex twin", async () => {
+    const { extractConstraints } = await import("@/agents/constraintExtractor");
+    const run = await extractConstraints(
+      {
+        caseId: null,
+        replyBody: "Wag po sa Friday, after 2 PM na lang kahit anong araw.",
+      },
+      { caseId: null },
+    );
+    expect(run.mode).toBe("fallback"); // vitest env pins AI_PROVIDER=fallback
+    expect(run.output.intent).toBe("ambiguous");
+    expect(run.output.unresolvedStatements.length).toBeGreaterThan(0); // whole message → staff review
+    expect(run.output.hard).toEqual({}); // no silently-guessed constraints
+    expect(run.output.confidence).toBe(0);
   });
 });
 

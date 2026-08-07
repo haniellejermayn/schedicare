@@ -30,6 +30,7 @@ export interface ConstraintIssue {
     | "window_outside_hours"
     | "window_clipped"
     | "earliest_past_dropped"
+    | "redundant_dropped"
     | "range_in_past"
     | "range_inverted"
     | "schema_invalid";
@@ -116,13 +117,16 @@ export function validateConstraintSet(
     h.excludedDates = uniqSorted(h.excludedDates.filter((d) => d >= today));
     if (h.excludedDates.length === 0) delete h.excludedDates;
   }
-  if (h.earliestDate && h.earliestDate < today) {
-    warnings.push({
-      code: "past_date_dropped",
-      message: `Earliest date ${h.earliestDate} is in the past — clamped to today.`,
-      field: "hard.earliestDate",
-    });
-    h.earliestDate = today;
+  if (h.earliestDate && h.earliestDate <= today) {
+    // earliestDate of today (or earlier) restricts nothing — canonical form
+    // drops it; warn only when it was actually in the past.
+    if (h.earliestDate < today)
+      warnings.push({
+        code: "past_date_dropped",
+        message: `Earliest date ${h.earliestDate} is in the past — dropped.`,
+        field: "hard.earliestDate",
+      });
+    delete h.earliestDate;
   }
   if (h.latestDate && h.latestDate < today)
     errors.push({
@@ -205,6 +209,39 @@ export function validateConstraintSet(
       });
   }
 
+  // -- redundant exclusions: an exclusion that could never match anyway ----
+  // restricts nothing — canonical form drops it. (Overlaps with allowed sets
+  // were already rejected as conflicts above.)
+  if (h.excludedDaysOfWeek && h.allowedDaysOfWeek && errors.length === 0) {
+    warnings.push({
+      code: "redundant_dropped",
+      message:
+        "Excluded weekday(s) are already outside the allowed weekdays — dropped.",
+      field: "hard.excludedDaysOfWeek",
+    });
+    delete h.excludedDaysOfWeek;
+  }
+  if (h.excludedDates && errors.length === 0) {
+    const otherwisePermitted = (d: string) => {
+      if (h.allowedDates && !h.allowedDates.includes(d)) return false;
+      if (h.allowedDaysOfWeek && !h.allowedDaysOfWeek.includes(isoWeekdayOf(d)))
+        return false;
+      if (h.excludedDaysOfWeek?.includes(isoWeekdayOf(d))) return false;
+      if (h.earliestDate && d < h.earliestDate) return false;
+      if (h.latestDate && d > h.latestDate) return false;
+      return true;
+    };
+    const kept = h.excludedDates.filter(otherwisePermitted);
+    if (kept.length < h.excludedDates.length)
+      warnings.push({
+        code: "redundant_dropped",
+        message: "Excluded date(s) that could never match anyway were dropped.",
+        field: "hard.excludedDates",
+      });
+    h.excludedDates = kept;
+    if (h.excludedDates.length === 0) delete h.excludedDates;
+  }
+
   // -- time windows: order, clip to clinic hours ---------------------------
   const clipWindows = (
     windows: TimeWindow[],
@@ -222,8 +259,8 @@ export function validateConstraintSet(
         });
         return;
       }
-      const start = w.start && w.start < open ? open : w.start;
-      const end = w.end && w.end > close ? close : w.end;
+      let start = w.start && w.start < open ? open : w.start;
+      let end = w.end && w.end > close ? close : w.end;
       const outsideHours =
         (w.start && w.start >= close) || (w.end && w.end <= open);
       if (outsideHours) {
@@ -240,6 +277,20 @@ export function validateConstraintSet(
           message: `Window clipped to clinic hours (${open}–${close}).`,
           field: at,
         });
+      // Canonical form: bounds equal to clinic open/close restrict nothing —
+      // strip them so {start:12:00,end:17:00} ≡ {start:12:00}. A window that
+      // loses both bounds spans the whole day and is dropped entirely.
+      if (start === open) start = undefined;
+      if (end === close) end = undefined;
+      if (!start && !end) {
+        warnings.push({
+          code: "window_clipped",
+          message:
+            "Window spans the full clinic day — dropped (no restriction).",
+          field: at,
+        });
+        return;
+      }
       out.push({ ...(start ? { start } : {}), ...(end ? { end } : {}) });
     });
     return out;
@@ -268,6 +319,10 @@ export function validateConstraintSet(
   }
   if (s.preferredDaysOfWeek)
     s.preferredDaysOfWeek = uniqSorted(s.preferredDaysOfWeek);
+  if (s.preferredDates) {
+    s.preferredDates = uniqSorted(s.preferredDates.filter((d) => d >= today));
+    if (s.preferredDates.length === 0) delete s.preferredDates;
+  }
 
   return { ok: errors.length === 0, errors, warnings, normalized: set };
 }
