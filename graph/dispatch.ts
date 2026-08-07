@@ -10,9 +10,12 @@ import { audit } from "@/core/audit";
 import { demoNowIso, fmtWhen } from "@/core/clock";
 import { getDoctor, getPatient } from "@/agents/tools";
 import { handlePatientReply } from "@/worker/replies";
+import { replanWithConstraintSet } from "@/worker/steps";
 import { startCase, resumeCase } from "@/graph/caseGraph";
 
-export async function dispatchEvent(ev: typeof schema.events.$inferSelect): Promise<void> {
+export async function dispatchEvent(
+  ev: typeof schema.events.$inferSelect,
+): Promise<void> {
   const payload = ev.payload as any;
   switch (ev.type) {
     case "doctor_emergency": {
@@ -23,13 +26,21 @@ export async function dispatchEvent(ev: typeof schema.events.$inferSelect): Prom
         severity: "high",
         title: `${doctor.name} unavailable — ${payload.date}`,
         openedByEvent: ev.id,
-        meta: { doctorId: payload.doctorId, date: payload.date, reason: payload.reason ?? "emergency" },
+        meta: {
+          doctorId: payload.doctorId,
+          date: payload.date,
+          reason: payload.reason ?? "emergency",
+        },
       });
       await startCase(c.id);
       return;
     }
     case "patient_cancelled": {
-      const appt = db.select().from(schema.appointments).where(eq(schema.appointments.id, payload.appointmentId)).get();
+      const appt = db
+        .select()
+        .from(schema.appointments)
+        .where(eq(schema.appointments.id, payload.appointmentId))
+        .get();
       if (!appt) return;
       const p = getPatient(appt.patientId);
       const c = openCase({
@@ -51,24 +62,49 @@ export async function dispatchEvent(ev: typeof schema.events.$inferSelect): Prom
       await resumeCase(payload.caseId);
       return;
     }
+    case "constraint_replan": {
+      await replanWithConstraintSet(payload.caseId, {
+        appointmentId: payload.appointmentId,
+        supersededRecId: payload.supersededRecId,
+        set: payload.set,
+        note: payload.note ?? "Staff-approved constraint search",
+        chosenSlot: payload.chosenSlot ?? undefined,
+      });
+      await resumeCase(payload.caseId);
+      return;
+    }
     case "patient_reply": {
       const caseId = await handlePatientReply(payload.messageId);
       if (caseId) await resumeCase(caseId);
       return;
     }
     case "simulate_reply": {
-      const caseId = await injectSimulatedReply(payload.messageId, payload.body);
+      const caseId = await injectSimulatedReply(
+        payload.messageId,
+        payload.body,
+      );
       if (caseId) await resumeCase(caseId);
       return;
     }
     default:
-      audit({ actor: "worker", action: "event.unknown", detail: { type: ev.type } });
+      audit({
+        actor: "worker",
+        action: "event.unknown",
+        detail: { type: ev.type },
+      });
   }
 }
 
 /** Insert a simulated inbound message on an outbound thread, then handle it. */
-export async function injectSimulatedReply(outboundMessageId: string, body: string): Promise<string | null> {
-  const outbound = db.select().from(schema.messages).where(eq(schema.messages.id, outboundMessageId)).get();
+export async function injectSimulatedReply(
+  outboundMessageId: string,
+  body: string,
+): Promise<string | null> {
+  const outbound = db
+    .select()
+    .from(schema.messages)
+    .where(eq(schema.messages.id, outboundMessageId))
+    .get();
   if (!outbound) return null;
   const patient = getPatient(outbound.patientId);
   const inbound = db
@@ -88,6 +124,13 @@ export async function injectSimulatedReply(outboundMessageId: string, body: stri
     })
     .returning()
     .get();
-  audit({ actor: "sim", action: "mail.inbound_simulated", refType: "message", refId: inbound.id, caseId: outbound.caseId, detail: { from: patient.email } });
+  audit({
+    actor: "sim",
+    action: "mail.inbound_simulated",
+    refType: "message",
+    refId: inbound.id,
+    caseId: outbound.caseId,
+    detail: { from: patient.email },
+  });
   return handlePatientReply(inbound.id);
 }
