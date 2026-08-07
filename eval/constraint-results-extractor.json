@@ -1,0 +1,103 @@
+{
+  "at": "2026-08-07T14:25:08.506Z",
+  "candidate": "extractor",
+  "provider": "Claude on Bedrock · global.anthropic.claude-sonnet-4-6",
+  "liveRuns": 62,
+  "fallbackRuns": 0,
+  "total": {
+    "n": 65,
+    "intentAccuracy": 0.9692307692307692,
+    "fullMatch": 0.9692307692307692
+  },
+  "fields": {
+    "precision": 1,
+    "recall": 1,
+    "tp": 60,
+    "fp": 0,
+    "fn": 0
+  },
+  "guard": {
+    "reached": 3,
+    "total": 4
+  },
+  "byCategory": {
+    "clean_accept": {
+      "n": 5,
+      "intentOk": 5,
+      "fullMatch": 5,
+      "quarantined": 0
+    },
+    "clean_decline": {
+      "n": 4,
+      "intentOk": 4,
+      "fullMatch": 4,
+      "quarantined": 0
+    },
+    "cancel": {
+      "n": 4,
+      "intentOk": 4,
+      "fullMatch": 4,
+      "quarantined": 0
+    },
+    "simple_counter": {
+      "n": 8,
+      "intentOk": 8,
+      "fullMatch": 8,
+      "quarantined": 0
+    },
+    "compound": {
+      "n": 10,
+      "intentOk": 10,
+      "fullMatch": 10,
+      "quarantined": 0
+    },
+    "negation": {
+      "n": 6,
+      "intentOk": 6,
+      "fullMatch": 6,
+      "quarantined": 0
+    },
+    "relative_date": {
+      "n": 6,
+      "intentOk": 6,
+      "fullMatch": 6,
+      "quarantined": 0
+    },
+    "taglish": {
+      "n": 9,
+      "intentOk": 8,
+      "fullMatch": 8,
+      "quarantined": 1
+    },
+    "doctor_preference": {
+      "n": 5,
+      "intentOk": 5,
+      "fullMatch": 5,
+      "quarantined": 0
+    },
+    "ambiguous": {
+      "n": 4,
+      "intentOk": 4,
+      "fullMatch": 4,
+      "quarantined": 0
+    },
+    "clinical_mixed": {
+      "n": 4,
+      "intentOk": 3,
+      "fullMatch": 3,
+      "quarantined": 0
+    }
+  },
+  "failures": [
+    {
+      "id": "t4",
+      "category": "taglish",
+      "why": "false quarantine (guard hit on routine message)"
+    },
+    {
+      "id": "g1",
+      "category": "clinical_mixed",
+      "why": "guard miss — auto-handled instead of reaching a human"
+    }
+  ]
+}

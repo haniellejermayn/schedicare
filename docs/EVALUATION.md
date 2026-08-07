@@ -23,31 +23,30 @@ replan round → measure. Fully offline in resilience mode; with
 
 ## Constraint-extraction corpus (`eval/constraintCorpus.json`)
 
-`npm run eval:constraints` scores constraint extraction against 65 labeled
-messy replies where every expected answer is a `SchedulingConstraintSet`
-(hard/soft fields, unresolved flag, guard requirement). Categories: clean
-accept/decline/cancel, simple counters, compound, negation, relative dates,
-Taglish, doctor preference, ambiguous, clinical-mixed. Scoring is
-field-level (exact match; wrong value = FP+FN), plus intent accuracy, full
-match, and must-reach-human recall for guard cases. The deterministic
-baseline (guard + `ruleClassifyReply`, steelmanned: routing to a human
-counts as flagging everything unresolved) currently measures:
+`npm run eval:constraints` scores constraint extraction against 65
+labeled messy replies where every expected answer is a
+`SchedulingConstraintSet`. Candidates run through an identical scorer
+(`CANDIDATE=baseline|extractor`); both expected and predicted sets are
+canonicalized by `validateConstraintSet` before field-level comparison
+(exact match; wrong value = FP+FN), with per-case `optional` fields for
+genuinely bistable encodings (used once, m4). Guard cases score
+must-reach-human recall. Results: `eval/constraint-results-<candidate>.json`.
 
-| Slice                 | Intent  | Full match |
-| --------------------- | ------- | ---------- |
-| simple_counter (8)    | 100%    | 88%        |
-| compound (10)         | 100%    | **0%**     |
-| negation (6)          | 67%     | 0%         |
-| relative_date (6)     | 33%     | 0%         |
-| doctor_preference (5) | 0%      | 0%         |
-| taglish (9)           | 33%     | 11%        |
-| **TOTAL (65)**        | **63%** | **34%**    |
+| Slice                                     | Baseline  | Claude Sonnet 4.6                |
+| ----------------------------------------- | --------- | -------------------------------- |
+| Intent accuracy                           | 63%       | 97%                              |
+| Full match                                | 31%       | **97% (97/97/97 across 3 runs)** |
+| Field precision / recall                  | 41% / 22% | **100% / 100%**                  |
+| Compound / negation / relative dates      | 0% each   | 100% / 100% / 100%               |
+| Guard recall (shared deterministic layer) | 2/4       | 3/4                              |
 
-Field extraction: precision 48%, recall 26%. Guard recall 2/4 (misses
-"headaches" and Taglish "nahihilo"; false-quarantines "mag-alas dose").
-The same scorer accepts additional candidates — the constraint-extractor
-agent plugs in beside the baseline so the delta is measured identically.
-Results land in `eval/constraint-results.json`.
+Labels and prompt went through three error-analysis loops on this set
+(canonicalization fixes, six relabels where the model's reading was more
+faithful, prompt conventions for week bounds, soft-language, and
+calendar-table date resolution) — so this is a development-set figure; a
+frozen held-out set is planned. Remaining reds are guard-layer bugs by
+design: Tagalog "dose" (twelve) false-quarantines as medication, and
+"headaches"/"nahihilo" pass the English-only medical lexicon.
 
 ## The reply dataset (`eval/replies.json`)
 

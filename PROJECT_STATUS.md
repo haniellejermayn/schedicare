@@ -1,6 +1,6 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (59/59), `npm run eval`
+Status date: build verified against `npm test` (62/62), `npm run eval`
 (all targets met), `npm run eval:constraints` (baseline benchmarked), and
 `npm run build` (clean).
 
@@ -30,13 +30,41 @@ produces a time.
 **The yardstick.** `eval/constraintCorpus.json` (65 labeled messy replies:
 compound, negation, relative dates, Taglish, doctor preferences, ambiguity,
 mixed clinical) + `eval/constraintBaseline.ts` scoring the deterministic
-guard+rules path field-by-field. Baseline: 63% intent, **34% full match**
+guard+rules path field-by-field. Baseline (corrected labels): 63% intent, **31% full match**
 (88% on simple counters, **0% on compound/negation/relative-date**), field
 precision 48% / recall 26%, guard recall 2/4. Notable finds: "Wag po sa
 Friday" extracts Friday as _preferred_ (negation inversion); Tagalog "dose"
 (twelve) false-quarantines as medication; "nahihilo" slips past the English
 medical guard. This table is the baseline the constraint-extractor agent must
 beat on the same scorer.
+
+## AI provider layer + Claude constraint extractor (v2.2)
+
+**Provider abstraction.** The Gemini tool loop was extracted into a
+provider-agnostic runtime (agents/runtime/toolLoop.ts); providers are thin
+constructors. Added Claude on Amazon Bedrock via the Converse API
+(AI_PROVIDER=bedrock, bearer-token auth, global inference profiles;
+working default global.anthropic.claude-sonnet-4-6 in ap-southeast-1).
+Same submit_result discipline, per-provider health, provider-aware status.
+Eval entry points now load .env.local/.env like the worker does.
+
+**Constraint extractor (agents/constraintExtractor.ts).** First LLM
+component with no deterministic twin — fallback is a review handoff
+(ambiguous + whole message unresolved), never regex. Prompt encodes the
+corpus labeling conventions, a Taglish glossary, a 15-day calendar table
+(date resolution by lookup, not model arithmetic), and "learned
+conventions" from three error-analysis loops. Guard runs before it;
+output flows only through validator → staff editor → engine.
+
+**Results (dev set, 65 cases, 3 runs).** Claude Sonnet 4.6: **97% full
+match** (97/97/97), 97% intent, 100% field precision/recall, vs corrected
+deterministic baseline 31% / 63%. Sole residuals are two known
+guard-layer bugs (Tagalog "dose" false quarantine; "headaches" miss) —
+the guard upgrade's scoreboard, not extractor failures. One prior-run
+invalid-set emission (inverted date range) was caught by
+validateConstraintSet and routed to review: the safety layering worked.
+Caveat: dev-set figure — prompt/labels were iterated on these cases; a
+frozen held-out set is the next evaluation step.
 
 ## Final capstone polish
 

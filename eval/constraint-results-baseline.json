@@ -1,0 +1,1312 @@
+{
+  "at": "2026-08-07T12:55:03.654Z",
+  "candidate": "baseline",
+  "provider": "rules",
+  "liveRuns": 0,
+  "fallbackRuns": 0,
+  "total": {
+    "n": 65,
+    "intentAccuracy": 0.6307692307692307,
+    "fullMatch": 0.3076923076923077
+  },
+  "fields": {
+    "precision": 0.3939393939393939,
+    "recall": 0.20634920634920634,
+    "tp": 13,
+    "fp": 20,
+    "fn": 50
+  },
+  "guard": {
+    "reached": 2,
+    "total": 4
+  },
+  "byCategory": {
+    "clean_accept": {
+      "n": 5,
+      "intentOk": 4,
+      "fullMatch": 4,
+      "quarantined": 0
+    },
+    "clean_decline": {
+      "n": 4,
+      "intentOk": 2,
+      "fullMatch": 2,
+      "quarantined": 0
+    },
+    "cancel": {
+      "n": 4,
+      "intentOk": 3,
+      "fullMatch": 3,
+      "quarantined": 0
+    },
+    "simple_counter": {
+      "n": 8,
+      "intentOk": 8,
+      "fullMatch": 5,
+      "quarantined": 0
+    },
+    "compound": {
+      "n": 10,
+      "intentOk": 10,
+      "fullMatch": 0,
+      "quarantined": 0
+    },
+    "negation": {
+      "n": 6,
+      "intentOk": 4,
+      "fullMatch": 0,
+      "quarantined": 0
+    },
+    "relative_date": {
+      "n": 6,
+      "intentOk": 2,
+      "fullMatch": 0,
+      "quarantined": 0
+    },
+    "taglish": {
+      "n": 9,
+      "intentOk": 3,
+      "fullMatch": 1,
+      "quarantined": 1
+    },
+    "doctor_preference": {
+      "n": 5,
+      "intentOk": 0,
+      "fullMatch": 0,
+      "quarantined": 0
+    },
+    "ambiguous": {
+      "n": 4,
+      "intentOk": 3,
+      "fullMatch": 3,
+      "quarantined": 0
+    },
+    "clinical_mixed": {
+      "n": 4,
+      "intentOk": 2,
+      "fullMatch": 2,
+      "quarantined": 0
+    }
+  },
+  "failures": [
+    {
+      "id": "a4",
+      "category": "clean_accept",
+      "why": "intent ambiguous≠accept · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Okay, that new time is fine with me.",
+      "expected": {
+        "intent": "accept",
+        "hard": {},
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "d3",
+      "category": "clean_decline",
+      "why": "intent ambiguous≠decline · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Hindi po ako pwede sa ganyang oras.",
+      "expected": {
+        "intent": "decline",
+        "hard": {},
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "d4",
+      "category": "clean_decline",
+      "why": "intent ambiguous≠decline · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "I'd rather not move it, please keep my original schedule.",
+      "expected": {
+        "intent": "decline",
+        "hard": {},
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "c4",
+      "category": "cancel",
+      "why": "intent ambiguous≠cancel · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Can we cancel? I'll rebook once my schedule settles.",
+      "expected": {
+        "intent": "cancel",
+        "hard": {},
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "s3",
+      "category": "simple_counter",
+      "why": "hard.timeWindows: exp — / got [{\"start\":\"12:00\"}] · soft.preferredTimeWindows: exp [{\"start\":\"12:00\"}] / got —",
+      "body": "Anything in the afternoon works better.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — afternoons."
+      }
+    },
+    {
+      "id": "s5",
+      "category": "simple_counter",
+      "why": "hard.timeWindows: exp — / got [{\"end\":\"12:00\"}] · soft.preferredTimeWindows: exp [{\"end\":\"12:00\"}] / got —",
+      "body": "Before noon would be best for me.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — before 12:00."
+      }
+    },
+    {
+      "id": "s7",
+      "category": "simple_counter",
+      "why": "hard.earliestDate: exp \"2026-08-17\" / got — · hard.latestDate: exp \"2026-08-23\" / got —",
+      "body": "Can I come next week instead?",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "earliestDate": "2026-08-17",
+          "latestDate": "2026-08-23"
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time."
+      }
+    },
+    {
+      "id": "m1",
+      "category": "compound",
+      "why": "hard.excludedDates: exp [\"2026-08-14\"] / got — · hard.allowedDaysOfWeek: exp [3,4] / got [2] · hard.excludedDaysOfWeek: exp [2] / got — · soft.preferredDoctorId: exp \"doc_santos\" / got —",
+      "body": "I can't do Tuesdays. Wednesday or Thursday after 2 PM works, but I would prefer Dr. Santos and I cannot come on August 14.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDates": [
+            "2026-08-14"
+          ],
+          "allowedDaysOfWeek": [
+            3,
+            4
+          ],
+          "excludedDaysOfWeek": [
+            2
+          ],
+          "timeWindows": [
+            {
+              "start": "14:00"
+            }
+          ]
+        },
+        "soft": {
+          "preferredDoctorId": "doc_santos"
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            2
+          ],
+          "timeWindows": [
+            {
+              "start": "14:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — after 14:00, on 2026-08-11."
+      }
+    },
+    {
+      "id": "m2",
+      "category": "compound",
+      "why": "hard.allowedDates: exp [\"2026-08-17\",\"2026-08-18\"] / got — · hard.allowedDaysOfWeek: exp — / got [1] · hard.timeWindows: exp [{\"start\":\"09:00\",\"end\":\"11:00\"}] / got [{\"end\":\"12:00\"}]",
+      "body": "Monday or Tuesday next week, between 9 and 11 in the morning please.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDates": [
+            "2026-08-17",
+            "2026-08-18"
+          ],
+          "timeWindows": [
+            {
+              "start": "09:00",
+              "end": "11:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            1
+          ],
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — mornings, on 2026-08-17."
+      }
+    },
+    {
+      "id": "m3",
+      "category": "compound",
+      "why": "hard.allowedDaysOfWeek: exp [1,2,3,4] / got [5]",
+      "body": "Any weekday afternoon except Friday works for us.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            5
+          ],
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — afternoons, on 2026-08-14."
+      }
+    },
+    {
+      "id": "m4",
+      "category": "compound",
+      "why": "hard.allowedDaysOfWeek: exp [3,4] / got [3] · hard.timeWindows: exp — / got [{\"end\":\"12:00\"}] · soft.preferredDoctorId: exp \"doc_reyes\" / got — · unresolved-flag: expected something unresolved, got none",
+      "body": "Wednesday morning or Thursday afternoon, whichever has the earlier slot with Dr. Reyes.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            3,
+            4
+          ]
+        },
+        "soft": {
+          "preferredDoctorId": "doc_reyes"
+        },
+        "unresolved": [
+          "(expected: something unresolved)"
+        ]
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            3
+          ],
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — mornings, on 2026-08-12."
+      }
+    },
+    {
+      "id": "m5",
+      "category": "compound",
+      "why": "hard.earliestDate: exp \"2026-08-17\" / got —",
+      "body": "Not this week please — any time from the 17th onwards, mornings, kahit sinong doctor.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ],
+          "earliestDate": "2026-08-17"
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — mornings."
+      }
+    },
+    {
+      "id": "m6",
+      "category": "compound",
+      "why": "hard.allowedDates: exp [\"2026-08-12\",\"2026-08-13\"] / got — · soft.preferSameDoctor: exp true / got —",
+      "body": "Either the 12th or the 13th, but only before 10 AM, and same doctor po sana.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDates": [
+            "2026-08-12",
+            "2026-08-13"
+          ],
+          "timeWindows": [
+            {
+              "end": "10:00"
+            }
+          ]
+        },
+        "soft": {
+          "preferSameDoctor": true
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "10:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — before 10:00."
+      }
+    },
+    {
+      "id": "m7",
+      "category": "compound",
+      "why": "hard.allowedDaysOfWeek: exp — / got [2] · hard.timeWindows: exp — / got [{\"start\":\"12:00\"}] · hard.earliestDate: exp \"2026-08-17\" / got — · soft.preferredDaysOfWeek: exp [2,4] / got —",
+      "body": "We're out of town until Aug 15, so anything from the 17th. Ideally Tuesday or Thursday afternoons.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "earliestDate": "2026-08-17"
+        },
+        "soft": {
+          "preferredDaysOfWeek": [
+            2,
+            4
+          ],
+          "preferredTimeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            2
+          ],
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — afternoons, on 2026-08-11."
+      }
+    },
+    {
+      "id": "m8",
+      "category": "compound",
+      "why": "hard.allowedDaysOfWeek: exp — / got [1] · hard.excludedDaysOfWeek: exp [1,6,7] / got —",
+      "body": "Weekends won't work, and neither will Monday. After 2:30 PM any other day is fine.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDaysOfWeek": [
+            1,
+            6,
+            7
+          ],
+          "timeWindows": [
+            {
+              "start": "14:30"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            1
+          ],
+          "timeWindows": [
+            {
+              "start": "14:30"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — after 14:30, on 2026-08-17."
+      }
+    },
+    {
+      "id": "m9",
+      "category": "compound",
+      "why": "invalid-set (window_inverted) · hard.allowedDaysOfWeek: exp [2,3,4] / got [2] · hard.timeWindows: exp [{\"end\":\"09:00\"},{\"start\":\"16:00\"}] / got [{\"start\":\"16:00\",\"end\":\"09:00\"}]",
+      "body": "Before 9 AM or after 4 PM please, Tuesday to Thursday.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            2,
+            3,
+            4
+          ],
+          "timeWindows": [
+            {
+              "end": "09:00"
+            },
+            {
+              "start": "16:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            2
+          ],
+          "timeWindows": [
+            {
+              "start": "16:00",
+              "end": "09:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — after 16:00, before 09:00, on 2026-08-11."
+      }
+    },
+    {
+      "id": "m10",
+      "category": "compound",
+      "why": "hard.excludedDates: exp [\"2026-08-12\",\"2026-08-13\"] / got — · hard.timeWindows: exp — / got [{\"end\":\"12:00\"}] · soft.preferredTimeWindows: exp [{\"end\":\"12:00\"}] / got — · soft.earliestPreferredDate: exp \"2026-08-17\" / got —",
+      "body": "Please avoid the 12th and 13th; the following week is wide open for us, mornings preferred.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDates": [
+            "2026-08-12",
+            "2026-08-13"
+          ]
+        },
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "end": "12:00"
+            }
+          ],
+          "earliestPreferredDate": "2026-08-17"
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — mornings."
+      }
+    },
+    {
+      "id": "n1",
+      "category": "negation",
+      "why": "hard.allowedDaysOfWeek: exp — / got [4] · hard.excludedDaysOfWeek: exp [4] / got —",
+      "body": "Any day except Thursday is okay.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDaysOfWeek": [
+            4
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            4
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — on 2026-08-13."
+      }
+    },
+    {
+      "id": "n2",
+      "category": "negation",
+      "why": "hard.allowedDaysOfWeek: exp — / got [5] · hard.excludedDaysOfWeek: exp [5] / got —",
+      "body": "Wag po sa Friday, may exam ang anak ko.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDaysOfWeek": [
+            5
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            5
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — on 2026-08-14."
+      }
+    },
+    {
+      "id": "n3",
+      "category": "negation",
+      "why": "intent ambiguous≠counter_proposal · hard.excludedDates: exp [\"2026-08-14\"] / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Not the 14th please, anything else works.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDates": [
+            "2026-08-14"
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "n4",
+      "category": "negation",
+      "why": "hard.timeWindows: exp [{\"start\":\"12:00\"}] / got [{\"end\":\"12:00\"}]",
+      "body": "I said mornings DON'T work — afternoons po.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — mornings."
+      }
+    },
+    {
+      "id": "n5",
+      "category": "negation",
+      "why": "intent ambiguous≠counter_proposal · hard.timeWindows: exp [{\"start\":\"12:00\"}] / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Huwag na sa umaga, hapon na lang po.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "n6",
+      "category": "negation",
+      "why": "hard.excludedDates: exp [\"2026-08-17\",\"2026-08-18\",\"2026-08-19\",\"2026-08-20\",\"2026-0 / got —",
+      "body": "Skip next week entirely, we're in the province. The week after is fine.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "excludedDates": [
+            "2026-08-17",
+            "2026-08-18",
+            "2026-08-19",
+            "2026-08-20",
+            "2026-08-21",
+            "2026-08-22",
+            "2026-08-23"
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time."
+      }
+    },
+    {
+      "id": "r1",
+      "category": "relative_date",
+      "why": "hard.allowedDates: exp [\"2026-08-14\"] / got — · hard.allowedDaysOfWeek: exp — / got [5]",
+      "body": "This Friday na lang instead, if free pa.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDates": [
+            "2026-08-14"
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            5
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — on 2026-08-14."
+      }
+    },
+    {
+      "id": "r2",
+      "category": "relative_date",
+      "why": "intent ambiguous≠counter_proposal · hard.allowedDates: exp [\"2026-08-18\"] / got — · unresolved-flag: got \"Patient asked a question — staff should reply.\"",
+      "body": "Can we do it on the 18th?",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDates": [
+            "2026-08-18"
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Patient asked a question — staff should reply."
+        ],
+        "summary": "Patient asked a question — staff should reply."
+      }
+    },
+    {
+      "id": "r3",
+      "category": "relative_date",
+      "why": "intent ambiguous≠counter_proposal · hard.allowedDates: exp [\"2026-08-17\"] / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Sa Lunes na lang po, the 17th.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDates": [
+            "2026-08-17"
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "r4",
+      "category": "relative_date",
+      "why": "intent ambiguous≠counter_proposal · hard.earliestDate: exp \"2026-08-16\" / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "After my duty ends on the 15th, so the 16th onwards po.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "earliestDate": "2026-08-16"
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "r5",
+      "category": "relative_date",
+      "why": "hard.timeWindows: exp — / got [{\"end\":\"12:00\"}] · soft.preferredDates: exp [\"2026-08-11\"] / got — · soft.preferredTimeWindows: exp [{\"end\":\"12:00\"}] / got —",
+      "body": "Tomorrow morning if possible?",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "end": "12:00"
+            }
+          ],
+          "preferredDates": [
+            "2026-08-11"
+          ]
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — mornings."
+      }
+    },
+    {
+      "id": "r6",
+      "category": "relative_date",
+      "why": "intent ambiguous≠counter_proposal · hard.earliestDate: exp \"2026-08-24\" / got — · soft.preferSameDoctor: exp true / got —",
+      "body": "Two weeks from now, same time same doctor please.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "earliestDate": "2026-08-24"
+        },
+        "soft": {
+          "preferSameDoctor": true
+        },
+        "unresolved": [
+          "(expected: something unresolved)"
+        ]
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "t2",
+      "category": "taglish",
+      "why": "intent ambiguous≠counter_proposal · hard.allowedDates: exp [\"2026-08-12\"] / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Hindi kami available bukas, sa Miyerkules na lang po.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDates": [
+            "2026-08-12"
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "t3",
+      "category": "taglish",
+      "why": "intent ambiguous≠counter_proposal · hard.requiredDoctorId: exp \"doc_santos\" / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Kay Dra. Santos lang po talaga kami nagpapatingin.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "requiredDoctorId": "doc_santos"
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "t4",
+      "category": "taglish",
+      "why": "false quarantine (guard hit on routine message)"
+    },
+    {
+      "id": "t5",
+      "category": "taglish",
+      "why": "intent ambiguous≠counter_proposal · soft.preferredTimeWindows: exp [{\"start\":\"12:00\"}] / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Baka pwede sa hapon? Pero kung wala, okay lang din yung offer niyo.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferredTimeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "t6",
+      "category": "taglish",
+      "why": "unresolved-flag: expected something unresolved, got none",
+      "body": "Sige po sa Tuesday, pero pwede bang mas maaga, mga 8:30?",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            2
+          ]
+        },
+        "soft": {},
+        "unresolved": [
+          "(expected: something unresolved)"
+        ]
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            2
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — on 2026-08-11."
+      }
+    },
+    {
+      "id": "t7",
+      "category": "taglish",
+      "why": "hard.allowedDaysOfWeek: exp [3,5] / got [3] · hard.timeWindows: exp [{\"start\":\"12:00\"}] / got —",
+      "body": "Wala po kaming masakyan pag umaga, so PM po sana, Wednesday o Friday.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            3,
+            5
+          ],
+          "timeWindows": [
+            {
+              "start": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "counter_proposal",
+        "hard": {
+          "allowedDaysOfWeek": [
+            3
+          ]
+        },
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient asked for a different time — on 2026-08-12."
+      }
+    },
+    {
+      "id": "t8",
+      "category": "taglish",
+      "why": "intent ambiguous≠counter_proposal · hard.requireSameDoctor: exp true / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Ayaw po ni lola ng bagong doctor, yung dati na lang po ulit.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "requireSameDoctor": true
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "t9",
+      "category": "taglish",
+      "why": "intent ambiguous≠accept · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Sige po.",
+      "expected": {
+        "intent": "accept",
+        "hard": {},
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "p1",
+      "category": "doctor_preference",
+      "why": "intent ambiguous≠counter_proposal · soft.preferredDoctorId: exp \"doc_reyes\" / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "If possible, Dr. Reyes na lang po this time.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferredDoctorId": "doc_reyes"
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "p2",
+      "category": "doctor_preference",
+      "why": "intent ambiguous≠counter_proposal · hard.requiredDoctorId: exp \"doc_santos\" / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Only Dr. Santos please — she knows my history.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "requiredDoctorId": "doc_santos"
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "p3",
+      "category": "doctor_preference",
+      "why": "intent ambiguous≠counter_proposal · hard.latestDate: exp \"2026-08-16\" / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Kahit sinong doctor, basta this week.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "latestDate": "2026-08-16"
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "p4",
+      "category": "doctor_preference",
+      "why": "intent ambiguous≠counter_proposal · soft.preferSameDoctor: exp true / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "I'd rather keep my usual doctor, but the soonest slot matters more.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferSameDoctor": true
+        },
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "p5",
+      "category": "doctor_preference",
+      "why": "intent ambiguous≠counter_proposal · soft.preferSameDoctor: exp true / got —",
+      "body": "Same doctor please, and same time of day if you can.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {},
+        "soft": {
+          "preferSameDoctor": true
+        },
+        "unresolved": [
+          "(expected: something unresolved)"
+        ]
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
+    },
+    {
+      "id": "u1",
+      "category": "ambiguous",
+      "why": "intent accept≠ambiguous · unresolved-flag: expected something unresolved, got none",
+      "body": "Depende po sa shift ko next week, I'll confirm by Sunday.",
+      "expected": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "(expected: something unresolved)"
+        ]
+      },
+      "predicted": {
+        "intent": "accept",
+        "hard": {},
+        "soft": {},
+        "unresolved": [],
+        "summary": "Patient accepted the offered time."
+      }
+    },
+    {
+      "id": "g1",
+      "category": "clinical_mixed",
+      "why": "guard miss — auto-handled instead of reaching a human"
+    },
+    {
+      "id": "g4",
+      "category": "clinical_mixed",
+      "why": "guard miss — auto-handled instead of reaching a human"
+    }
+  ]
+}
