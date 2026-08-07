@@ -115,6 +115,13 @@ export const SchedulingConstraintSetSchema = z.object({
    * non-empty list forces staff review.
    */
   unresolvedStatements: z.array(z.string().max(300)).default([]),
+  /**
+   * Second clinical-detection layer (the deterministic guard is the first).
+   * True whenever the message contains ANY medical content — symptoms,
+   * conditions, medications, clinical questions. Detection only, never
+   * characterization: either layer firing routes the message to a human.
+   */
+  clinicalContentDetected: z.boolean().default(false),
   /** Source spans backing the extracted fields. */
   evidence: z.array(EvidenceSchema).default([]),
   confidence: z.number().min(0).max(1),
@@ -161,6 +168,14 @@ const INTENT_TO_LEGACY: Record<
 export function toLegacyInterpretation(
   set: SchedulingConstraintSet,
 ): ReplyInterpretation {
+  if (set.clinicalContentDetected) {
+    return {
+      intent: "needs_human",
+      confidence: Math.min(set.confidence, 0.5),
+      summary:
+        "Message contains possible clinical content — staff must read it.",
+    };
+  }
   const h = set.hard;
   const windows = h.timeWindows ?? [];
   const losesInformation =

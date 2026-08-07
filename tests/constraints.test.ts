@@ -349,6 +349,15 @@ describe("legacy bridge", () => {
     expect(legacy.confidence).toBeLessThanOrEqual(0.5);
   });
 
+  it("clinical flag forces needs_human through the bridge", () => {
+    const set = emptyConstraintSet("counter_proposal");
+    set.clinicalContentDetected = true;
+    set.confidence = 0.9;
+    const legacy = toLegacyInterpretation(set);
+    expect(legacy.intent).toBe("needs_human");
+    expect(legacy.summary).toMatch(/clinical/i);
+  });
+
   it("maps terminal intents directly", () => {
     expect(
       toLegacyInterpretation({

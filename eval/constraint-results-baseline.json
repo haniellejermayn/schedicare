@@ -1,23 +1,23 @@
 {
-  "at": "2026-08-07T12:55:03.654Z",
+  "at": "2026-08-07T15:22:59.217Z",
   "candidate": "baseline",
   "provider": "rules",
   "liveRuns": 0,
   "fallbackRuns": 0,
   "total": {
     "n": 65,
-    "intentAccuracy": 0.6307692307692307,
-    "fullMatch": 0.3076923076923077
+    "intentAccuracy": 0.6615384615384615,
+    "fullMatch": 0.3384615384615385
   },
   "fields": {
-    "precision": 0.3939393939393939,
-    "recall": 0.20634920634920634,
+    "precision": 0.40625,
+    "recall": 0.21311475409836064,
     "tp": 13,
-    "fp": 20,
-    "fn": 50
+    "fp": 19,
+    "fn": 48
   },
   "guard": {
-    "reached": 2,
+    "reached": 4,
     "total": 4
   },
   "byCategory": {
@@ -67,7 +67,7 @@
       "n": 9,
       "intentOk": 3,
       "fullMatch": 1,
-      "quarantined": 1
+      "quarantined": 0
     },
     "doctor_preference": {
       "n": 5,
@@ -83,8 +83,8 @@
     },
     "clinical_mixed": {
       "n": 4,
-      "intentOk": 2,
-      "fullMatch": 2,
+      "intentOk": 4,
+      "fullMatch": 4,
       "quarantined": 0
     }
   },
@@ -260,20 +260,14 @@
     {
       "id": "m1",
       "category": "compound",
-      "why": "hard.excludedDates: exp [\"2026-08-14\"] / got — · hard.allowedDaysOfWeek: exp [3,4] / got [2] · hard.excludedDaysOfWeek: exp [2] / got — · soft.preferredDoctorId: exp \"doc_santos\" / got —",
+      "why": "hard.allowedDaysOfWeek: exp [3,4] / got [2] · soft.preferredDoctorId: exp \"doc_santos\" / got —",
       "body": "I can't do Tuesdays. Wednesday or Thursday after 2 PM works, but I would prefer Dr. Santos and I cannot come on August 14.",
       "expected": {
         "intent": "counter_proposal",
         "hard": {
-          "excludedDates": [
-            "2026-08-14"
-          ],
           "allowedDaysOfWeek": [
             3,
             4
-          ],
-          "excludedDaysOfWeek": [
-            2
           ],
           "timeWindows": [
             {
@@ -385,16 +379,11 @@
     {
       "id": "m4",
       "category": "compound",
-      "why": "hard.allowedDaysOfWeek: exp [3,4] / got [3] · hard.timeWindows: exp — / got [{\"end\":\"12:00\"}] · soft.preferredDoctorId: exp \"doc_reyes\" / got — · unresolved-flag: expected something unresolved, got none",
+      "why": "hard.timeWindows: exp — / got [{\"end\":\"12:00\"}] · soft.preferredDoctorId: exp \"doc_reyes\" / got — · unresolved-flag: expected something unresolved, got none",
       "body": "Wednesday morning or Thursday afternoon, whichever has the earlier slot with Dr. Reyes.",
       "expected": {
         "intent": "counter_proposal",
-        "hard": {
-          "allowedDaysOfWeek": [
-            3,
-            4
-          ]
-        },
+        "hard": {},
         "soft": {
           "preferredDoctorId": "doc_reyes"
         },
@@ -787,20 +776,12 @@
     {
       "id": "n6",
       "category": "negation",
-      "why": "hard.excludedDates: exp [\"2026-08-17\",\"2026-08-18\",\"2026-08-19\",\"2026-08-20\",\"2026-0 / got —",
-      "body": "Skip next week entirely, we're in the province. The week after is fine.",
+      "why": "hard.earliestDate: exp \"2026-08-24\" / got —",
+      "body": "Skip next week entirely, we're in the province — balik kami Aug 24, any day from then works.",
       "expected": {
         "intent": "counter_proposal",
         "hard": {
-          "excludedDates": [
-            "2026-08-17",
-            "2026-08-18",
-            "2026-08-19",
-            "2026-08-20",
-            "2026-08-21",
-            "2026-08-22",
-            "2026-08-23"
-          ]
+          "earliestDate": "2026-08-24"
         },
         "soft": {},
         "unresolved": []
@@ -1025,7 +1006,29 @@
     {
       "id": "t4",
       "category": "taglish",
-      "why": "false quarantine (guard hit on routine message)"
+      "why": "intent ambiguous≠counter_proposal · hard.timeWindows: exp [{\"end\":\"12:00\"}] / got — · unresolved-flag: got \"Could not classify the reply with confidence — routing to s",
+      "body": "Okay lang kahit anong araw basta umaga, bago mag-alas dose.",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            {
+              "end": "12:00"
+            }
+          ]
+        },
+        "soft": {},
+        "unresolved": []
+      },
+      "predicted": {
+        "intent": "ambiguous",
+        "hard": {},
+        "soft": {},
+        "unresolved": [
+          "Could not classify the reply with confidence — routing to staff."
+        ],
+        "summary": "Could not classify the reply with confidence — routing to staff."
+      }
     },
     {
       "id": "t5",
@@ -1297,16 +1300,6 @@
         "unresolved": [],
         "summary": "Patient accepted the offered time."
       }
-    },
-    {
-      "id": "g1",
-      "category": "clinical_mixed",
-      "why": "guard miss — auto-handled instead of reaching a human"
-    },
-    {
-      "id": "g4",
-      "category": "clinical_mixed",
-      "why": "guard miss — auto-handled instead of reaching a human"
     }
   ]
 }

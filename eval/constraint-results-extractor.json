@@ -1,23 +1,23 @@
 {
-  "at": "2026-08-07T14:25:08.506Z",
+  "at": "2026-08-07T15:27:45.900Z",
   "candidate": "extractor",
   "provider": "Claude on Bedrock · global.anthropic.claude-sonnet-4-6",
-  "liveRuns": 62,
+  "liveRuns": 61,
   "fallbackRuns": 0,
   "total": {
     "n": 65,
-    "intentAccuracy": 0.9692307692307692,
-    "fullMatch": 0.9692307692307692
+    "intentAccuracy": 1,
+    "fullMatch": 1
   },
   "fields": {
     "precision": 1,
     "recall": 1,
-    "tp": 60,
+    "tp": 61,
     "fp": 0,
     "fn": 0
   },
   "guard": {
-    "reached": 3,
+    "reached": 4,
     "total": 4
   },
   "byCategory": {
@@ -65,9 +65,9 @@
     },
     "taglish": {
       "n": 9,
-      "intentOk": 8,
-      "fullMatch": 8,
-      "quarantined": 1
+      "intentOk": 9,
+      "fullMatch": 9,
+      "quarantined": 0
     },
     "doctor_preference": {
       "n": 5,
@@ -83,21 +83,10 @@
     },
     "clinical_mixed": {
       "n": 4,
-      "intentOk": 3,
-      "fullMatch": 3,
+      "intentOk": 4,
+      "fullMatch": 4,
       "quarantined": 0
     }
   },
-  "failures": [
-    {
-      "id": "t4",
-      "category": "taglish",
-      "why": "false quarantine (guard hit on routine message)"
-    },
-    {
-      "id": "g1",
-      "category": "clinical_mixed",
-      "why": "guard miss — auto-handled instead of reaching a human"
-    }
-  ]
+  "failures": []
 }

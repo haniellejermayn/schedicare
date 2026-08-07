@@ -64,6 +64,7 @@ Extraction conventions — follow these EXACTLY:
 - Doctor by name: insistence ("only", "lang talaga") → hard.requiredDoctorId; polite preference → soft.preferredDoctorId. Map names to IDs using the roster given below; if the name matches no roster entry, put the statement in unresolvedStatements instead.
 - "same doctor"/"my usual doctor" without insistence → soft.preferSameDoctor. Refusal of a NEW doctor ("ayaw ng bagong doctor") → hard.requireSameDoctor. Never guess a doctorId for these.
 - Approximate times ("mga 8:30", "around 3", "-ish"), references to the original booking ("same time"), paired day+time alternatives ("Wed morning OR Thu afternoon"), and anything you cannot map confidently → put the exact phrase in unresolvedStatements. NEVER silently drop or approximate a statement.
+- clinicalContentDetected: set true when the message contains ANY medical or clinical content — symptoms ("masakit", "nahihilo", "headaches"), conditions, medications, prescriptions, test results, or clinical questions ("should I still come in?"). Still extract any scheduling constraints present. NEVER interpret, assess, rank, or restate the clinical content itself — detection is the entire job; the summary must not repeat clinical details.
 - evidence: for EVERY extracted field, include {sourceText: the verbatim phrase, field: the dot-path like "hard.timeWindows[0]"}. No field without evidence.
 - confidence in [0,1] for the overall extraction; summary is one plain sentence for staff.
 - Extract only what is stated. Never invent dates, times, or doctors. An empty message or pure pleasantry → intent per its meaning, no constraints.
@@ -121,6 +122,7 @@ export const constraintExtractorAgent: AgentDef<
     intent: "ambiguous",
     hard: {},
     soft: {},
+    clinicalContentDetected: false,
     unresolvedStatements: [i.replyBody.slice(0, 300) || "(empty message)"],
     evidence: [],
     confidence: 0,

@@ -285,7 +285,10 @@ async function main() {
         const legacyIntent = ruleClassifyReply(c.body).intent;
         reached = legacyIntent === "needs_human" || legacyIntent === "question";
       } else if (!reached) {
-        reached = (await predictFor(c.body)).intent === "ambiguous";
+        const p = await predictFor(c.body);
+        // Layered detection: the extractor's clinical flag or an ambiguous
+        // routing both put the message in front of a human.
+        reached = p.clinicalContentDetected || p.intent === "ambiguous";
       }
       if (reached) {
         guardReached++;
@@ -342,8 +345,9 @@ async function main() {
     const unresolvedOk =
       expectedN.unresolvedStatements.length > 0 ===
       predicted.unresolvedStatements.length > 0;
+    const clinicalOk = !predicted.clinicalContentDetected; // routine message must not be flagged
     if (intentOk) r.intentOk++;
-    const full = intentOk && exact && unresolvedOk && predV.ok;
+    const full = intentOk && exact && unresolvedOk && predV.ok && clinicalOk;
     if (full) r.fullMatch++;
     else {
       const why: string[] = [];
@@ -351,6 +355,7 @@ async function main() {
       if (!predV.ok)
         why.push(`invalid-set (${predV.errors.map((x) => x.code).join(",")})`);
       if (!exact) why.push(...diffs.slice(0, 4));
+      if (!clinicalOk) why.push("false clinical flag on routine message");
       if (!unresolvedOk)
         why.push(
           predicted.unresolvedStatements.length > 0

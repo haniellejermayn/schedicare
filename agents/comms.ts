@@ -176,7 +176,13 @@ export function runCommsDraft(input: CommsDraftInput, ctx: AgentCtx) {
  */
 export function guardReply(body: string): { hit: boolean; reason?: string } {
   const medical =
-    /\b(chest pain|short(ness)? of breath|bleeding|dizz\w*|fever|vomit\w*|severe pain|symptoms?|medication|medicine|dose|dosage|prescri\w*|refill|allerg\w*|pregnan\w*|emergency|hospital|er|blood pressure|bp|\d{2,3}\s*\/\s*\d{2,3})\b/i;
+    // Taglish-aware clinical lexicon. Bare "dose" was removed deliberately:
+    // it collides with Tagalog "alas dose" (twelve o'clock) — "dosage",
+    // "overdose", and "dose of" cover the medical uses. Tagalog roots
+    // (sakit, hilo, lagnat, gamot, dugo…) match inflected forms. This layer
+    // errs toward quarantine: a false hit costs one staff read, a miss
+    // auto-handles clinical content.
+    /\b(chest pain|short(ness)? of breath|bleeding|dizz\w*|fever|vomit\w*|nausea\w*|severe pain|pain|headaches?|migraine\w*|injur\w*|rash|symptoms?|medication|medicine|gamot|reseta|dosage|overdose|dose of|prescri\w*|refill|allerg\w*|pregnan\w*|buntis|emergency|hospital|er|blood pressure|bp|lagnat|ubo|sipon|\w*sakit\w*|\w*hilo|\w*suka\b|\w*dugo\b|sugat|pakiramdam|\d{2,3}\s*\/\s*\d{2,3})\b/i;
   const injection =
     /(ignore (all |the )?(previous|prior|above) (instructions?|messages?|prompts?)|system prompt|you are now|act as (an?|the)|disregard (your|all|the) (instructions?|rules)|reveal (your )?(prompt|instructions))/i;
   const anger =
