@@ -165,6 +165,27 @@ const INTENT_TO_LEGACY: Record<
  * windows, weekday sets, exclusions, unresolved statements) forces
  * needs_human so nothing is silently narrowed.
  */
+/**
+ * Can the legacy four-field ReplyInterpretation carry this set without losing
+ * information? Anything richer must go through the constraint editor instead
+ * of being silently narrowed.
+ */
+export function isLegacyRepresentable(set: SchedulingConstraintSet): boolean {
+  const h = set.hard;
+  return !(
+    set.unresolvedStatements.length > 0 ||
+    (h.timeWindows?.length ?? 0) > 1 ||
+    (h.allowedDates?.length ?? 0) > 1 ||
+    (h.excludedDates?.length ?? 0) > 0 ||
+    (h.allowedDaysOfWeek?.length ?? 0) > 0 ||
+    (h.excludedDaysOfWeek?.length ?? 0) > 0 ||
+    h.earliestDate != null ||
+    h.latestDate != null ||
+    h.requiredDoctorId != null ||
+    h.requireSameDoctor === true
+  );
+}
+
 export function toLegacyInterpretation(
   set: SchedulingConstraintSet,
 ): ReplyInterpretation {
@@ -178,19 +199,8 @@ export function toLegacyInterpretation(
   }
   const h = set.hard;
   const windows = h.timeWindows ?? [];
-  const losesInformation =
-    set.unresolvedStatements.length > 0 ||
-    windows.length > 1 ||
-    (h.allowedDates?.length ?? 0) > 1 ||
-    (h.excludedDates?.length ?? 0) > 0 ||
-    (h.allowedDaysOfWeek?.length ?? 0) > 0 ||
-    (h.excludedDaysOfWeek?.length ?? 0) > 0 ||
-    h.earliestDate != null ||
-    h.latestDate != null ||
-    h.requiredDoctorId != null ||
-    h.requireSameDoctor === true;
 
-  if (set.intent === "counter_proposal" && losesInformation) {
+  if (set.intent === "counter_proposal" && !isLegacyRepresentable(set)) {
     return {
       intent: "needs_human",
       confidence: Math.min(set.confidence, 0.5),
@@ -214,4 +224,73 @@ export function toLegacyInterpretation(
     confidence: set.confidence,
     summary: set.summary.slice(0, 300),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Triage: what should the reply pipeline do with an extraction?
+// ---------------------------------------------------------------------------
+
+export type ConstraintDisposition =
+  | { disposition: "route_legacy"; reason: string }
+  | { disposition: "constraint_review"; reason: string }
+  | { disposition: "needs_human"; reason: string };
+
+/**
+ * Deterministic post-extraction triage. The model proposes; this decides the
+ * lane:
+ *  - needs_human: clinical content, invalid set, or low confidence — a person
+ *    reads the message itself first.
+ *  - constraint_review: a clean but compound counter-proposal (or one with
+ *    unresolved statements) — staff approve/edit the set in the constraint
+ *    editor, then search. The AI never auto-acts on compound sets.
+ *  - route_legacy: terminal intents and simple counters — flows through the
+ *    existing (approval-gated) reply routing unchanged.
+ */
+export function triageConstraintSet(
+  set: SchedulingConstraintSet,
+  validation: { ok: boolean },
+): ConstraintDisposition {
+  if (set.clinicalContentDetected)
+    return { disposition: "needs_human", reason: "possible clinical content" };
+  if (!validation.ok)
+    return {
+      disposition: "needs_human",
+      reason: "extracted constraints failed validation",
+    };
+  if (set.confidence < 0.6)
+    return { disposition: "needs_human", reason: "low extraction confidence" };
+  if (set.intent !== "counter_proposal")
+    return {
+      disposition: "route_legacy",
+      reason: `terminal intent: ${set.intent}`,
+    };
+  if (set.unresolvedStatements.length > 0)
+    return {
+      disposition: "constraint_review",
+      reason: "unresolved statements need staff input",
+    };
+  if (!isLegacyRepresentable(set))
+    return {
+      disposition: "constraint_review",
+      reason: "compound constraints — staff review and search",
+    };
+  return {
+    disposition: "route_legacy",
+    reason: "simple counter — automatic replan",
+  };
+}
+
+/** One-line human summary for timelines and audit entries. */
+export function describeConstraintSet(set: SchedulingConstraintSet): string {
+  const hard = Object.values(set.hard).filter(
+    (v) => v != null && (!Array.isArray(v) || v.length > 0),
+  ).length;
+  const soft = Object.values(set.soft).filter(
+    (v) => v != null && (!Array.isArray(v) || v.length > 0),
+  ).length;
+  const bits = [`${hard} hard`, `${soft} soft`];
+  if (set.unresolvedStatements.length > 0)
+    bits.push(`${set.unresolvedStatements.length} unresolved`);
+  if (set.clinicalContentDetected) bits.push("clinical flag");
+  return `${bits.join(", ")} · confidence ${Math.round(set.confidence * 100)}%`;
 }

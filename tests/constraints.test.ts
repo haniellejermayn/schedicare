@@ -3,8 +3,11 @@ import { formatInTimeZone } from "date-fns-tz";
 import { freshSeed } from "./helpers";
 import {
   SchedulingConstraintSetSchema,
+  describeConstraintSet,
   emptyConstraintSet,
+  isLegacyRepresentable,
   toLegacyInterpretation,
+  triageConstraintSet,
   type SchedulingConstraintSet,
 } from "@/core/constraints";
 import {
@@ -328,6 +331,58 @@ describe("constraint extractor (fallback mode)", () => {
     expect(run.output.unresolvedStatements.length).toBeGreaterThan(0); // whole message → staff review
     expect(run.output.hard).toEqual({}); // no silently-guessed constraints
     expect(run.output.confidence).toBe(0);
+  });
+});
+
+describe("post-extraction triage", () => {
+  const ok = { ok: true };
+
+  it("routes clinical, invalid, and low-confidence sets to a human first", () => {
+    const clinical = {
+      ...emptyConstraintSet("counter_proposal"),
+      confidence: 0.9,
+      clinicalContentDetected: true,
+    };
+    expect(triageConstraintSet(clinical, ok).disposition).toBe("needs_human");
+    expect(triageConstraintSet(compoundSet(), { ok: false }).disposition).toBe(
+      "needs_human",
+    );
+    const shaky = { ...compoundSet(), confidence: 0.4 };
+    expect(triageConstraintSet(shaky, ok).disposition).toBe("needs_human");
+  });
+
+  it("sends compound or unresolved counters to the constraint editor", () => {
+    expect(triageConstraintSet(compoundSet(), ok).disposition).toBe(
+      "constraint_review",
+    );
+    const unresolved = {
+      ...emptyConstraintSet("counter_proposal"),
+      confidence: 0.9,
+      unresolvedStatements: ["mga 8:30"],
+    };
+    expect(triageConstraintSet(unresolved, ok).disposition).toBe(
+      "constraint_review",
+    );
+  });
+
+  it("keeps terminal intents and simple counters on the existing path", () => {
+    expect(
+      triageConstraintSet(
+        { ...emptyConstraintSet("accept"), confidence: 0.95 },
+        ok,
+      ).disposition,
+    ).toBe("route_legacy");
+    const simple = emptyConstraintSet("counter_proposal");
+    simple.hard.timeWindows = [{ start: "16:00" }];
+    simple.confidence = 0.9;
+    expect(isLegacyRepresentable(simple)).toBe(true);
+    expect(triageConstraintSet(simple, ok).disposition).toBe("route_legacy");
+  });
+
+  it("describes a set for the timeline", () => {
+    expect(describeConstraintSet(compoundSet())).toMatch(
+      /hard.*soft.*confidence 90%/,
+    );
   });
 });
 

@@ -17,12 +17,17 @@ import {
   updateCaseMeta,
 } from "@/core/cases";
 import { guardReply, runCommsInterpret } from "@/agents/comms";
+import { extractConstraints } from "@/agents/constraintExtractor";
+import { aiLiveWanted } from "@/agents/runtime";
+import {
+  describeConstraintSet,
+  toLegacyInterpretation,
+  triageConstraintSet,
+} from "@/core/constraints";
+import { validateConstraintSet } from "@/core/constraintValidation";
 import { getDoctor, getPatient } from "@/agents/tools";
 import { replanSingle } from "./steps";
-import {
-  deleteCalendarEvent,
-  updateCalendarEvent,
-} from "./executor";
+import { deleteCalendarEvent, updateCalendarEvent } from "./executor";
 import type { ReplyInterpretation } from "@/core/types";
 import { latestReplyOnly } from "@/core/messages";
 
@@ -71,6 +76,64 @@ export async function handlePatientReply(
         "Reply quarantined for human review",
         guard.reason,
       );
+  } else if (aiLiveWanted()) {
+    // Live path: rich constraint extraction. The model proposes a
+    // SchedulingConstraintSet; deterministic triage decides the lane. In
+    // fallback/resilience mode this branch is skipped entirely and the
+    // legacy deterministic path below runs unchanged.
+    const payload = (rec?.payload as any) ?? {};
+    const run = await extractConstraints(
+      {
+        caseId,
+        replyBody,
+        patientName: patient.name,
+        outboundContext: payload.draft?.subject ?? msg.subject ?? undefined,
+      },
+      { caseId },
+    );
+    const v = validateConstraintSet(run.output);
+    const set = v.ok ? v.normalized : run.output;
+    const triage = triageConstraintSet(set, v);
+
+    // Persist the rich set for the constraint editor regardless of lane.
+    if (caseId)
+      updateCaseMeta(caseId, {
+        latestConstraints: {
+          set,
+          messageId,
+          extractedAt: demoNowIso(),
+          mode: run.mode,
+          validation: { ok: v.ok, errors: v.errors, warnings: v.warnings },
+          disposition: triage.disposition,
+          reason: triage.reason,
+        },
+      });
+
+    interp = toLegacyInterpretation(set);
+    if (caseId)
+      timeline(
+        caseId,
+        "extractor",
+        triage.disposition === "route_legacy" ? "status" : "escalation",
+        triage.disposition === "constraint_review"
+          ? "Constraints extracted — awaiting staff review in the constraint editor"
+          : `Constraints extracted (${triage.disposition.replace(/_/g, " ")})`,
+        `${set.summary} · ${describeConstraintSet(set)} · ${triage.reason}`,
+        { messageId, disposition: triage.disposition },
+      );
+    if (triage.disposition !== "route_legacy") {
+      interp = {
+        intent: "needs_human",
+        confidence: set.confidence,
+        summary:
+          triage.disposition === "constraint_review"
+            ? `Compound constraints ready for staff review — ${set.summary}`.slice(
+                0,
+                300,
+              )
+            : `${triage.reason} — ${set.summary}`.slice(0, 300),
+      };
+    }
   } else {
     const payload = (rec?.payload as any) ?? {};
     const res = await runCommsInterpret(
