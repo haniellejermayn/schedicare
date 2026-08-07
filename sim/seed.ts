@@ -27,7 +27,10 @@ function end(day: string, hhmm: string, type: string): string {
   return addMinutes(new Date(utc(day, hhmm)), DUR[type]).toISOString();
 }
 function day(offsetFromDemoDay: number): string {
-  return format(addDays(new Date(`${DEMO_DAY}T00:00:00Z`), offsetFromDemoDay), "yyyy-MM-dd");
+  return format(
+    addDays(new Date(`${DEMO_DAY}T00:00:00Z`), offsetFromDemoDay),
+    "yyyy-MM-dd",
+  );
 }
 
 function email(key: string): string {
@@ -52,26 +55,119 @@ interface PatientSeed {
 }
 
 const NAMED: PatientSeed[] = [
-  { id: "pat_teresa", key: "teresa.navarro", name: "Teresa Navarro", prefDayPart: "am", staffPriority: 2, notes: "Post-op knee follow-up series with Dr. Santos.", preferredDoctorId: SANTOS },
-  { id: "pat_jose", key: "jose.ramos", name: "Jose Ramos", prefDayPart: "am", notes: "Hypertension follow-up program." },
-  { id: "pat_grace", key: "grace.villanueva", name: "Grace Villanueva", prefDayPart: "any" },
-  { id: "pat_camille", key: "camille.ocampo", name: "Camille Ocampo", prefDayPart: "any", staffPriority: 1 },
-  { id: "pat_miguel", key: "miguel.torres", name: "Miguel Torres", prefDayPart: "pm", notes: "Works day shifts in Ortigas; prefers late afternoons." },
-  { id: "pat_andres", key: "andres.salazar", name: "Andres Salazar", prefDayPart: "any" },
-  { id: "pat_paolo", key: "paolo.garcia", name: "Paolo Garcia", prefDayPart: "am" },
-  { id: "pat_dennis", key: "dennis.castillo", name: "Dennis Castillo", prefDayPart: "pm" },
-  { id: "pat_liza", key: "liza.soriano", name: "Liza Soriano", prefDayPart: "am" },
-  { id: "pat_maria", key: "maria.delacruz", name: "Maria Dela Cruz", prefDayPart: "am", preferredDoctorId: SANTOS },
-  { id: "pat_rosa", key: "rosa.domingo", name: "Rosa Domingo", prefDayPart: "am", preferredDoctorId: REYES },
-  { id: "pat_vicente", key: "vicente.cruz", name: "Vicente Cruz", prefDayPart: "any" },
-  { id: "pat_nica", key: "nica.alonzo", name: "Nica Alonzo", prefDayPart: "pm" },
-  { id: "pat_bien", key: "bien.corpuz", name: "Bien Corpuz", prefDayPart: "pm" },
+  {
+    id: "pat_teresa",
+    key: "teresa.navarro",
+    name: "Teresa Navarro",
+    prefDayPart: "am",
+    staffPriority: 2,
+    notes: "Post-op knee follow-up series with Dr. Santos.",
+    preferredDoctorId: SANTOS,
+  },
+  {
+    id: "pat_jose",
+    key: "jose.ramos",
+    name: "Jose Ramos",
+    prefDayPart: "am",
+    notes: "Hypertension follow-up program.",
+  },
+  {
+    id: "pat_grace",
+    key: "grace.villanueva",
+    name: "Grace Villanueva",
+    prefDayPart: "any",
+  },
+  {
+    id: "pat_camille",
+    key: "camille.ocampo",
+    name: "Camille Ocampo",
+    prefDayPart: "any",
+    staffPriority: 1,
+  },
+  {
+    id: "pat_miguel",
+    key: "miguel.torres",
+    name: "Miguel Torres",
+    prefDayPart: "pm",
+    notes: "Works day shifts in Ortigas; prefers late afternoons.",
+  },
+  {
+    id: "pat_andres",
+    key: "andres.salazar",
+    name: "Andres Salazar",
+    prefDayPart: "any",
+  },
+  {
+    id: "pat_paolo",
+    key: "paolo.garcia",
+    name: "Paolo Garcia",
+    prefDayPart: "am",
+  },
+  {
+    id: "pat_dennis",
+    key: "dennis.castillo",
+    name: "Dennis Castillo",
+    prefDayPart: "pm",
+  },
+  {
+    id: "pat_liza",
+    key: "liza.soriano",
+    name: "Liza Soriano",
+    prefDayPart: "am",
+  },
+  {
+    id: "pat_maria",
+    key: "maria.delacruz",
+    name: "Maria Dela Cruz",
+    prefDayPart: "am",
+    preferredDoctorId: SANTOS,
+  },
+  {
+    id: "pat_rosa",
+    key: "rosa.domingo",
+    name: "Rosa Domingo",
+    prefDayPart: "am",
+    preferredDoctorId: REYES,
+  },
+  {
+    id: "pat_vicente",
+    key: "vicente.cruz",
+    name: "Vicente Cruz",
+    prefDayPart: "any",
+  },
+  {
+    id: "pat_nica",
+    key: "nica.alonzo",
+    name: "Nica Alonzo",
+    prefDayPart: "pm",
+  },
+  {
+    id: "pat_bien",
+    key: "bien.corpuz",
+    name: "Bien Corpuz",
+    prefDayPart: "pm",
+  },
 ];
 
 const FILLER_NAMES = [
-  "Alonzo Reyes", "Bea Santiago", "Carlo Mendoza", "Diane Aquino", "Emman Bautista", "Faith Villar",
-  "Gio Dizon", "Hannah Pascual", "Ivan Robles", "Jasmine Uy", "Kiko Fernandez", "Lea Marasigan",
-  "Marco Lim", "Nina Padilla", "Oscar Trinidad", "Pia Salcedo", "Quintin Ferrer", "Rhea Manalo",
+  "Alonzo Reyes",
+  "Bea Santiago",
+  "Carlo Mendoza",
+  "Diane Aquino",
+  "Emman Bautista",
+  "Faith Villar",
+  "Gio Dizon",
+  "Hannah Pascual",
+  "Ivan Robles",
+  "Jasmine Uy",
+  "Kiko Fernandez",
+  "Lea Marasigan",
+  "Marco Lim",
+  "Nina Padilla",
+  "Oscar Trinidad",
+  "Pia Salcedo",
+  "Quintin Ferrer",
+  "Rhea Manalo",
 ];
 
 function patientSeeds(): PatientSeed[] {
@@ -107,48 +203,66 @@ export interface SeedSummary {
   waitlist: number;
 }
 
-export function seed(): SeedSummary {
+/**
+ * profile "full" (default): the 6-patient flagship cascade — used by tests,
+ * eval, and the headline demo. profile "lite": the same world but only THREE
+ * cascade patients on the demo day (Camille: urgent + priority, Miguel:
+ * PM-preference counter-proposal, Grace: silent → callback), so a live
+ * disruption run finishes in roughly half the time. Everything else —
+ * secondary cases, waitlist, background load — is identical.
+ */
+export function seed(profile: "full" | "lite" = "full"): SeedSummary {
   ensureSchema();
   wipeData();
   const now = new Date().toISOString();
 
   db.insert(schema.clinics)
-    .values({ id: CLINIC_ID, name: "Riverside Family Clinic", address: "Km. 12 Riverside Drive, Pasig City", timezone: CLINIC_TZ, createdAt: now })
+    .values({
+      id: CLINIC_ID,
+      name: "Riverside Family Clinic",
+      address: "Km. 12 Riverside Drive, Pasig City",
+      timezone: CLINIC_TZ,
+      createdAt: now,
+    })
     .run();
 
-  db.insert(schema.doctors).values([
-    {
-      id: SANTOS,
-      clinicId: CLINIC_ID,
-      name: "Dr. Elena Santos",
-      specialty: "Family Medicine",
-      email: "e.santos@riverside-clinic.example",
-      color: "#5B2FCE",
-      initials: "ES",
-      calendarId: "sim-santos",
-      status: "available",
-      unavailableDates: [],
-      createdAt: now,
-    },
-    {
-      id: REYES,
-      clinicId: CLINIC_ID,
-      name: "Dr. Marco Reyes",
-      specialty: "Family Medicine",
-      email: "m.reyes@riverside-clinic.example",
-      color: "#3D2A8C",
-      initials: "MR",
-      calendarId: "sim-reyes",
-      status: "available",
-      unavailableDates: [],
-      createdAt: now,
-    },
-  ]).run();
+  db.insert(schema.doctors)
+    .values([
+      {
+        id: SANTOS,
+        clinicId: CLINIC_ID,
+        name: "Dr. Elena Santos",
+        specialty: "Family Medicine",
+        email: "e.santos@riverside-clinic.example",
+        color: "#5B2FCE",
+        initials: "ES",
+        calendarId: "sim-santos",
+        status: "available",
+        unavailableDates: [],
+        createdAt: now,
+      },
+      {
+        id: REYES,
+        clinicId: CLINIC_ID,
+        name: "Dr. Marco Reyes",
+        specialty: "Family Medicine",
+        email: "m.reyes@riverside-clinic.example",
+        color: "#3D2A8C",
+        initials: "MR",
+        calendarId: "sim-reyes",
+        status: "available",
+        unavailableDates: [],
+        createdAt: now,
+      },
+    ])
+    .run();
 
-  db.insert(schema.doctorRules).values([
-    { doctorId: SANTOS, rules: SANTOS_RULES as any, updatedAt: now },
-    { doctorId: REYES, rules: REYES_RULES as any, updatedAt: now },
-  ]).run();
+  db.insert(schema.doctorRules)
+    .values([
+      { doctorId: SANTOS, rules: SANTOS_RULES as any, updatedAt: now },
+      { doctorId: REYES, rules: REYES_RULES as any, updatedAt: now },
+    ])
+    .run();
 
   const patients = patientSeeds();
   db.insert(schema.patients)
@@ -164,12 +278,16 @@ export function seed(): SeedSummary {
         staffPriority: p.staffPriority ?? 0,
         notes: p.notes ?? null,
         createdAt: now,
-      }))
+      })),
     )
     .run();
 
   // Attendance history (drives risk scores and acceptance likelihood).
-  const hist: Array<{ patientId: string; kind: "attended" | "no_show" | "late_cancel" | "cancelled_ok"; daysAgo: number }> = [
+  const hist: Array<{
+    patientId: string;
+    kind: "attended" | "no_show" | "late_cancel" | "cancelled_ok";
+    daysAgo: number;
+  }> = [
     { patientId: "pat_teresa", kind: "attended", daysAgo: 40 },
     { patientId: "pat_teresa", kind: "attended", daysAgo: 26 },
     { patientId: "pat_teresa", kind: "attended", daysAgo: 12 },
@@ -194,7 +312,14 @@ export function seed(): SeedSummary {
     { patientId: "pat_maria", kind: "attended", daysAgo: 28 },
   ];
   db.insert(schema.attendanceHistory)
-    .values(hist.map((h, i) => ({ id: `hist_${i}`, patientId: h.patientId, kind: h.kind, at: addDays(new Date(utc(DEMO_DAY, "08:00")), -h.daysAgo).toISOString() })))
+    .values(
+      hist.map((h, i) => ({
+        id: `hist_${i}`,
+        patientId: h.patientId,
+        kind: h.kind,
+        at: addDays(new Date(utc(DEMO_DAY, "08:00")), -h.daysAgo).toISOString(),
+      })),
+    )
     .run();
 
   // -------------------------------------------------------------------------
@@ -213,70 +338,489 @@ export function seed(): SeedSummary {
 
   const appts: ApptSeed[] = [
     // ---- Flagship cascade: Dr. Santos, demo day (Mon 2026-08-10) ----
-    { id: "appt_teresa", doctorId: SANTOS, patientId: "pat_teresa", type: "follow_up", day: DEMO_DAY, time: "08:30", status: "confirmed", bookedDaysBefore: 9 },
-    { id: "appt_jose", doctorId: SANTOS, patientId: "pat_jose", type: "follow_up", day: DEMO_DAY, time: "09:10", status: "confirmed", bookedDaysBefore: 7 },
-    { id: "appt_grace", doctorId: SANTOS, patientId: "pat_grace", type: "follow_up", day: DEMO_DAY, time: "09:50", status: "booked", bookedDaysBefore: 6 },
-    { id: "appt_camille", doctorId: SANTOS, patientId: "pat_camille", type: "urgent", day: DEMO_DAY, time: "10:40", status: "confirmed", bookedDaysBefore: 1 },
-    { id: "appt_miguel", doctorId: SANTOS, patientId: "pat_miguel", type: "routine", day: DEMO_DAY, time: "13:30", status: "confirmed", bookedDaysBefore: 12 },
-    { id: "appt_andres", doctorId: SANTOS, patientId: "pat_andres", type: "routine", day: DEMO_DAY, time: "14:20", status: "booked", bookedDaysBefore: 5 },
+    {
+      id: "appt_teresa",
+      doctorId: SANTOS,
+      patientId: "pat_teresa",
+      type: "follow_up",
+      day: DEMO_DAY,
+      time: "08:30",
+      status: "confirmed",
+      bookedDaysBefore: 9,
+    },
+    {
+      id: "appt_jose",
+      doctorId: SANTOS,
+      patientId: "pat_jose",
+      type: "follow_up",
+      day: DEMO_DAY,
+      time: "09:10",
+      status: "confirmed",
+      bookedDaysBefore: 7,
+    },
+    {
+      id: "appt_grace",
+      doctorId: SANTOS,
+      patientId: "pat_grace",
+      type: "follow_up",
+      day: DEMO_DAY,
+      time: "09:50",
+      status: "booked",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_camille",
+      doctorId: SANTOS,
+      patientId: "pat_camille",
+      type: "urgent",
+      day: DEMO_DAY,
+      time: "10:40",
+      status: "confirmed",
+      bookedDaysBefore: 1,
+    },
+    {
+      id: "appt_miguel",
+      doctorId: SANTOS,
+      patientId: "pat_miguel",
+      type: "routine",
+      day: DEMO_DAY,
+      time: "13:30",
+      status: "confirmed",
+      bookedDaysBefore: 12,
+    },
+    {
+      id: "appt_andres",
+      doctorId: SANTOS,
+      patientId: "pat_andres",
+      type: "routine",
+      day: DEMO_DAY,
+      time: "14:20",
+      status: "booked",
+      bookedDaysBefore: 5,
+    },
 
     // ---- Secondary scenarios ----
     // Unconfirmed within 36h → confirmation nudge case.
-    { id: "appt_paolo", doctorId: REYES, patientId: "pat_paolo", type: "routine", day: day(1), time: "09:45", status: "booked", bookedDaysBefore: 8 },
+    {
+      id: "appt_paolo",
+      doctorId: REYES,
+      patientId: "pat_paolo",
+      type: "routine",
+      day: day(1),
+      time: "09:45",
+      status: "booked",
+      bookedDaysBefore: 8,
+    },
     // High no-show risk → preventive outreach case (2 no-shows + late cancel + unconfirmed + long lead).
-    { id: "appt_dennis", doctorId: SANTOS, patientId: "pat_dennis", type: "routine", day: day(3), time: "14:00", status: "booked", bookedDaysBefore: 20 },
+    {
+      id: "appt_dennis",
+      doctorId: SANTOS,
+      patientId: "pat_dennis",
+      type: "routine",
+      day: day(3),
+      time: "14:00",
+      status: "booked",
+      bookedDaysBefore: 20,
+    },
     // Vacated future slot → waitlist backfill case.
-    { id: "appt_liza", doctorId: REYES, patientId: "pat_liza", type: "routine", day: day(2), time: "10:00", status: "cancelled_by_patient", bookedDaysBefore: 10 },
+    {
+      id: "appt_liza",
+      doctorId: REYES,
+      patientId: "pat_liza",
+      type: "routine",
+      day: day(2),
+      time: "10:00",
+      status: "cancelled_by_patient",
+      bookedDaysBefore: 10,
+    },
     // Default /book patient's existing appointment.
-    { id: "appt_maria", doctorId: SANTOS, patientId: "pat_maria", type: "follow_up", day: day(2), time: "08:30", status: "confirmed", bookedDaysBefore: 4 },
+    {
+      id: "appt_maria",
+      doctorId: SANTOS,
+      patientId: "pat_maria",
+      type: "follow_up",
+      day: day(2),
+      time: "08:30",
+      status: "confirmed",
+      bookedDaysBefore: 4,
+    },
 
     // ---- Background load: Dr. Reyes demo day (unaffected, shows contrast) ----
-    { id: "appt_bg01", doctorId: REYES, patientId: "pat_f01", type: "routine", day: DEMO_DAY, time: "08:30", status: "confirmed", bookedDaysBefore: 6 },
-    { id: "appt_bg02", doctorId: REYES, patientId: "pat_f02", type: "routine", day: DEMO_DAY, time: "09:30", status: "confirmed", bookedDaysBefore: 6 },
-    { id: "appt_bg03", doctorId: REYES, patientId: "pat_f03", type: "urgent", day: DEMO_DAY, time: "10:30", status: "booked", bookedDaysBefore: 0 },
-    { id: "appt_bg04", doctorId: REYES, patientId: "pat_f04", type: "follow_up", day: DEMO_DAY, time: "13:30", status: "confirmed", bookedDaysBefore: 9 },
+    {
+      id: "appt_bg01",
+      doctorId: REYES,
+      patientId: "pat_f01",
+      type: "routine",
+      day: DEMO_DAY,
+      time: "08:30",
+      status: "confirmed",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_bg02",
+      doctorId: REYES,
+      patientId: "pat_f02",
+      type: "routine",
+      day: DEMO_DAY,
+      time: "09:30",
+      status: "confirmed",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_bg03",
+      doctorId: REYES,
+      patientId: "pat_f03",
+      type: "urgent",
+      day: DEMO_DAY,
+      time: "10:30",
+      status: "booked",
+      bookedDaysBefore: 0,
+    },
+    {
+      id: "appt_bg04",
+      doctorId: REYES,
+      patientId: "pat_f04",
+      type: "follow_up",
+      day: DEMO_DAY,
+      time: "13:30",
+      status: "confirmed",
+      bookedDaysBefore: 9,
+    },
 
     // ---- Two weeks of realistic load (both doctors) ----
-    { id: "appt_bg05", doctorId: SANTOS, patientId: "pat_f05", type: "follow_up", day: day(1), time: "08:00", status: "confirmed", bookedDaysBefore: 10 },
-    { id: "appt_bg06", doctorId: SANTOS, patientId: "pat_f06", type: "follow_up", day: day(1), time: "09:00", status: "confirmed", bookedDaysBefore: 5 },
-    { id: "appt_bg07", doctorId: SANTOS, patientId: "pat_f07", type: "routine", day: day(1), time: "13:00", status: "confirmed", bookedDaysBefore: 3 },
-    { id: "appt_bg08", doctorId: SANTOS, patientId: "pat_f08", type: "routine", day: day(1), time: "15:00", status: "confirmed", bookedDaysBefore: 7 },
-    { id: "appt_bg09", doctorId: REYES, patientId: "pat_f09", type: "routine", day: day(1), time: "08:45", status: "confirmed", bookedDaysBefore: 4 },
-    { id: "appt_bg10", doctorId: REYES, patientId: "pat_f10", type: "follow_up", day: day(1), time: "14:00", status: "confirmed", bookedDaysBefore: 6 },
-    { id: "appt_bg11", doctorId: SANTOS, patientId: "pat_f11", type: "follow_up", day: day(2), time: "09:30", status: "confirmed", bookedDaysBefore: 8 },
-    { id: "appt_bg12", doctorId: SANTOS, patientId: "pat_f12", type: "routine", day: day(2), time: "13:30", status: "booked", bookedDaysBefore: 2 },
-    { id: "appt_bg13", doctorId: REYES, patientId: "pat_f13", type: "routine", day: day(2), time: "11:00", status: "confirmed", bookedDaysBefore: 5 },
-    { id: "appt_bg14", doctorId: REYES, patientId: "pat_f14", type: "follow_up", day: day(2), time: "15:00", status: "confirmed", bookedDaysBefore: 9 },
-    { id: "appt_bg15", doctorId: SANTOS, patientId: "pat_f15", type: "follow_up", day: day(3), time: "08:30", status: "confirmed", bookedDaysBefore: 6 },
-    { id: "appt_bg16", doctorId: SANTOS, patientId: "pat_f16", type: "routine", day: day(3), time: "15:30", status: "booked", bookedDaysBefore: 4 },
-    { id: "appt_bg17", doctorId: REYES, patientId: "pat_f17", type: "routine", day: day(3), time: "09:45", status: "confirmed", bookedDaysBefore: 3 },
-    { id: "appt_bg18", doctorId: REYES, patientId: "pat_f18", type: "urgent", day: day(3), time: "13:00", status: "booked", bookedDaysBefore: 1 },
-    { id: "appt_bg19", doctorId: SANTOS, patientId: "pat_f01", type: "routine", day: day(4), time: "13:00", status: "confirmed", bookedDaysBefore: 11 },
-    { id: "appt_bg20", doctorId: SANTOS, patientId: "pat_f02", type: "follow_up", day: day(4), time: "10:00", status: "booked", bookedDaysBefore: 5 },
-    { id: "appt_bg21", doctorId: REYES, patientId: "pat_f03", type: "routine", day: day(4), time: "09:15", status: "confirmed", bookedDaysBefore: 7 },
-    { id: "appt_bg22", doctorId: SANTOS, patientId: "pat_f04", type: "routine", day: day(5), time: "14:00", status: "confirmed", bookedDaysBefore: 6 },
-    { id: "appt_bg23", doctorId: SANTOS, patientId: "pat_f05", type: "follow_up", day: day(8), time: "08:30", status: "booked", bookedDaysBefore: 4 },
-    { id: "appt_bg24", doctorId: REYES, patientId: "pat_f06", type: "routine", day: day(8), time: "09:15", status: "confirmed", bookedDaysBefore: 9 },
-    { id: "appt_bg25", doctorId: SANTOS, patientId: "pat_f07", type: "routine", day: day(9), time: "13:30", status: "confirmed", bookedDaysBefore: 8 },
-    { id: "appt_bg26", doctorId: REYES, patientId: "pat_f08", type: "follow_up", day: day(9), time: "14:30", status: "booked", bookedDaysBefore: 3 },
-    { id: "appt_bg27", doctorId: SANTOS, patientId: "pat_f09", type: "follow_up", day: day(10), time: "09:00", status: "confirmed", bookedDaysBefore: 12 },
-    { id: "appt_bg28", doctorId: REYES, patientId: "pat_f10", type: "routine", day: day(10), time: "10:15", status: "confirmed", bookedDaysBefore: 5 },
-    { id: "appt_bg29", doctorId: SANTOS, patientId: "pat_f13", type: "routine", day: day(11), time: "16:00", status: "booked", bookedDaysBefore: 2 },
-    { id: "appt_bg30", doctorId: REYES, patientId: "pat_f14", type: "routine", day: day(11), time: "13:30", status: "confirmed", bookedDaysBefore: 7 },
+    {
+      id: "appt_bg05",
+      doctorId: SANTOS,
+      patientId: "pat_f05",
+      type: "follow_up",
+      day: day(1),
+      time: "08:00",
+      status: "confirmed",
+      bookedDaysBefore: 10,
+    },
+    {
+      id: "appt_bg06",
+      doctorId: SANTOS,
+      patientId: "pat_f06",
+      type: "follow_up",
+      day: day(1),
+      time: "09:00",
+      status: "confirmed",
+      bookedDaysBefore: 5,
+    },
+    {
+      id: "appt_bg07",
+      doctorId: SANTOS,
+      patientId: "pat_f07",
+      type: "routine",
+      day: day(1),
+      time: "13:00",
+      status: "confirmed",
+      bookedDaysBefore: 3,
+    },
+    {
+      id: "appt_bg08",
+      doctorId: SANTOS,
+      patientId: "pat_f08",
+      type: "routine",
+      day: day(1),
+      time: "15:00",
+      status: "confirmed",
+      bookedDaysBefore: 7,
+    },
+    {
+      id: "appt_bg09",
+      doctorId: REYES,
+      patientId: "pat_f09",
+      type: "routine",
+      day: day(1),
+      time: "08:45",
+      status: "confirmed",
+      bookedDaysBefore: 4,
+    },
+    {
+      id: "appt_bg10",
+      doctorId: REYES,
+      patientId: "pat_f10",
+      type: "follow_up",
+      day: day(1),
+      time: "14:00",
+      status: "confirmed",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_bg11",
+      doctorId: SANTOS,
+      patientId: "pat_f11",
+      type: "follow_up",
+      day: day(2),
+      time: "09:30",
+      status: "confirmed",
+      bookedDaysBefore: 8,
+    },
+    {
+      id: "appt_bg12",
+      doctorId: SANTOS,
+      patientId: "pat_f12",
+      type: "routine",
+      day: day(2),
+      time: "13:30",
+      status: "booked",
+      bookedDaysBefore: 2,
+    },
+    {
+      id: "appt_bg13",
+      doctorId: REYES,
+      patientId: "pat_f13",
+      type: "routine",
+      day: day(2),
+      time: "11:00",
+      status: "confirmed",
+      bookedDaysBefore: 5,
+    },
+    {
+      id: "appt_bg14",
+      doctorId: REYES,
+      patientId: "pat_f14",
+      type: "follow_up",
+      day: day(2),
+      time: "15:00",
+      status: "confirmed",
+      bookedDaysBefore: 9,
+    },
+    {
+      id: "appt_bg15",
+      doctorId: SANTOS,
+      patientId: "pat_f15",
+      type: "follow_up",
+      day: day(3),
+      time: "08:30",
+      status: "confirmed",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_bg16",
+      doctorId: SANTOS,
+      patientId: "pat_f16",
+      type: "routine",
+      day: day(3),
+      time: "15:30",
+      status: "booked",
+      bookedDaysBefore: 4,
+    },
+    {
+      id: "appt_bg17",
+      doctorId: REYES,
+      patientId: "pat_f17",
+      type: "routine",
+      day: day(3),
+      time: "09:45",
+      status: "confirmed",
+      bookedDaysBefore: 3,
+    },
+    {
+      id: "appt_bg18",
+      doctorId: REYES,
+      patientId: "pat_f18",
+      type: "urgent",
+      day: day(3),
+      time: "13:00",
+      status: "booked",
+      bookedDaysBefore: 1,
+    },
+    {
+      id: "appt_bg19",
+      doctorId: SANTOS,
+      patientId: "pat_f01",
+      type: "routine",
+      day: day(4),
+      time: "13:00",
+      status: "confirmed",
+      bookedDaysBefore: 11,
+    },
+    {
+      id: "appt_bg20",
+      doctorId: SANTOS,
+      patientId: "pat_f02",
+      type: "follow_up",
+      day: day(4),
+      time: "10:00",
+      status: "booked",
+      bookedDaysBefore: 5,
+    },
+    {
+      id: "appt_bg21",
+      doctorId: REYES,
+      patientId: "pat_f03",
+      type: "routine",
+      day: day(4),
+      time: "09:15",
+      status: "confirmed",
+      bookedDaysBefore: 7,
+    },
+    {
+      id: "appt_bg22",
+      doctorId: SANTOS,
+      patientId: "pat_f04",
+      type: "routine",
+      day: day(5),
+      time: "14:00",
+      status: "confirmed",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_bg23",
+      doctorId: SANTOS,
+      patientId: "pat_f05",
+      type: "follow_up",
+      day: day(8),
+      time: "08:30",
+      status: "booked",
+      bookedDaysBefore: 4,
+    },
+    {
+      id: "appt_bg24",
+      doctorId: REYES,
+      patientId: "pat_f06",
+      type: "routine",
+      day: day(8),
+      time: "09:15",
+      status: "confirmed",
+      bookedDaysBefore: 9,
+    },
+    {
+      id: "appt_bg25",
+      doctorId: SANTOS,
+      patientId: "pat_f07",
+      type: "routine",
+      day: day(9),
+      time: "13:30",
+      status: "confirmed",
+      bookedDaysBefore: 8,
+    },
+    {
+      id: "appt_bg26",
+      doctorId: REYES,
+      patientId: "pat_f08",
+      type: "follow_up",
+      day: day(9),
+      time: "14:30",
+      status: "booked",
+      bookedDaysBefore: 3,
+    },
+    {
+      id: "appt_bg27",
+      doctorId: SANTOS,
+      patientId: "pat_f09",
+      type: "follow_up",
+      day: day(10),
+      time: "09:00",
+      status: "confirmed",
+      bookedDaysBefore: 12,
+    },
+    {
+      id: "appt_bg28",
+      doctorId: REYES,
+      patientId: "pat_f10",
+      type: "routine",
+      day: day(10),
+      time: "10:15",
+      status: "confirmed",
+      bookedDaysBefore: 5,
+    },
+    {
+      id: "appt_bg29",
+      doctorId: SANTOS,
+      patientId: "pat_f13",
+      type: "routine",
+      day: day(11),
+      time: "16:00",
+      status: "booked",
+      bookedDaysBefore: 2,
+    },
+    {
+      id: "appt_bg30",
+      doctorId: REYES,
+      patientId: "pat_f14",
+      type: "routine",
+      day: day(11),
+      time: "13:30",
+      status: "confirmed",
+      bookedDaysBefore: 7,
+    },
 
     // ---- Last week (history on the calendar) ----
-    { id: "appt_h01", doctorId: SANTOS, patientId: "pat_teresa", type: "follow_up", day: day(-5), time: "08:30", status: "completed", bookedDaysBefore: 9 },
-    { id: "appt_h02", doctorId: SANTOS, patientId: "pat_f11", type: "routine", day: day(-4), time: "13:30", status: "completed", bookedDaysBefore: 6 },
-    { id: "appt_h03", doctorId: REYES, patientId: "pat_f12", type: "routine", day: day(-4), time: "09:00", status: "completed", bookedDaysBefore: 5 },
-    { id: "appt_h04", doctorId: SANTOS, patientId: "pat_dennis", type: "routine", day: day(-3), time: "14:30", status: "no_show", bookedDaysBefore: 15 },
-    { id: "appt_h05", doctorId: REYES, patientId: "pat_f15", type: "follow_up", day: day(-3), time: "14:00", status: "completed", bookedDaysBefore: 4 },
+    {
+      id: "appt_h01",
+      doctorId: SANTOS,
+      patientId: "pat_teresa",
+      type: "follow_up",
+      day: day(-5),
+      time: "08:30",
+      status: "completed",
+      bookedDaysBefore: 9,
+    },
+    {
+      id: "appt_h02",
+      doctorId: SANTOS,
+      patientId: "pat_f11",
+      type: "routine",
+      day: day(-4),
+      time: "13:30",
+      status: "completed",
+      bookedDaysBefore: 6,
+    },
+    {
+      id: "appt_h03",
+      doctorId: REYES,
+      patientId: "pat_f12",
+      type: "routine",
+      day: day(-4),
+      time: "09:00",
+      status: "completed",
+      bookedDaysBefore: 5,
+    },
+    {
+      id: "appt_h04",
+      doctorId: SANTOS,
+      patientId: "pat_dennis",
+      type: "routine",
+      day: day(-3),
+      time: "14:30",
+      status: "no_show",
+      bookedDaysBefore: 15,
+    },
+    {
+      id: "appt_h05",
+      doctorId: REYES,
+      patientId: "pat_f15",
+      type: "follow_up",
+      day: day(-3),
+      time: "14:00",
+      status: "completed",
+      bookedDaysBefore: 4,
+    },
   ];
 
-  const bookedAtFor = (a: ApptSeed) => addDays(new Date(utc(a.day, a.time)), -(a.bookedDaysBefore ?? 5)).toISOString();
+  const LITE_DROPPED_CASCADE = new Set([
+    "appt_teresa",
+    "appt_jose",
+    "appt_andres",
+  ]);
+  const effectiveAppts =
+    profile === "lite"
+      ? appts.filter((a) => !LITE_DROPPED_CASCADE.has(a.id))
+      : appts;
+
+  const bookedAtFor = (a: ApptSeed) =>
+    addDays(
+      new Date(utc(a.day, a.time)),
+      -(a.bookedDaysBefore ?? 5),
+    ).toISOString();
 
   db.insert(schema.appointments)
     .values(
-      appts.map((a) => ({
+      effectiveAppts.map((a) => ({
         id: a.id,
         clinicId: CLINIC_ID,
         doctorId: a.doctorId,
@@ -289,13 +833,15 @@ export function seed(): SeedSummary {
         bookedAt: bookedAtFor(a),
         source: "seed",
         createdAt: bookedAtFor(a),
-      }))
+      })),
     )
     .run();
 
   // Mirror every active appointment onto the doctor's simulated calendar and
   // link the event id (exactly what the live Google path would store).
-  const active = appts.filter((a) => (a.status ?? "booked") === "booked" || a.status === "confirmed");
+  const active = effectiveAppts.filter(
+    (a) => (a.status ?? "booked") === "booked" || a.status === "confirmed",
+  );
   for (const a of active) {
     const calId = a.doctorId === SANTOS ? "sim-santos" : "sim-reyes";
     const evId = `simev_${a.id}`;
@@ -310,28 +856,91 @@ export function seed(): SeedSummary {
         createdAt: now,
       })
       .run();
-    db.update(schema.appointments).set({ calendarEventId: evId }).where(eqId(a.id)).run();
+    db.update(schema.appointments)
+      .set({ calendarEventId: evId })
+      .where(eqId(a.id))
+      .run();
   }
 
   // Personal busy blocks on the doctors' external calendars (not SchediCare
   // appointments) — proves external busy time is respected by the slot engine.
-  db.insert(schema.simCalendarEvents).values([
-    { id: "simev_busy1", calendarId: "sim-santos", summary: "Barangay health outreach", startUtc: utc(day(2), "15:00"), endUtc: utc(day(2), "16:00"), status: "confirmed", createdAt: now },
-    { id: "simev_busy2", calendarId: "sim-reyes", summary: "Hospital rounds", startUtc: utc(day(4), "08:00"), endUtc: utc(day(4), "09:00"), status: "confirmed", createdAt: now },
-  ]).run();
+  db.insert(schema.simCalendarEvents)
+    .values([
+      {
+        id: "simev_busy1",
+        calendarId: "sim-santos",
+        summary: "Barangay health outreach",
+        startUtc: utc(day(2), "15:00"),
+        endUtc: utc(day(2), "16:00"),
+        status: "confirmed",
+        createdAt: now,
+      },
+      {
+        id: "simev_busy2",
+        calendarId: "sim-reyes",
+        summary: "Hospital rounds",
+        startUtc: utc(day(4), "08:00"),
+        endUtc: utc(day(4), "09:00"),
+        status: "confirmed",
+        createdAt: now,
+      },
+    ])
+    .run();
 
   // Waitlist (Rosa should win Liza's vacated Wednesday 10:00 AM routine slot with Dr. Reyes).
-  db.insert(schema.waitlist).values([
-    { id: "wl_rosa", clinicId: CLINIC_ID, patientId: "pat_rosa", doctorId: REYES, type: "routine", dayPart: "am", addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -18).toISOString(), staffPriority: 0, status: "waiting" },
-    { id: "wl_vicente", clinicId: CLINIC_ID, patientId: "pat_vicente", doctorId: null, type: "routine", dayPart: "any", addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -10).toISOString(), staffPriority: 0, status: "waiting" },
-    { id: "wl_nica", clinicId: CLINIC_ID, patientId: "pat_nica", doctorId: null, type: "follow_up", dayPart: "pm", addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -12).toISOString(), staffPriority: 0, status: "waiting" },
-    { id: "wl_bien", clinicId: CLINIC_ID, patientId: "pat_bien", doctorId: null, type: "routine", dayPart: "pm", addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -3).toISOString(), staffPriority: 0, status: "waiting" },
-  ]).run();
+  db.insert(schema.waitlist)
+    .values([
+      {
+        id: "wl_rosa",
+        clinicId: CLINIC_ID,
+        patientId: "pat_rosa",
+        doctorId: REYES,
+        type: "routine",
+        dayPart: "am",
+        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -18).toISOString(),
+        staffPriority: 0,
+        status: "waiting",
+      },
+      {
+        id: "wl_vicente",
+        clinicId: CLINIC_ID,
+        patientId: "pat_vicente",
+        doctorId: null,
+        type: "routine",
+        dayPart: "any",
+        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -10).toISOString(),
+        staffPriority: 0,
+        status: "waiting",
+      },
+      {
+        id: "wl_nica",
+        clinicId: CLINIC_ID,
+        patientId: "pat_nica",
+        doctorId: null,
+        type: "follow_up",
+        dayPart: "pm",
+        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -12).toISOString(),
+        staffPriority: 0,
+        status: "waiting",
+      },
+      {
+        id: "wl_bien",
+        clinicId: CLINIC_ID,
+        patientId: "pat_bien",
+        doctorId: null,
+        type: "routine",
+        dayPart: "pm",
+        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -3).toISOString(),
+        staffPriority: 0,
+        status: "waiting",
+      },
+    ])
+    .run();
 
   return {
     patients: patients.length,
-    appointments: appts.length,
-    demoDayAffected: 6,
+    appointments: effectiveAppts.length,
+    demoDayAffected: profile === "lite" ? 3 : 6,
     waitlist: 4,
   };
 }

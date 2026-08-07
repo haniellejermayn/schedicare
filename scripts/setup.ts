@@ -10,17 +10,25 @@ async function main() {
 
   ensureSchema();
 
-  const existingPatients = db.select({ id: schema.patients.id }).from(schema.patients).limit(1).all();
+  const existingPatients = db
+    .select({ id: schema.patients.id })
+    .from(schema.patients)
+    .limit(1)
+    .all();
+  const profile =
+    process.argv[2] === "lite" ? ("lite" as const) : ("full" as const);
   if (existingPatients.length === 0) {
-    const s = seed();
+    const s = seed(profile);
     console.log(
-      `[setup] Riverside Family Clinic seeded: ${s.patients} patients, ` +
+      `[setup] Riverside Family Clinic seeded (${profile}): ${s.patients} patients, ` +
         `${s.appointments} appointments (${s.demoDayAffected} on the demo day ` +
         `for Dr. Santos), ${s.waitlist} waitlist entries.`,
     );
   } else {
     const updated = syncSeededPatientEmails();
-    console.log(`[setup] Updated ${updated} seeded patient email aliases without resetting demo or integration state.`);
+    console.log(
+      `[setup] Updated ${updated} seeded patient email aliases without resetting demo or integration state.`,
+    );
   }
 
   console.log(

@@ -1,5 +1,9 @@
-/** npm run demo:reset — wipe and reseed to the exact pre-demo state. */
+/** npm run demo:reset [lite] — wipe and reseed to the exact pre-demo state. */
 import { seed } from "@/sim/seed";
 
-const s = seed();
-console.log(`[reset] Demo state restored: ${s.patients} patients, ${s.appointments} appointments, ${s.waitlist} waitlist entries. All cases, events, messages and audit entries cleared.`);
+const profile =
+  process.argv[2] === "lite" ? ("lite" as const) : ("full" as const);
+const s = seed(profile);
+console.log(
+  `[reset] Demo state restored (${profile}): ${s.patients} patients, ${s.appointments} appointments (${s.demoDayAffected} in the cascade), ${s.waitlist} waitlist entries. All cases, events, messages and audit entries cleared.`,
+);
