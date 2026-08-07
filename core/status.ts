@@ -1,15 +1,25 @@
 import { db, schema } from "./db/client";
 import { eq } from "drizzle-orm";
-import { env, geminiModel } from "./env";
+import { env, aiProviderLabel } from "./env";
 
 export type ServiceState = {
-  status: "ok" | "error" | "not_configured" | "simulated" | "disabled" | "unknown";
+  status:
+    | "ok"
+    | "error"
+    | "not_configured"
+    | "simulated"
+    | "disabled"
+    | "unknown";
   detail?: string;
   at?: string;
 };
 
 export function getStatus<T = unknown>(key: string): T | null {
-  const row = db.select().from(schema.systemStatus).where(eq(schema.systemStatus.key, key)).get();
+  const row = db
+    .select()
+    .from(schema.systemStatus)
+    .where(eq(schema.systemStatus.key, key))
+    .get();
   return row ? (row.value as T) : null;
 }
 
@@ -17,15 +27,23 @@ export function setStatus(key: string, value: unknown): void {
   const now = new Date().toISOString();
   db.insert(schema.systemStatus)
     .values({ key, value, updatedAt: now })
-    .onConflictDoUpdate({ target: schema.systemStatus.key, set: { value, updatedAt: now } })
+    .onConflictDoUpdate({
+      target: schema.systemStatus.key,
+      set: { value, updatedAt: now },
+    })
     .run();
 }
 
-export function serviceHealth(service: "gemini" | "calendar" | "mail" | "mcp"): ServiceState {
+export function serviceHealth(
+  service: "gemini" | "bedrock" | "calendar" | "mail" | "mcp",
+): ServiceState {
   return getStatus<ServiceState>(`health:${service}`) ?? { status: "unknown" };
 }
 
-export function setServiceHealth(service: "gemini" | "calendar" | "mail" | "mcp", state: ServiceState): void {
+export function setServiceHealth(
+  service: "gemini" | "bedrock" | "calendar" | "mail" | "mcp",
+  state: ServiceState,
+): void {
   setStatus(`health:${service}`, { ...state, at: new Date().toISOString() });
 }
 
@@ -56,21 +74,33 @@ export function runtimeMode(): RuntimeMode {
   const e = env();
   const reasons: string[] = [];
   const forced = isForcedFallback();
-  if (forced) reasons.push("Presentation Resilience Mode was forced from /admin.");
+  if (forced)
+    reasons.push("Presentation Resilience Mode was forced from /admin.");
 
-  const gemHealth = serviceHealth("gemini");
-  let aiLive = e.AI_PROVIDER === "gemini" && !!e.GEMINI_API_KEY && !forced;
-  let aiDetail = aiLive ? `Gemini · ${geminiModel()}` : "";
-  if (e.AI_PROVIDER !== "gemini") {
+  const aiProvider = e.AI_PROVIDER;
+  const aiKeyOk =
+    aiProvider === "gemini"
+      ? !!e.GEMINI_API_KEY
+      : aiProvider === "bedrock"
+        ? !!e.AWS_BEARER_TOKEN_BEDROCK
+        : false;
+  const aiHealth = aiProvider === "fallback" ? null : serviceHealth(aiProvider);
+  let aiLive = aiProvider !== "fallback" && aiKeyOk && !forced;
+  let aiDetail = aiLive ? aiProviderLabel() : "";
+  if (aiProvider === "fallback") {
     aiDetail = "AI_PROVIDER=fallback — deterministic agents";
     reasons.push("AI_PROVIDER is set to fallback.");
-  } else if (!e.GEMINI_API_KEY) {
-    aiDetail = "GEMINI_API_KEY is not configured";
-    reasons.push("GEMINI_API_KEY is not configured.");
+  } else if (!aiKeyOk) {
+    const keyName =
+      aiProvider === "bedrock" ? "AWS_BEARER_TOKEN_BEDROCK" : "GEMINI_API_KEY";
+    aiDetail = `${keyName} is not configured`;
+    reasons.push(`${keyName} is not configured.`);
     aiLive = false;
-  } else if (gemHealth.status === "error") {
-    aiDetail = `Gemini unavailable: ${gemHealth.detail ?? "recent API failure"}`;
-    reasons.push(`Gemini failed recently (${gemHealth.detail ?? "API error"}); deterministic agents are covering.`);
+  } else if (aiHealth && aiHealth.status === "error") {
+    aiDetail = `${aiProviderLabel()} unavailable: ${aiHealth.detail ?? "recent API failure"}`;
+    reasons.push(
+      `${aiProviderLabel()} failed recently (${aiHealth.detail ?? "API error"}); deterministic agents are covering.`,
+    );
     aiLive = false;
   }
   if (forced) aiLive = false;
@@ -85,7 +115,9 @@ export function runtimeMode(): RuntimeMode {
   } else if (calHealth.status === "error") {
     calLive = false;
     calDetail = `Google Calendar unavailable: ${calHealth.detail ?? "error"}`;
-    reasons.push(`Google Calendar failed (${calHealth.detail ?? "error"}); simulated calendar is covering.`);
+    reasons.push(
+      `Google Calendar failed (${calHealth.detail ?? "error"}); simulated calendar is covering.`,
+    );
   } else if (calHealth.status === "not_configured") {
     calLive = false;
     calDetail = "Google Calendar not connected — simulated provider covering";
@@ -103,7 +135,9 @@ export function runtimeMode(): RuntimeMode {
   } else if (mailHealth.status === "error") {
     mailLive = false;
     mailDetail = `Gmail unavailable: ${mailHealth.detail ?? "error"}`;
-    reasons.push(`Gmail failed (${mailHealth.detail ?? "error"}); simulated mail is covering.`);
+    reasons.push(
+      `Gmail failed (${mailHealth.detail ?? "error"}); simulated mail is covering.`,
+    );
   } else if (mailHealth.status === "not_configured") {
     mailLive = false;
     mailDetail = "Gmail not connected — simulated provider covering";
@@ -116,7 +150,11 @@ export function runtimeMode(): RuntimeMode {
     mode,
     reasons,
     services: {
-      ai: { live: aiLive, detail: aiDetail || (aiLive ? `Gemini · ${geminiModel()}` : "deterministic agents") },
+      ai: {
+        live: aiLive,
+        detail:
+          aiDetail || (aiLive ? aiProviderLabel() : "deterministic agents"),
+      },
       calendar: { live: calLive, detail: calDetail },
       mail: { live: mailLive, detail: mailDetail },
     },

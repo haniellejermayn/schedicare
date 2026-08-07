@@ -16,10 +16,12 @@
     "lint": "next lint --dir app --dir components --dir lib --dir core --dir agents --dir worker --dir integrations --dir sim --dir eval --dir scripts",
     "typecheck": "tsc --noEmit",
     "eval": "tsx eval/run.ts",
+    "eval:constraints": "tsx eval/constraintBaseline.ts",
     "db:push": "tsx scripts/migrate-cli.ts",
     "seed": "tsx scripts/setup.ts"
   },
   "dependencies": {
+    "@langchain/aws": "^1.4.3",
     "@langchain/core": "^1.2.3",
     "@langchain/google": "^0.2.1",
     "@langchain/langgraph": "^1.4.8",

@@ -1,6 +1,13 @@
 import type { z } from "zod";
 
-export type AgentName = "orchestrator" | "assessment" | "scheduling" | "risk" | "recovery" | "comms";
+export type AgentName =
+  | "orchestrator"
+  | "assessment"
+  | "scheduling"
+  | "risk"
+  | "recovery"
+  | "comms"
+  | "extractor";
 
 export interface AgentCtx {
   caseId: string | null;
@@ -41,7 +48,7 @@ export interface AgentRunResult<Out> {
 export class AgentFailure extends Error {
   constructor(
     message: string,
-    public readonly stage: "live" | "fallback"
+    public readonly stage: "live" | "fallback",
   ) {
     super(message);
   }

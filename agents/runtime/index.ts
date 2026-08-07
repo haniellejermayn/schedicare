@@ -3,26 +3,50 @@ import { db, schema } from "@/core/db/client";
 import { env } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { audit } from "@/core/audit";
-import { serviceHealth, setServiceHealth, isForcedFallback } from "@/core/status";
+import {
+  serviceHealth,
+  setServiceHealth,
+  isForcedFallback,
+} from "@/core/status";
 import { runGeminiLoop } from "./gemini";
-import { AgentFailure, type AgentCtx, type AgentDef, type AgentRunResult } from "./types";
+import { runBedrockLoop } from "./bedrock";
+import { aiProviderLabel } from "@/core/env";
+import {
+  AgentFailure,
+  type AgentCtx,
+  type AgentDef,
+  type AgentRunResult,
+} from "./types";
+
+/** The configured live provider, or null when running deterministic-only. */
+export function liveProvider(): "gemini" | "bedrock" | null {
+  const e = env();
+  if (e.AI_PROVIDER === "gemini" && e.GEMINI_API_KEY) return "gemini";
+  if (e.AI_PROVIDER === "bedrock" && e.AWS_BEARER_TOKEN_BEDROCK)
+    return "bedrock";
+  return null;
+}
 
 export function aiLiveWanted(): boolean {
-  const e = env();
-  if (e.AI_PROVIDER !== "gemini") return false;
-  if (!e.GEMINI_API_KEY) return false;
+  const provider = liveProvider();
+  if (!provider) return false;
   if (isForcedFallback()) return false;
-  if (serviceHealth("gemini").status === "error") return false;
+  if (serviceHealth(provider).status === "error") return false;
   return true;
 }
 
-function fallbackReasonNow(): string {
+export function fallbackReasonNow(): string {
   const e = env();
-  if (isForcedFallback()) return "Presentation Resilience Mode forced from /admin";
-  if (e.AI_PROVIDER !== "gemini") return "AI_PROVIDER=fallback";
-  if (!e.GEMINI_API_KEY) return "GEMINI_API_KEY not configured";
-  const h = serviceHealth("gemini");
-  if (h.status === "error") return `Gemini unavailable: ${h.detail ?? "recent API failure"}`;
+  if (isForcedFallback())
+    return "Presentation Resilience Mode forced from /admin";
+  if (e.AI_PROVIDER === "fallback") return "AI_PROVIDER=fallback";
+  if (e.AI_PROVIDER === "gemini" && !e.GEMINI_API_KEY)
+    return "GEMINI_API_KEY not configured";
+  if (e.AI_PROVIDER === "bedrock" && !e.AWS_BEARER_TOKEN_BEDROCK)
+    return "AWS_BEARER_TOKEN_BEDROCK not configured";
+  const provider = liveProvider();
+  if (provider && serviceHealth(provider).status === "error")
+    return `${aiProviderLabel()} unavailable: ${serviceHealth(provider).detail ?? "recent API failure"}`;
   return "deterministic mode";
 }
 
@@ -36,7 +60,7 @@ function fallbackReasonNow(): string {
 export async function runAgent<In, Out>(
   def: AgentDef<In, Out>,
   input: In,
-  ctx: AgentCtx
+  ctx: AgentCtx,
 ): Promise<AgentRunResult<Out>> {
   const started = Date.now();
   const wantLive = aiLiveWanted();
@@ -53,19 +77,41 @@ export async function runAgent<In, Out>(
     .returning()
     .get();
 
-  if (ctx.caseId) timeline(ctx.caseId, def.name, "status", `${def.feedVerb(input)}…`, wantLive ? "Gemini reasoning live" : `Deterministic mode — ${fallbackReasonNow()}`);
+  if (ctx.caseId)
+    timeline(
+      ctx.caseId,
+      def.name,
+      "status",
+      `${def.feedVerb(input)}…`,
+      wantLive
+        ? `${aiProviderLabel()} reasoning live`
+        : `Deterministic mode — ${fallbackReasonNow()}`,
+    );
 
-  const onToolEvent = (kind: "call" | "result" | "error", name: string, detail: string) => {
+  const onToolEvent = (
+    kind: "call" | "result" | "error",
+    name: string,
+    detail: string,
+  ) => {
     if (!ctx.caseId) return;
-    if (kind === "call") timeline(ctx.caseId, def.name, "tool_call", `${name}()`, detail);
-    else if (kind === "result") timeline(ctx.caseId, def.name, "tool_result", `${name} → done`, detail);
+    if (kind === "call")
+      timeline(ctx.caseId, def.name, "tool_call", `${name}()`, detail);
+    else if (kind === "result")
+      timeline(ctx.caseId, def.name, "tool_result", `${name} → done`, detail);
     else timeline(ctx.caseId, def.name, "error", `${name} failed`, detail);
   };
 
   let liveError: string | null = null;
-  if (wantLive) {
+  const provider = liveProvider();
+  if (wantLive && provider) {
+    const runLoop = provider === "bedrock" ? runBedrockLoop : runGeminiLoop;
     try {
-      const { output, stats } = await runGeminiLoop(def, def.buildPrompt(input), ctx, onToolEvent);
+      const { output, stats } = await runLoop(
+        def,
+        def.buildPrompt(input),
+        ctx,
+        onToolEvent,
+      );
       db.update(schema.agentRuns)
         .set({
           status: "ok",
@@ -77,17 +123,39 @@ export async function runAgent<In, Out>(
         })
         .where(eq(schema.agentRuns.id, run.id))
         .run();
-      setServiceHealth("gemini", { status: "ok", detail: "last agent run ok" });
-      return { output, mode: "live", runId: run.id, steps: stats.steps, toolCalls: stats.toolCalls, latencyMs: Date.now() - started };
+      setServiceHealth(provider, { status: "ok", detail: "last agent run ok" });
+      return {
+        output,
+        mode: "live",
+        runId: run.id,
+        steps: stats.steps,
+        toolCalls: stats.toolCalls,
+        latencyMs: Date.now() - started,
+      };
     } catch (e) {
       liveError = String((e as Error).message ?? e).slice(0, 300);
-      setServiceHealth("gemini", { status: "error", detail: liveError });
-      audit({ actor: def.name, action: "agent.live_failed", caseId: ctx.caseId, detail: { error: liveError } });
+      setServiceHealth(provider, { status: "error", detail: liveError });
+      audit({
+        actor: def.name,
+        action: "agent.live_failed",
+        caseId: ctx.caseId,
+        detail: { error: liveError },
+      });
       if (ctx.caseId)
-        timeline(ctx.caseId, def.name, "error", "Live Gemini run failed — switching to deterministic fallback", liveError);
+        timeline(
+          ctx.caseId,
+          def.name,
+          "error",
+          `Live ${aiProviderLabel()} run failed — switching to deterministic fallback`,
+          liveError,
+        );
       if (!env().FALLBACK_ENABLED) {
         db.update(schema.agentRuns)
-          .set({ status: "error", error: liveError, latencyMs: Date.now() - started })
+          .set({
+            status: "error",
+            error: liveError,
+            latencyMs: Date.now() - started,
+          })
           .where(eq(schema.agentRuns.id, run.id))
           .run();
         throw new AgentFailure(`${def.name}: ${liveError}`, "live");
@@ -120,10 +188,21 @@ export async function runAgent<In, Out>(
   } catch (e) {
     const msg = String((e as Error).message ?? e).slice(0, 300);
     db.update(schema.agentRuns)
-      .set({ status: "error", error: liveError ? `${liveError} | fallback: ${msg}` : msg, latencyMs: Date.now() - started })
+      .set({
+        status: "error",
+        error: liveError ? `${liveError} | fallback: ${msg}` : msg,
+        latencyMs: Date.now() - started,
+      })
       .where(eq(schema.agentRuns.id, run.id))
       .run();
-    if (ctx.caseId) timeline(ctx.caseId, def.name, "error", "Deterministic fallback also failed", msg);
+    if (ctx.caseId)
+      timeline(
+        ctx.caseId,
+        def.name,
+        "error",
+        "Deterministic fallback also failed",
+        msg,
+      );
     throw new AgentFailure(`${def.name} fallback failed: ${msg}`, "fallback");
   }
 }

@@ -8,14 +8,22 @@ import { z } from "zod";
 const EnvSchema = z.object({
   DATABASE_URL: z.string().default("file:./schedicare.db"),
   DEMO_NOW: z.string().default("2026-08-10T07:30:00+08:00"),
-  AI_PROVIDER: z.enum(["gemini", "fallback"]).default("gemini"),
+  AI_PROVIDER: z.enum(["gemini", "bedrock", "fallback"]).default("gemini"),
   GEMINI_API_KEY: z.string().optional().default(""),
   GEMINI_MODEL: z.string().optional().default(""),
+  /** Bedrock inference profile ID, e.g. us.anthropic.claude-sonnet-4-6. */
+  BEDROCK_MODEL_ID: z.string().optional().default(""),
+  BEDROCK_AWS_REGION: z.string().optional().default("ap-southeast-1"),
+  /** Bedrock API key (bearer token). The AWS SDK reads this env var directly. */
+  AWS_BEARER_TOKEN_BEDROCK: z.string().optional().default(""),
   CALENDAR_PROVIDER: z.enum(["google", "simulated"]).default("google"),
   MAIL_PROVIDER: z.enum(["gmail", "simulated"]).default("gmail"),
   GOOGLE_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
-  GOOGLE_REDIRECT_URI: z.string().optional().default("http://localhost:3000/api/oauth/callback"),
+  GOOGLE_REDIRECT_URI: z
+    .string()
+    .optional()
+    .default("http://localhost:3000/api/oauth/callback"),
   MCP_TRANSPORT: z.enum(["disabled", "http"]).default("disabled"),
   GOOGLE_CALENDAR_MCP_URL: z.string().optional().default(""),
   GOOGLE_GMAIL_MCP_URL: z.string().optional().default(""),
@@ -55,10 +63,27 @@ export function geminiModel(): string {
   return env().GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 }
 
+/** Default Bedrock inference profile if BEDROCK_MODEL_ID is unset (US region
+ * prefix — swap to eu./jp./apac. to match BEDROCK_AWS_REGION). */
+export const DEFAULT_BEDROCK_MODEL = "global.anthropic.claude-sonnet-4-6";
+
+export function bedrockModel(): string {
+  return env().BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL;
+}
+
+/** Human label for the configured live AI provider. */
+export function aiProviderLabel(): string {
+  const e = env();
+  if (e.AI_PROVIDER === "bedrock")
+    return `Claude on Bedrock · ${bedrockModel()}`;
+  return `Gemini · ${geminiModel()}`;
+}
+
 /** Whether simulated patient replies should be generated automatically. */
 export function autoSimulateReplies(): boolean {
   const e = env();
-  if (e.AUTO_SIMULATE_REPLIES != null) return e.AUTO_SIMULATE_REPLIES !== "false";
+  if (e.AUTO_SIMULATE_REPLIES != null)
+    return e.AUTO_SIMULATE_REPLIES !== "false";
   return e.MAIL_PROVIDER === "simulated";
 }
 
