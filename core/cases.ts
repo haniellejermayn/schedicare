@@ -17,7 +17,12 @@ const LEGAL: Record<CaseState, CaseState[]> = {
   awaiting_approval: ["executing", "escalated"],
   executing: ["resolving", "escalated"],
   resolving: ["planning", "resolved", "escalated"], // counter-proposals loop the affected item back
-  escalated: ["assessing", "planning", "resolved"],
+  // "executing" from escalated: a proposal can legitimately coexist with an
+  // escalated case (a different patient escalated it). Staff deciding that
+  // proposal still goes through the staff-only guard on any transition into
+  // executing — escalation never removes the approval gate, it only adds a
+  // person.
+  escalated: ["assessing", "planning", "resolved", "executing"],
   resolved: [],
 };
 
@@ -91,7 +96,7 @@ export function transitionCase(
   }
   if (to === "executing" && !actor.startsWith("staff")) {
     throw new TransitionError(
-      `Only a staff decision can move a case from awaiting_approval to executing (actor was "${actor}")`,
+      `Only a staff decision can move a case into executing (actor was "${actor}")`,
     );
   }
   db.update(schema.cases)
@@ -126,6 +131,24 @@ export function escalateCase(
 ): void {
   const c = getCase(caseId);
   if (c.state === "escalated" || c.state === "resolved") return;
+  // A pending staff gate outlives an escalation. `awaiting_approval` already
+  // means "a person must act"; demoting it would silently revoke another
+  // patient's approvable card — parallel patients share one case state, and
+  // one patient's needs_human reply must not lock a different patient's
+  // pending clarification/offer behind a 409. Record the escalation for the
+  // timeline and audit trail, but keep the gate actionable.
+  if (c.state === "awaiting_approval") {
+    timeline(caseId, actor, "escalation", "Escalated to clinic staff", reason);
+    audit({
+      actor,
+      action: "case.escalated",
+      refType: "case",
+      refId: caseId,
+      caseId,
+      detail: { reason, stateKept: "awaiting_approval" },
+    });
+    return;
+  }
   db.update(schema.cases)
     .set({ state: "escalated", updatedAt: demoNowIso() })
     .where(eq(schema.cases.id, caseId))
