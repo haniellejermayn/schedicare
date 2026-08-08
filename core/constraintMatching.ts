@@ -16,11 +16,14 @@ import { demoToday } from "./clock";
 import { CLINIC_TZ } from "./env";
 import { findOpenSlots } from "./scheduling";
 import { isoWeekdayOf } from "./constraintValidation";
-import type {
-  HardConstraints,
-  SchedulingConstraintSet,
-  SoftPreferences,
-  TimeWindow,
+import {
+  CONSTRAINT_FIELD_LABELS,
+  constraintFieldPresent,
+  formatConstraintValue,
+  type HardConstraints,
+  type SchedulingConstraintSet,
+  type SoftPreferences,
+  type TimeWindow,
 } from "./constraints";
 import type { ApptType, Slot } from "./types";
 
@@ -206,4 +209,59 @@ export async function findSlotsForConstraints(
     );
 
   return input.limit ? scored.slice(0, input.limit) : scored;
+}
+
+// ---------------------------------------------------------------------------
+// Relaxation analysis — the deterministic fact base for negotiation
+// ---------------------------------------------------------------------------
+
+export interface RelaxationOption {
+  /** Hard-constraint field that would be dropped. */
+  field: string;
+  label: string;
+  /** Human formatting of the constraint's current value. */
+  value: string;
+  /** How many valid slots exist WITHOUT this constraint (others intact). */
+  slotsIfDropped: number;
+}
+
+export interface RelaxationAnalysis {
+  /** Valid slots with the set exactly as stated. */
+  asStated: number;
+  topSlots: ScoredSlot[];
+  /** One entry per present hard constraint, sorted by yield (desc). */
+  relaxations: RelaxationOption[];
+}
+
+/**
+ * Pure arithmetic over engine output: run the search as stated, then once per
+ * hard constraint with that constraint dropped, and report the counts. This
+ * is the ONLY fact base the negotiation policy may cite ("without 'after
+ * 14:00' there are 4 options") — the model never estimates availability.
+ */
+export async function relaxationAnalysis(
+  input: ConstraintSearchInput,
+): Promise<RelaxationAnalysis> {
+  const base = await findSlotsForConstraints({ ...input, limit: undefined });
+  const relaxations: RelaxationOption[] = [];
+  for (const [field, value] of Object.entries(input.set.hard)) {
+    if (!constraintFieldPresent(value)) continue;
+    const relaxed = structuredClone(input.set);
+    delete (relaxed.hard as Record<string, unknown>)[field];
+    const n = (
+      await findSlotsForConstraints({
+        ...input,
+        set: relaxed,
+        limit: undefined,
+      })
+    ).length;
+    relaxations.push({
+      field,
+      label: CONSTRAINT_FIELD_LABELS[field] ?? field,
+      value: formatConstraintValue(field, value),
+      slotsIfDropped: n,
+    });
+  }
+  relaxations.sort((a, b) => b.slotsIfDropped - a.slotsIfDropped);
+  return { asStated: base.length, topSlots: base.slice(0, 6), relaxations };
 }

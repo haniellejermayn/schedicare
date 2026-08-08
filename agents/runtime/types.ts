@@ -7,7 +7,8 @@ export type AgentName =
   | "risk"
   | "recovery"
   | "comms"
-  | "extractor";
+  | "extractor"
+  | "negotiator";
 
 export interface AgentCtx {
   caseId: string | null;

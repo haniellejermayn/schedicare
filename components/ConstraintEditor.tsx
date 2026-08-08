@@ -77,6 +77,7 @@ export function ConstraintEditor({
   const [busy, setBusy] = useState<"" | "save" | "search" | "offer">("");
   const [note, setNote] = useState<string>("");
   const [slots, setSlots] = useState<any[] | null>(null);
+  const [relaxations, setRelaxations] = useState<any[]>([]);
 
   // Which appointment/recommendation does this reply belong to?
   const target = useMemo(() => {
@@ -106,6 +107,12 @@ export function ConstraintEditor({
       e.field.startsWith(`${scope}.${key}`),
     );
     return hit?.sourceText ?? null;
+  };
+
+  const relaxOne = (field: string) => {
+    mutate((s) => delete (s.hard as any)[field]);
+    setRelaxations([]);
+    setNote("Constraint removed — save your edits, then search again.");
   };
 
   const mutate = (fn: (s: AnySet) => void) => {
@@ -168,9 +175,10 @@ export function ConstraintEditor({
         body: JSON.stringify({ set, appointmentId: target.appointmentId }),
       });
       setSlots(r.slots);
-      if (r.slots.length === 0)
+      setRelaxations(r.relaxations ?? []);
+      if (r.slots.length === 0 && (r.relaxations ?? []).length === 0)
         setNote(
-          "No open slots satisfy these constraints — try relaxing one, or handle manually.",
+          "No open slots satisfy these constraints, and no single relaxation helps — handle manually.",
         );
     } catch (e: any) {
       setNote(`Search failed: ${e.message ?? e}`);
@@ -418,6 +426,42 @@ export function ConstraintEditor({
               </Button>
             </div>
           ))}
+        </div>
+      )}
+
+      {slots && slots.length === 0 && relaxations.length > 0 && (
+        <div className="mt-3 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
+          <p className="text-[12px] font-semibold text-ink">
+            No slot matches everything — but one relaxation would:
+          </p>
+          <ul className="mt-1 space-y-1">
+            {relaxations.map((r: any) => (
+              <li
+                key={r.field}
+                className="flex items-center gap-2 text-[13px] text-ink"
+              >
+                <span className="flex-1">
+                  Without{" "}
+                  <span className="font-semibold">
+                    {FIELD_LABELS[r.field] ?? r.field}
+                  </span>{" "}
+                  ({r.value}) →{" "}
+                  <span className="font-semibold tnum">{r.slotsIfDropped}</span>{" "}
+                  option{r.slotsIfDropped === 1 ? "" : "s"}
+                </span>
+                <button
+                  className="text-[12px] font-semibold text-accent hover:underline"
+                  onClick={() => relaxOne(r.field)}
+                >
+                  relax this
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-[12px] text-muted">
+            Or keep everything and ask the patient — the negotiation loop can
+            draft that question.
+          </p>
         </div>
       )}
 

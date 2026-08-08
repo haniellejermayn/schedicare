@@ -19,9 +19,19 @@ import {
 import {
   buildSearchWindow,
   findSlotsForConstraints,
+  relaxationAnalysis,
   slotSatisfiesHard,
   softPreferencePoints,
 } from "@/core/constraintMatching";
+import {
+  NEGOTIATION_TURN_BUDGET,
+  getNegotiation,
+  getOrCreateNegotiation,
+  guardPolicyAction,
+  recordOfferOutcome,
+  recordOfferedSlot,
+  updateNegotiation,
+} from "@/core/negotiations";
 import type { Slot } from "@/core/types";
 
 const TZ = "Asia/Manila";
@@ -412,6 +422,134 @@ describe("multi-turn constraint diffing", () => {
     b.hard.allowedDaysOfWeek = [4, 3]; // same set, different order
     expect(diffConstraintSets(a, b)).toHaveLength(0);
     expect(describeConstraintDiff([])).toBe("no constraint changes");
+  });
+});
+
+describe("relaxation analysis (seeded engine)", () => {
+  beforeEach(() => {
+    freshSeed();
+  });
+
+  it("reports zero as stated and per-constraint yields for an impossible set", async () => {
+    const set = SchedulingConstraintSetSchema.parse({
+      intent: "counter_proposal",
+      hard: { allowedDates: ["2026-08-16"], timeWindows: [{ start: "14:00" }] }, // a Sunday — no doctor works Sundays
+      confidence: 0.9,
+      summary: "Sunday afternoon only",
+    });
+    const a = await relaxationAnalysis({
+      set,
+      type: "routine",
+      fromDay: "2026-08-11",
+      horizonDays: 5,
+    });
+    expect(a.asStated).toBe(0);
+    expect(a.topSlots).toHaveLength(0);
+    const byField = Object.fromEntries(
+      a.relaxations.map((r) => [r.field, r.slotsIfDropped]),
+    );
+    expect(byField.allowedDates).toBeGreaterThan(0); // drop Sunday-only → afternoons exist
+    expect(byField.timeWindows).toBe(0); // still Sunday-only → still nothing
+    expect(a.relaxations[0].field).toBe("allowedDates"); // sorted by yield
+    expect(a.relaxations[0].value).toBe("2026-08-16");
+  });
+});
+
+describe("negotiation state + policy guard", () => {
+  beforeEach(() => {
+    freshSeed();
+  });
+
+  it("creates one row per (case, appointment) and tracks offers", () => {
+    const row = getOrCreateNegotiation({
+      caseId: "case_x",
+      appointmentId: "appt_x",
+      patientId: "pat_x",
+    });
+    expect(
+      getOrCreateNegotiation({
+        caseId: "case_x",
+        appointmentId: "appt_x",
+        patientId: "pat_x",
+      }).id,
+    ).toBe(row.id);
+    recordOfferedSlot(row, {
+      doctorId: "doc_santos",
+      startUtc: "2026-08-12T06:20:00.000Z",
+      label: "Wed 2:20 PM",
+    });
+    recordOfferOutcome(
+      getNegotiation("case_x", "appt_x")!,
+      "declined",
+      "after 4 lang pwede",
+    );
+    const after = getNegotiation("case_x", "appt_x")!;
+    expect((after.offeredSlots as any[])[0].outcome).toBe("declined");
+    updateNegotiation(row.id, { turn: 2, lastAction: "offer_slots" });
+    expect(getNegotiation("case_x", "appt_x")!.turn).toBe(2);
+  });
+
+  it("forces escalation at the turn budget and on invalid references", () => {
+    const ctx = {
+      turn: 0,
+      budget: NEGOTIATION_TURN_BUDGET,
+      candidateKeys: ["doc_santos|A"],
+      relaxFields: ["timeWindows"],
+    };
+    const offer = guardPolicyAction(
+      {
+        action: "offer_slots",
+        slotKeys: ["doc_santos|A", "doc_fake|Z"],
+        rationale: "r",
+      },
+      ctx,
+    );
+    expect(offer.forced).toBeUndefined();
+    expect(offer.action.slotKeys).toEqual(["doc_santos|A"]); // unknown key silently dropped
+
+    const ghost = guardPolicyAction(
+      { action: "offer_slots", slotKeys: ["doc_fake|Z"], rationale: "r" },
+      ctx,
+    );
+    expect(ghost.forced).toMatch(/no valid candidate/);
+    expect(ghost.action.action).toBe("escalate_to_staff");
+
+    const badTarget = guardPolicyAction(
+      {
+        action: "ask_clarification",
+        question: "q?",
+        targetField: "requiredDoctorId",
+        rationale: "r",
+      },
+      ctx,
+    );
+    expect(badTarget.forced).toMatch(/unknown constraint/);
+
+    const overBudget = guardPolicyAction(
+      { action: "offer_slots", slotKeys: ["doc_santos|A"], rationale: "r" },
+      { ...ctx, turn: NEGOTIATION_TURN_BUDGET },
+    );
+    expect(overBudget.action.action).toBe("escalate_to_staff");
+    expect(overBudget.forced).toMatch(/turn budget/);
+  });
+
+  it("policy fallback escalates (no dumber automation)", async () => {
+    const { decideNegotiationMove } =
+      await import("@/agents/negotiationPolicy");
+    const run = await decideNegotiationMove(
+      {
+        caseId: null,
+        patientName: "Test",
+        turn: 0,
+        turnBudget: 3,
+        set: { hard: {}, soft: {}, summary: "" },
+        analysis: { asStated: 0, candidates: [], relaxations: [] },
+        offerHistory: [],
+      },
+      { caseId: null },
+    );
+    expect(run.mode).toBe("fallback");
+    expect(run.output.action).toBe("escalate_to_staff");
   });
 });
 

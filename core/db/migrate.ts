@@ -84,6 +84,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor TEXT NOT NULL,
   action TEXT NOT NULL, ref_type TEXT, ref_id TEXT, case_id TEXT, detail TEXT
 );
+CREATE TABLE IF NOT EXISTS negotiations (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, appointment_id TEXT NOT NULL,
+  patient_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',
+  turn INTEGER NOT NULL DEFAULT 0, constraint_set TEXT,
+  offered_slots TEXT NOT NULL DEFAULT '[]', last_action TEXT, last_reason TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nego_case_appt ON negotiations (case_id, appointment_id);
 CREATE TABLE IF NOT EXISTS oauth_tokens (
   provider TEXT PRIMARY KEY, tokens TEXT NOT NULL, updated_at TEXT NOT NULL
 );
@@ -134,7 +142,11 @@ export function wipeData(opts: { keepOauth?: boolean } = {}): void {
       if (opts.keepOauth && t === "oauth_tokens") continue;
       sqlite.prepare(`DELETE FROM ${t}`).run();
     }
-    sqlite.prepare(`DELETE FROM sqlite_sequence WHERE name IN ('case_timeline','audit_log')`).run();
+    sqlite
+      .prepare(
+        `DELETE FROM sqlite_sequence WHERE name IN ('case_timeline','audit_log')`,
+      )
+      .run();
   });
   tx();
 }

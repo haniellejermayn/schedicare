@@ -1,8 +1,14 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { id as newId } from "../ids";
 
-const pk = () => text("id").primaryKey().$defaultFn(() => newId());
-const createdAt = () => text("created_at").notNull().$defaultFn(() => new Date().toISOString());
+const pk = () =>
+  text("id")
+    .primaryKey()
+    .$defaultFn(() => newId());
+const createdAt = () =>
+  text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString());
 
 // ---------------------------------------------------------------------------
 // Clinic domain
@@ -28,16 +34,23 @@ export const doctors = sqliteTable("doctors", {
   initials: text("initials").notNull().default("DR"),
   /** Google calendar id (or simulated calendar key). */
   calendarId: text("calendar_id"),
-  status: text("status", { enum: ["available", "unavailable"] }).notNull().default("available"),
+  status: text("status", { enum: ["available", "unavailable"] })
+    .notNull()
+    .default("available"),
   /** JSON array of yyyy-MM-dd dates the doctor has marked unavailable. */
-  unavailableDates: text("unavailable_dates", { mode: "json" }).$type<string[]>().notNull().default([]),
+  unavailableDates: text("unavailable_dates", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   createdAt: createdAt(),
 });
 
 export const doctorRules = sqliteTable("doctor_rules", {
   doctorId: text("doctor_id").primaryKey(),
   rules: text("rules", { mode: "json" }).notNull(),
-  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
 });
 
 export const patients = sqliteTable("patients", {
@@ -46,7 +59,9 @@ export const patients = sqliteTable("patients", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
-  prefDayPart: text("pref_day_part", { enum: ["am", "pm", "any"] }).notNull().default("any"),
+  prefDayPart: text("pref_day_part", { enum: ["am", "pm", "any"] })
+    .notNull()
+    .default("any"),
   preferredDoctorId: text("preferred_doctor_id"),
   /** 0 = normal, 1 = elevated, 2 = high (staff-entered, operational only). */
   staffPriority: integer("staff_priority").notNull().default(0),
@@ -57,7 +72,9 @@ export const patients = sqliteTable("patients", {
 export const attendanceHistory = sqliteTable("attendance_history", {
   id: pk(),
   patientId: text("patient_id").notNull(),
-  kind: text("kind", { enum: ["attended", "no_show", "late_cancel", "cancelled_ok"] }).notNull(),
+  kind: text("kind", {
+    enum: ["attended", "no_show", "late_cancel", "cancelled_ok"],
+  }).notNull(),
   at: text("at").notNull(),
 });
 
@@ -86,7 +103,9 @@ export const appointments = sqliteTable("appointments", {
   calendarEventId: text("calendar_event_id"),
   supersededBy: text("superseded_by"),
   /** Flag set when the patient declined all offers and asked for a call. */
-  needsCallback: integer("needs_callback", { mode: "boolean" }).notNull().default(false),
+  needsCallback: integer("needs_callback", { mode: "boolean" })
+    .notNull()
+    .default(false),
   bookedAt: text("booked_at").notNull(),
   source: text("source").notNull().default("seed"),
   createdAt: createdAt(),
@@ -98,10 +117,14 @@ export const waitlist = sqliteTable("waitlist", {
   patientId: text("patient_id").notNull(),
   doctorId: text("doctor_id"),
   type: text("type", { enum: ["routine", "follow_up", "urgent"] }).notNull(),
-  dayPart: text("day_part", { enum: ["am", "pm", "any"] }).notNull().default("any"),
+  dayPart: text("day_part", { enum: ["am", "pm", "any"] })
+    .notNull()
+    .default("any"),
   addedAt: text("added_at").notNull(),
   staffPriority: integer("staff_priority").notNull().default(0),
-  status: text("status", { enum: ["waiting", "offered", "scheduled", "removed"] })
+  status: text("status", {
+    enum: ["waiting", "offered", "scheduled", "removed"],
+  })
     .notNull()
     .default("waiting"),
 });
@@ -128,7 +151,13 @@ export const cases = sqliteTable("cases", {
   id: pk(),
   clinicId: text("clinic_id").notNull(),
   type: text("type", {
-    enum: ["doctor_emergency", "patient_cancellation", "confirmation", "no_show_risk", "slot_recovery"],
+    enum: [
+      "doctor_emergency",
+      "patient_cancellation",
+      "confirmation",
+      "no_show_risk",
+      "slot_recovery",
+    ],
   }).notNull(),
   severity: text("severity", { enum: ["low", "medium", "high", "critical"] })
     .notNull()
@@ -151,7 +180,9 @@ export const cases = sqliteTable("cases", {
   openedByEvent: text("opened_by_event"),
   meta: text("meta", { mode: "json" }),
   createdAt: createdAt(),
-  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
   resolvedAt: text("resolved_at"),
 });
 
@@ -205,14 +236,28 @@ export const recommendations = sqliteTable("recommendations", {
   appointmentId: text("appointment_id"),
   patientId: text("patient_id"),
   kind: text("kind", {
-    enum: ["reschedule", "waitlist_fill", "confirm_nudge", "preventive", "callback"],
+    enum: [
+      "reschedule",
+      "waitlist_fill",
+      "confirm_nudge",
+      "preventive",
+      "callback",
+    ],
   }).notNull(),
   payload: text("payload", { mode: "json" }).notNull(),
   /** "Why?" chips: [{ label, pts }]. */
   explanation: text("explanation", { mode: "json" }),
   score: real("score"),
   status: text("status", {
-    enum: ["proposed", "approved", "modified", "rejected", "executed", "failed", "superseded"],
+    enum: [
+      "proposed",
+      "approved",
+      "modified",
+      "rejected",
+      "executed",
+      "failed",
+      "superseded",
+    ],
   })
     .notNull()
     .default("proposed"),
@@ -232,12 +277,21 @@ export const messages = sqliteTable("messages", {
   recommendationId: text("recommendation_id"),
   appointmentId: text("appointment_id"),
   patientId: text("patient_id").notNull(),
-  channel: text("channel", { enum: ["email"] }).notNull().default("email"),
+  channel: text("channel", { enum: ["email"] })
+    .notNull()
+    .default("email"),
   direction: text("direction", { enum: ["outbound", "inbound"] }).notNull(),
   subject: text("subject"),
   body: text("body").notNull(),
   status: text("status", {
-    enum: ["draft", "approved", "draft_created", "sent", "received", "interpreted"],
+    enum: [
+      "draft",
+      "approved",
+      "draft_created",
+      "sent",
+      "received",
+      "interpreted",
+    ],
   }).notNull(),
   provider: text("provider"),
   providerDraftId: text("provider_draft_id"),
@@ -282,7 +336,9 @@ export const simCalendarEvents = sqliteTable("sim_calendar_events", {
   summary: text("summary").notNull(),
   startUtc: text("start_utc").notNull(),
   endUtc: text("end_utc").notNull(),
-  status: text("status", { enum: ["confirmed", "cancelled"] }).notNull().default("confirmed"),
+  status: text("status", { enum: ["confirmed", "cancelled"] })
+    .notNull()
+    .default("confirmed"),
   createdAt: createdAt(),
 });
 
@@ -296,4 +352,31 @@ export const simMail = sqliteTable("sim_mail", {
   subject: text("subject"),
   body: text("body").notNull(),
   createdAt: createdAt(),
+});
+
+/** Multi-turn scheduling negotiations — one per (case, appointment). DB is
+ * the source of truth; turns are counted and capped here, never in a model. */
+export const negotiations = sqliteTable("negotiations", {
+  id: pk(),
+  caseId: text("case_id").notNull(),
+  appointmentId: text("appointment_id").notNull(),
+  patientId: text("patient_id").notNull(),
+  status: text("status", { enum: ["active", "resolved", "escalated"] })
+    .notNull()
+    .default("active"),
+  /** Patient-facing rounds so far (offers + clarifications). */
+  turn: integer("turn").notNull().default(0),
+  /** Accumulated merged SchedulingConstraintSet. */
+  constraintSet: text("constraint_set", { mode: "json" }),
+  /** History: [{doctorId, startUtc, label, offeredAt, outcome, note?}] */
+  offeredSlots: text("offered_slots", { mode: "json" })
+    .$type<any[]>()
+    .notNull()
+    .default([]),
+  lastAction: text("last_action"),
+  lastReason: text("last_reason"),
+  createdAt: createdAt(),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
 });

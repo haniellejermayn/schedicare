@@ -127,18 +127,29 @@ export const SchedulingConstraintSetSchema = z.object({
   confidence: z.number().min(0).max(1),
   summary: z.string().max(300),
 });
-export type SchedulingConstraintSet = z.infer<typeof SchedulingConstraintSetSchema>;
+export type SchedulingConstraintSet = z.infer<
+  typeof SchedulingConstraintSetSchema
+>;
 
 /** Empty set helper (staff-created cases, dictation intake before extraction). */
-export function emptyConstraintSet(intent: ConstraintIntent = "ambiguous"): SchedulingConstraintSet {
-  return SchedulingConstraintSetSchema.parse({ intent, confidence: 0, summary: "" });
+export function emptyConstraintSet(
+  intent: ConstraintIntent = "ambiguous",
+): SchedulingConstraintSet {
+  return SchedulingConstraintSetSchema.parse({
+    intent,
+    confidence: 0,
+    summary: "",
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Legacy bridge
 // ---------------------------------------------------------------------------
 
-const INTENT_TO_LEGACY: Record<ConstraintIntent, ReplyInterpretation["intent"]> = {
+const INTENT_TO_LEGACY: Record<
+  ConstraintIntent,
+  ReplyInterpretation["intent"]
+> = {
   accept: "accept_offer",
   decline: "reject_offer",
   counter_proposal: "counter_proposal",
@@ -175,12 +186,15 @@ export function isLegacyRepresentable(set: SchedulingConstraintSet): boolean {
   );
 }
 
-export function toLegacyInterpretation(set: SchedulingConstraintSet): ReplyInterpretation {
+export function toLegacyInterpretation(
+  set: SchedulingConstraintSet,
+): ReplyInterpretation {
   if (set.clinicalContentDetected) {
     return {
       intent: "needs_human",
       confidence: Math.min(set.confidence, 0.5),
-      summary: "Message contains possible clinical content — staff must read it.",
+      summary:
+        "Message contains possible clinical content — staff must read it.",
     };
   }
   const h = set.hard;
@@ -239,16 +253,31 @@ export function triageConstraintSet(
   if (set.clinicalContentDetected)
     return { disposition: "needs_human", reason: "possible clinical content" };
   if (!validation.ok)
-    return { disposition: "needs_human", reason: "extracted constraints failed validation" };
+    return {
+      disposition: "needs_human",
+      reason: "extracted constraints failed validation",
+    };
   if (set.confidence < 0.6)
     return { disposition: "needs_human", reason: "low extraction confidence" };
   if (set.intent !== "counter_proposal")
-    return { disposition: "route_legacy", reason: `terminal intent: ${set.intent}` };
+    return {
+      disposition: "route_legacy",
+      reason: `terminal intent: ${set.intent}`,
+    };
   if (set.unresolvedStatements.length > 0)
-    return { disposition: "constraint_review", reason: "unresolved statements need staff input" };
+    return {
+      disposition: "constraint_review",
+      reason: "unresolved statements need staff input",
+    };
   if (!isLegacyRepresentable(set))
-    return { disposition: "constraint_review", reason: "compound constraints — staff review and search" };
-  return { disposition: "route_legacy", reason: "simple counter — automatic replan" };
+    return {
+      disposition: "constraint_review",
+      reason: "compound constraints — staff review and search",
+    };
+  return {
+    disposition: "route_legacy",
+    reason: "simple counter — automatic replan",
+  };
 }
 
 /** One-line human summary for timelines and audit entries. */
@@ -260,7 +289,8 @@ export function describeConstraintSet(set: SchedulingConstraintSet): string {
     (v) => v != null && (!Array.isArray(v) || v.length > 0),
   ).length;
   const bits = [`${hard} hard`, `${soft} soft`];
-  if (set.unresolvedStatements.length > 0) bits.push(`${set.unresolvedStatements.length} unresolved`);
+  if (set.unresolvedStatements.length > 0)
+    bits.push(`${set.unresolvedStatements.length} unresolved`);
   if (set.clinicalContentDetected) bits.push("clinical flag");
   return `${bits.join(", ")} · confidence ${Math.round(set.confidence * 100)}%`;
 }
@@ -296,14 +326,19 @@ export interface ConstraintFieldChange {
   after?: unknown;
 }
 
-const hasValue = (v: unknown) =>
+/** Is a constraint field meaningfully present? Shared by diffing/analysis. */
+export const constraintFieldPresent = (v: unknown): boolean =>
   v != null && (!Array.isArray(v) || v.length > 0) && v !== false;
+const hasValue = constraintFieldPresent;
 
 function canonical(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(canonical).sort().join(",")}]`;
   if (v && typeof v === "object") {
     const o = v as Record<string, unknown>;
-    return `{${Object.keys(o).sort().map((k) => `${k}:${canonical(o[k])}`).join(",")}}`;
+    return `{${Object.keys(o)
+      .sort()
+      .map((k) => `${k}:${canonical(o[k])}`)
+      .join(",")}}`;
   }
   return JSON.stringify(v);
 }
@@ -324,9 +359,15 @@ export function diffConstraintSets(
     for (const field of new Set([...Object.keys(a), ...Object.keys(b)])) {
       const before = a[field];
       const after = b[field];
-      if (hasValue(before) && !hasValue(after)) changes.push({ scope, field, op: "removed", before });
-      else if (!hasValue(before) && hasValue(after)) changes.push({ scope, field, op: "added", after });
-      else if (hasValue(before) && hasValue(after) && canonical(before) !== canonical(after))
+      if (hasValue(before) && !hasValue(after))
+        changes.push({ scope, field, op: "removed", before });
+      else if (!hasValue(before) && hasValue(after))
+        changes.push({ scope, field, op: "added", after });
+      else if (
+        hasValue(before) &&
+        hasValue(after) &&
+        canonical(before) !== canonical(after)
+      )
         changes.push({ scope, field, op: "changed", before, after });
     }
   }
@@ -334,9 +375,35 @@ export function diffConstraintSets(
 }
 
 /** One-line narration for timelines: "removed Time of day; added Not these days". */
-export function describeConstraintDiff(changes: ConstraintFieldChange[]): string {
+export function describeConstraintDiff(
+  changes: ConstraintFieldChange[],
+): string {
   if (changes.length === 0) return "no constraint changes";
   return changes
-    .map((c) => `${c.op} ${CONSTRAINT_FIELD_LABELS[c.field] ?? c.field}${c.scope === "soft" ? " (preference)" : ""}`)
+    .map(
+      (c) =>
+        `${c.op} ${CONSTRAINT_FIELD_LABELS[c.field] ?? c.field}${c.scope === "soft" ? " (preference)" : ""}`,
+    )
     .join("; ");
+}
+
+const DOW_NAMES = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** Human formatting for a constraint field's value (timeline, hints, prompts). */
+export function formatConstraintValue(field: string, v: unknown): string {
+  if (field.includes("DaysOfWeek"))
+    return (v as number[]).map((d) => DOW_NAMES[d]).join(", ");
+  if (field.includes("Window"))
+    return (v as Array<{ start?: string; end?: string }>)
+      .map((w) =>
+        w.start && w.end
+          ? `${w.start}–${w.end}`
+          : w.start
+            ? `after ${w.start}`
+            : `before ${w.end}`,
+      )
+      .join(" or ");
+  if (Array.isArray(v)) return v.join(", ");
+  if (typeof v === "boolean") return "yes";
+  return String(v);
 }

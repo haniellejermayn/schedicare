@@ -9,7 +9,10 @@ import { db, schema } from "@/core/db/client";
 import { getCase } from "@/core/cases";
 import { SchedulingConstraintSetSchema } from "@/core/constraints";
 import { validateConstraintSet } from "@/core/constraintValidation";
-import { findSlotsForConstraints } from "@/core/constraintMatching";
+import {
+  findSlotsForConstraints,
+  relaxationAnalysis,
+} from "@/core/constraintMatching";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -53,9 +56,28 @@ export async function POST(
       .all()
       .map((d) => [d.id, d.name]),
   );
+  // Zero-slot intelligence: tell staff which single constraint, if relaxed,
+  // would yield options — computed, never guessed.
+  let relaxations: Array<{
+    field: string;
+    label: string;
+    value: string;
+    slotsIfDropped: number;
+  }> = [];
+  if (scored.length === 0) {
+    const a = await relaxationAnalysis({
+      set: v.normalized,
+      type: appt.type as any,
+      ignoreAppointmentId: appointmentId,
+      originalDoctorId: meta.doctorId ?? appt.doctorId,
+      horizonDays: 14,
+    });
+    relaxations = a.relaxations.filter((r) => r.slotsIfDropped > 0);
+  }
   return json({
     ok: true,
     warnings: v.warnings,
+    relaxations,
     slots: scored.map((s) => ({
       doctorId: s.slot.doctorId,
       doctorName: doctors.get(s.slot.doctorId) ?? s.slot.doctorId,
