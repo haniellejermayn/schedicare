@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { runAgent } from "./runtime";
 import type { AgentCtx, AgentDef } from "./runtime/types";
-import { toolGetPatientHistory, toolListUpcoming, toolScoreNoShow, toolToday, upcomingForRisk, getPatient, patientHistory } from "./tools";
+import {
+  toolGetPatientHistory,
+  toolListUpcoming,
+  toolScoreNoShow,
+  toolToday,
+  upcomingForRisk,
+  getPatient,
+  patientHistory,
+} from "./tools";
 import { scoreNoShowRisk } from "@/core/risk";
 import { demoNow, fmtWhen } from "@/core/clock";
 
@@ -16,12 +24,16 @@ export const RiskResultSchema = z.object({
         score: z.number(),
         band: z.enum(["low", "medium", "high"]),
         factors: z.array(z.object({ label: z.string(), pts: z.number() })),
-        recommendation: z.enum(["confirmation_nudge", "preventive_outreach", "none"]),
-        explanation: z.string().max(400),
-      })
+        recommendation: z.enum([
+          "confirmation_nudge",
+          "preventive_outreach",
+          "none",
+        ]),
+        explanation: z.string().max(700),
+      }),
     )
     .max(20),
-  summary: z.string().max(300),
+  summary: z.string().max(600),
 });
 export type RiskAgentResult = z.infer<typeof RiskResultSchema>;
 
@@ -32,13 +44,18 @@ export interface RiskInputArgs {
   minBand: "medium" | "high";
 }
 
-function explain(score: number, factors: Array<{ label: string; pts: number }>): string {
+function explain(
+  score: number,
+  factors: Array<{ label: string; pts: number }>,
+): string {
   const drivers = factors
     .filter((f) => f.pts > 0)
     .sort((a, b) => b.pts - a.pts)
     .slice(0, 3)
     .map((f) => `${f.label} (+${f.pts})`);
-  const protectors = factors.filter((f) => f.pts < 0).map((f) => `${f.label} (${f.pts})`);
+  const protectors = factors
+    .filter((f) => f.pts < 0)
+    .map((f) => `${f.label} (${f.pts})`);
   return `Score ${score}/100 — driven by ${drivers.join(", ") || "no elevated factors"}${protectors.length ? `; offset by ${protectors.join(", ")}` : ""}. Score is rule-based and fully attributable to the listed factors.`;
 }
 
@@ -53,7 +70,8 @@ function deterministicRisk(input: RiskInputArgs): RiskAgentResult {
       now: demoNow(),
       history: patientHistory(a.patientId),
     });
-    const qualifies = input.minBand === "high" ? r.band === "high" : r.band !== "low";
+    const qualifies =
+      input.minBand === "high" ? r.band === "high" : r.band !== "low";
     if (!qualifies) continue;
     const p = getPatient(a.patientId);
     flags.push({
@@ -64,7 +82,8 @@ function deterministicRisk(input: RiskInputArgs): RiskAgentResult {
       score: r.score,
       band: r.band,
       factors: r.factors,
-      recommendation: r.band === "high" ? "preventive_outreach" : "confirmation_nudge",
+      recommendation:
+        r.band === "high" ? "preventive_outreach" : "confirmation_nudge",
       explanation: explain(r.score, r.factors),
     });
   }
@@ -77,7 +96,8 @@ function deterministicRisk(input: RiskInputArgs): RiskAgentResult {
 
 export const riskAgent: AgentDef<RiskInputArgs, RiskAgentResult> = {
   name: "risk",
-  feedVerb: (i) => `Reviewing no-show risk across the next ${i.horizonDays} days`,
+  feedVerb: (i) =>
+    `Reviewing no-show risk across the next ${i.horizonDays} days`,
   system: `You are SchediCare's Attendance-Risk agent.
 The no-show score is computed by the deterministic score_no_show tool — you NEVER recompute or adjust it. Your job: decide which flags merit staff attention and write a clear, factor-grounded explanation for each.
 Recommendation policy: band=high → preventive_outreach; band=medium AND unconfirmed → confirmation_nudge; otherwise none. Only include flags at or above the requested minimum band. No medical judgment of any kind.

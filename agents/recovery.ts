@@ -3,10 +3,19 @@ import { differenceInCalendarDays } from "date-fns";
 import { runAgent } from "./runtime";
 import type { AgentCtx, AgentDef, ToolDef } from "./runtime/types";
 import { getDoctor, getPatient, patientHistory, toolToday } from "./tools";
-import { rankRecoveryOptions, rankWaitlistCandidates, type WaitlistCandidateInput } from "@/core/ranking";
+import {
+  rankRecoveryOptions,
+  rankWaitlistCandidates,
+  type WaitlistCandidateInput,
+} from "@/core/ranking";
 import { dayLoad } from "@/core/scheduling";
 import { demoNow } from "@/core/clock";
-import { RecoveryOptionSchema, SlotSchema, type RecoveryOption, type Slot } from "@/core/types";
+import {
+  RecoveryOptionSchema,
+  SlotSchema,
+  type RecoveryOption,
+  type Slot,
+} from "@/core/types";
 import { id as newId } from "@/core/ids";
 
 // ---------------------------------------------------------------------------
@@ -35,14 +44,14 @@ export const RecoveryPlanSchema = z.object({
   appointmentId: z.string(),
   chosenOptionId: z.string(),
   options: z.array(RecoveryOptionSchema).max(8),
-  rationale: z.string().max(400),
+  rationale: z.string().max(700),
   /** Required if chosenOptionId is not the top-ranked option. */
-  reorderReason: z.string().max(200).optional(),
+  reorderReason: z.string().max(350).optional(),
 });
 
 export const RecoveryResultSchema = z.object({
   plans: z.array(RecoveryPlanSchema).max(30),
-  summary: z.string().max(300),
+  summary: z.string().max(600),
 });
 export type RecoveryResult = z.infer<typeof RecoveryResultSchema>;
 
@@ -51,9 +60,17 @@ function scoreItem(item: RecoveryItemInput): RecoveryOption[] {
   const patient = getPatient(item.patientId);
   const hist = patientHistory(item.patientId);
   const accepted = hist.filter((h) => h.kind === "attended").length;
-  const declinedish = hist.filter((h) => h.kind === "no_show" || h.kind === "late_cancel").length;
-  const acceptance = accepted + declinedish === 0 ? 0.6 : Math.max(0.3, Math.min(0.95, accepted / (accepted + declinedish)));
-  const withNames = item.options.map((o) => ({ ...o, doctorName: getDoctor(o.doctorId).name }));
+  const declinedish = hist.filter(
+    (h) => h.kind === "no_show" || h.kind === "late_cancel",
+  ).length;
+  const acceptance =
+    accepted + declinedish === 0
+      ? 0.6
+      : Math.max(0.3, Math.min(0.95, accepted / (accepted + declinedish)));
+  const withNames = item.options.map((o) => ({
+    ...o,
+    doctorName: getDoctor(o.doctorId).name,
+  }));
   const scored = rankRecoveryOptions(
     {
       originalDoctorId: item.originalDoctorId,
@@ -64,7 +81,7 @@ function scoreItem(item: RecoveryItemInput): RecoveryOption[] {
       capacityHeadroom: (slot: Slot) => dayLoad(slot.doctorId, slot.day),
       acceptanceLikelihood: acceptance,
     },
-    withNames
+    withNames,
   );
   return scored.slice(0, 5).map((s, i) => ({
     id: `opt_${newId(8)}`,
@@ -98,7 +115,9 @@ function rationaleFor(item: RecoveryItemInput, top: RecoveryOption): string {
   return `${item.patientName}'s ${item.type.replace("_", "-")} moves to ${top.doctorName}: ${topChips.join(", ")}. ${item.priorityReason}.`;
 }
 
-async function deterministicRecovery(input: RecoveryInput): Promise<RecoveryResult> {
+async function deterministicRecovery(
+  input: RecoveryInput,
+): Promise<RecoveryResult> {
   const plans = input.items.map((item) => {
     const options = scoreItem(item);
     const top = options[0];
@@ -126,7 +145,8 @@ async function deterministicRecovery(input: RecoveryInput): Promise<RecoveryResu
 
 export const recoveryAgent: AgentDef<RecoveryInput, RecoveryResult> = {
   name: "recovery",
-  feedVerb: (i) => `Ranking recovery options for ${i.items.length} patient${i.items.length === 1 ? "" : "s"}`,
+  feedVerb: (i) =>
+    `Ranking recovery options for ${i.items.length} patient${i.items.length === 1 ? "" : "s"}`,
   system: `You are SchediCare's Recovery agent.
 For each affected appointment, call rank_recovery_options to get the deterministic ranking, then package a plan: keep the returned options and scores EXACTLY as ranked, pick chosenOptionId (normally rank 1 — if you deviate, you MUST provide reorderReason grounded in the assessment context), and write a 1-2 sentence rationale that cites the top scoring factors and the patient's priority reason. Never invent times, scores, or chips. Finish with submit_result covering every appointment given.`,
   tools: [toolToday, toolRankOptions],
@@ -135,7 +155,10 @@ For each affected appointment, call rank_recovery_options to get the determinist
   buildPrompt: (i) =>
     `Case ${i.caseId}. Package recovery plans for:\n` +
     i.items
-      .map((it) => `- ${it.appointmentId}: ${it.patientName}, ${it.type}, priority #${it.priorityRank} (${it.priorityReason}), ${it.options.length} validated options`)
+      .map(
+        (it) =>
+          `- ${it.appointmentId}: ${it.patientName}, ${it.type}, priority #${it.priorityRank} (${it.priorityReason}), ${it.options.length} validated options`,
+      )
       .join("\n") +
     `\nCall rank_recovery_options per appointment, then submit_result.`,
   fallback: async (i) => deterministicRecovery(i),
@@ -150,12 +173,17 @@ export function runRecovery(input: RecoveryInput, ctx: AgentCtx) {
         ? {
             ...t,
             run: async (args: { appointmentId: string }) => {
-              const item = input.items.find((x) => x.appointmentId === args.appointmentId);
-              if (!item) throw new Error(`appointment ${args.appointmentId} not in this case`);
+              const item = input.items.find(
+                (x) => x.appointmentId === args.appointmentId,
+              );
+              if (!item)
+                throw new Error(
+                  `appointment ${args.appointmentId} not in this case`,
+                );
               return scoreItem(item);
             },
           }
-        : t
+        : t,
     ),
   };
   return runAgent(bound, input, ctx);
@@ -177,10 +205,10 @@ export const WaitlistFillResultSchema = z.object({
         dots: z.number().int(),
         chips: z.array(z.object({ label: z.string(), pts: z.number() })),
         rank: z.number().int(),
-      })
+      }),
     )
     .max(8),
-  rationale: z.string().max(300),
+  rationale: z.string().max(600),
 });
 export type WaitlistFillResult = z.infer<typeof WaitlistFillResultSchema>;
 
@@ -193,7 +221,12 @@ export interface WaitlistFillInput {
 }
 
 function deterministicWaitlist(input: WaitlistFillInput): WaitlistFillResult {
-  const ranked = rankWaitlistCandidates(input.slot, input.slotType, demoNow(), input.candidates).slice(0, 5);
+  const ranked = rankWaitlistCandidates(
+    input.slot,
+    input.slotType,
+    demoNow(),
+    input.candidates,
+  ).slice(0, 5);
   const withRank = ranked.map((r, i) => ({
     waitlistId: r.waitlistId,
     patientId: r.patientId,
@@ -205,10 +238,16 @@ function deterministicWaitlist(input: WaitlistFillInput): WaitlistFillResult {
   }));
   const top = withRank[0];
   if (!top) {
-    return { chosenWaitlistId: "none", candidates: [], rationale: "No matching waitlist candidates for this slot type." };
+    return {
+      chosenWaitlistId: "none",
+      candidates: [],
+      rationale: "No matching waitlist candidates for this slot type.",
+    };
   }
   const wait = input.candidates.find((c) => c.waitlistId === top.waitlistId);
-  const days = wait ? Math.max(0, differenceInCalendarDays(demoNow(), new Date(wait.addedAt))) : 0;
+  const days = wait
+    ? Math.max(0, differenceInCalendarDays(demoNow(), new Date(wait.addedAt)))
+    : 0;
   return {
     chosenWaitlistId: top.waitlistId,
     candidates: withRank,
@@ -216,20 +255,24 @@ function deterministicWaitlist(input: WaitlistFillInput): WaitlistFillResult {
       .filter((c) => c.pts > 0)
       .slice(0, 2)
       .map((c) => c.label.toLowerCase())
-      .join(", ")} (waiting ${days} days). Offer goes out only after staff approval.`,
+      .join(
+        ", ",
+      )} (waiting ${days} days). Offer goes out only after staff approval.`,
   };
 }
 
 export const waitlistAgent: AgentDef<WaitlistFillInput, WaitlistFillResult> = {
   name: "recovery",
-  feedVerb: (i) => `Ranking waitlist candidates for the vacated ${i.slot.block.toUpperCase()} slot`,
+  feedVerb: (i) =>
+    `Ranking waitlist candidates for the vacated ${i.slot.block.toUpperCase()} slot`,
   system: `You are SchediCare's Recovery agent handling waitlist backfill for one vacated slot.
 Call rank_waitlist_candidates for the deterministic ranking; keep it exactly as returned, pick the top candidate, and write a short rationale citing its scoring chips. Finish with submit_result.`,
   tools: [
     toolToday,
     {
       name: "rank_waitlist_candidates",
-      description: "Deterministically rank the provided waitlist candidates for the vacated slot.",
+      description:
+        "Deterministically rank the provided waitlist candidates for the vacated slot.",
       schema: z.object({}),
       run: async () => ({ error: "bound at runtime" }),
     },
@@ -247,7 +290,7 @@ export function runWaitlistFill(input: WaitlistFillInput, ctx: AgentCtx) {
     tools: waitlistAgent.tools.map((t) =>
       t.name === "rank_waitlist_candidates"
         ? { ...t, run: async () => deterministicWaitlist(input).candidates }
-        : t
+        : t,
     ),
   };
   return runAgent(bound, input, ctx);

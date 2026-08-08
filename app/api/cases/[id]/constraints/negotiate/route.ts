@@ -11,6 +11,7 @@ import { getCase } from "@/core/cases";
 import { audit } from "@/core/audit";
 import { SchedulingConstraintSetSchema } from "@/core/constraints";
 import { validateConstraintSet } from "@/core/constraintValidation";
+import { and } from "drizzle-orm";
 import { enqueueEvent } from "@/worker/queue";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,25 @@ export async function POST(
         .get()
     : undefined;
   if (!appt || !patient) return err("appointment not found", 404);
+  // One strategic move at a time: while a drafted question (or any proposal)
+  // for this appointment awaits a decision, delegating again would burn a
+  // negotiation round for nothing.
+  const pending = db
+    .select()
+    .from(schema.recommendations)
+    .where(
+      and(
+        eq(schema.recommendations.caseId, c.id),
+        eq(schema.recommendations.appointmentId, body.appointmentId),
+        eq(schema.recommendations.status, "proposed"),
+      ),
+    )
+    .all();
+  if (pending.length > 0)
+    return err(
+      "a drafted message for this patient is already awaiting your decision — approve or reject it first",
+      409,
+    );
   audit({
     actor: "staff",
     action: "negotiation.delegated",

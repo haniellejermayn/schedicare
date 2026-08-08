@@ -2,6 +2,14 @@
 import "@/eval/loadEnv"; // .env.local / .env — must be the FIRST import
 import { seed } from "@/sim/seed";
 
+import fs from "node:fs";
+import path from "node:path";
+try {
+  fs.rmSync(path.join(process.cwd(), ".tmp", "clock-anchor"));
+} catch {
+  /* no anchor yet */
+}
+
 const profile =
   process.argv[2] === "lite" ? ("lite" as const) : ("full" as const);
 const s = seed(profile);

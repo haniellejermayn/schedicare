@@ -2,7 +2,13 @@ import { z } from "zod";
 import { addDays, format } from "date-fns";
 import { runAgent } from "./runtime";
 import type { AgentCtx, AgentDef } from "./runtime/types";
-import { toolFindOpenSlots, toolGetDayLoad, toolGetDoctorRules, toolGetDoctors, toolToday } from "./tools";
+import {
+  toolFindOpenSlots,
+  toolGetDayLoad,
+  toolGetDoctorRules,
+  toolGetDoctors,
+  toolToday,
+} from "./tools";
 import { findOpenSlots } from "@/core/scheduling";
 import { db, schema } from "@/core/db/client";
 import { SlotSchema, APPOINTMENT_TYPES, type Slot } from "@/core/types";
@@ -26,11 +32,11 @@ export const SchedulingResultSchema = z.object({
       z.object({
         appointmentId: z.string(),
         options: z.array(SlotSchema).max(12),
-        note: z.string().max(200).optional(),
-      })
+        note: z.string().max(350).optional(),
+      }),
     )
     .max(30),
-  searchSummary: z.string().max(400),
+  searchSummary: z.string().max(700),
 });
 export type SchedulingResult = z.infer<typeof SchedulingResultSchema>;
 
@@ -45,7 +51,9 @@ export interface SchedulingInput {
  * the engine via unavailableDates), then other doctors starting same-day.
  * Cap at 8 options per appointment, mixed across doctors.
  */
-async function deterministicSearch(input: SchedulingInput): Promise<SchedulingResult> {
+async function deterministicSearch(
+  input: SchedulingInput,
+): Promise<SchedulingResult> {
   const doctors = db.select().from(schema.doctors).all();
   const perAppointment: SchedulingResult["perAppointment"] = [];
   for (const req of input.requests) {
@@ -128,12 +136,19 @@ function dedupe(slots: Slot[]): Slot[] {
 
 export const schedulingAgent: AgentDef<SchedulingInput, SchedulingResult> = {
   name: "scheduling",
-  feedVerb: (i) => `Searching valid slots for ${i.requests.length} appointment${i.requests.length === 1 ? "" : "s"}`,
+  feedVerb: (i) =>
+    `Searching valid slots for ${i.requests.length} appointment${i.requests.length === 1 ? "" : "s"}`,
   system: `You are SchediCare's Scheduling agent for a single outpatient clinic (Asia/Manila).
 You NEVER invent times. Every option you submit must come VERBATIM (doctorId + startUtc + endUtc) from find_open_slots results in this conversation — those results already respect doctor rules, buffers, daily/block caps, unavailability, and Google Calendar busy blocks.
 Search strategy: same doctor first across the requested window; widen to the other doctor starting same-day when same-doctor supply is thin. Honor any afterTime/dayPart constraint exactly. Offer up to 8 options per appointment, spread across days rather than clustered. If a search returns nothing, say so in the note rather than relaxing constraints silently.
 Finish with submit_result.`,
-  tools: [toolToday, toolGetDoctors, toolGetDoctorRules, toolFindOpenSlots, toolGetDayLoad],
+  tools: [
+    toolToday,
+    toolGetDoctors,
+    toolGetDoctorRules,
+    toolFindOpenSlots,
+    toolGetDayLoad,
+  ],
   resultSchema: SchedulingResultSchema,
   maxSteps: 12,
   buildPrompt: (i) =>
@@ -141,7 +156,7 @@ Finish with submit_result.`,
     i.requests
       .map(
         (r) =>
-          `- appointment ${r.appointmentId} (patient ${r.patientId}, type ${r.type}) originally ${r.originalStartUtc} with doctor ${r.originalDoctorId}; search ${r.searchFromDay}..${r.searchToDay}${r.afterTime ? `, only after ${r.afterTime} clinic time` : ""}${r.dayPart ? `, ${r.dayPart.toUpperCase()} only` : ""}`
+          `- appointment ${r.appointmentId} (patient ${r.patientId}, type ${r.type}) originally ${r.originalStartUtc} with doctor ${r.originalDoctorId}; search ${r.searchFromDay}..${r.searchToDay}${r.afterTime ? `, only after ${r.afterTime} clinic time` : ""}${r.dayPart ? `, ${r.dayPart.toUpperCase()} only` : ""}`,
       )
       .join("\n") +
     `\nUse find_open_slots (pass ignoreAppointmentId when searching the original doctor). Submit options per appointment.`,
@@ -149,7 +164,10 @@ Finish with submit_result.`,
 };
 
 /** Default search window: from a given day, spanning `days` days. */
-export function searchWindow(fromDay: string, days = 7): { fromDay: string; toDay: string } {
+export function searchWindow(
+  fromDay: string,
+  days = 7,
+): { fromDay: string; toDay: string } {
   const from = new Date(`${fromDay}T00:00:00Z`);
   return { fromDay, toDay: format(addDays(from, days - 1), "yyyy-MM-dd") };
 }

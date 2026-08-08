@@ -61,9 +61,9 @@ export const NegotiationActionSchema = z
     /** ask_clarification: up to 3 concrete options phrased for the patient. */
     options: z.array(z.string().max(120)).max(3).optional(),
     /** escalate_to_staff: why a person should take over. */
-    reason: z.string().max(300).optional(),
+    reason: z.string().max(500).optional(),
     /** One sentence for the audit trail, always. */
-    rationale: z.string().max(300),
+    rationale: z.string().max(500),
   })
   .superRefine((v, ctx) => {
     if (v.action === "offer_slots" && (v.slotKeys?.length ?? 0) === 0)
