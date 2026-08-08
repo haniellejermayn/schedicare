@@ -11,6 +11,7 @@ import { demoNowIso, fmtWhen } from "@/core/clock";
 import { getDoctor, getPatient } from "@/agents/tools";
 import { handlePatientReply } from "@/worker/replies";
 import { replanWithConstraintSet } from "@/worker/steps";
+import { negotiationTurn } from "@/worker/negotiation";
 import { startCase, resumeCase } from "@/graph/caseGraph";
 
 export async function dispatchEvent(
@@ -59,6 +60,18 @@ export async function dispatchEvent(
       return;
     }
     case "resume_case": {
+      await resumeCase(payload.caseId);
+      return;
+    }
+    case "negotiation_turn": {
+      await negotiationTurn({
+        caseId: payload.caseId,
+        appointmentId: payload.appointmentId,
+        patientId: payload.patientId,
+        patientName: payload.patientName,
+        supersededRecId: payload.supersededRecId,
+        set: payload.set,
+      });
       await resumeCase(payload.caseId);
       return;
     }

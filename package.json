@@ -11,6 +11,7 @@
     "worker": "tsx watch worker/bootstrap.ts",
     "demo": "tsx scripts/demo.ts",
     "demo:reset": "tsx scripts/reset.ts",
+    "demo:reset:lite": "tsx scripts/reset.ts lite",
     "demo:cascade": "tsx scripts/cascade.ts",
     "test": "vitest run",
     "lint": "next lint --dir app --dir components --dir lib --dir core --dir agents --dir worker --dir integrations --dir sim --dir eval --dir scripts",

@@ -533,6 +533,33 @@ describe("negotiation state + policy guard", () => {
     expect(overBudget.forced).toMatch(/turn budget/);
   });
 
+  it("a full negotiation turn in fallback mode escalates the case with context", async () => {
+    const { openCase } = await import("@/core/cases");
+    const { negotiationTurn } = await import("@/worker/negotiation");
+    const { getCase } = await import("@/core/cases");
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "high",
+      title: "test negotiation case",
+      meta: { doctorId: "doc_santos" },
+    });
+    const set = { ...compoundSet(), confidence: 0.9 };
+    await negotiationTurn({
+      caseId: c.id,
+      appointmentId: "appt_camille",
+      patientId: "pat_camille",
+      patientName: "Camille Ocampo",
+      supersededRecId: "rec_none",
+      set,
+    });
+    const after = getCase(c.id);
+    expect(after.state).toBe("escalated"); // fallback policy → staff, always
+    const nego = getNegotiation(c.id, "appt_camille")!;
+    expect(nego.status).toBe("escalated");
+    expect(nego.lastAction).toBe("escalate_to_staff");
+  });
+
   it("policy fallback escalates (no dumber automation)", async () => {
     const { decideNegotiationMove } =
       await import("@/agents/negotiationPolicy");

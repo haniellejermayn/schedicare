@@ -28,7 +28,15 @@ import {
 } from "@/core/constraints";
 import { validateConstraintSet } from "@/core/constraintValidation";
 import { getDoctor, getPatient } from "@/agents/tools";
-import { replanSingle } from "./steps";
+import { replanSingle, replanWithConstraintSet } from "./steps";
+import { negotiationTurn } from "./negotiation";
+import { findSlotsForConstraints } from "@/core/constraintMatching";
+import {
+  getOrCreateNegotiation,
+  recordOfferOutcome,
+  updateNegotiation,
+} from "@/core/negotiations";
+import type { SchedulingConstraintSet } from "@/core/constraints";
 import { deleteCalendarEvent, updateCalendarEvent } from "./executor";
 import type { ReplyInterpretation } from "@/core/types";
 import { latestReplyOnly } from "@/core/messages";
@@ -68,6 +76,7 @@ export async function handlePatientReply(
   // 1) Guard — never auto-handle medical/injection/upset content.
   const guard = guardReply(replyBody);
   let interp: ReplyInterpretation;
+  let richSet: SchedulingConstraintSet | null = null;
   if (guard.hit) {
     interp = { intent: "needs_human", confidence: 1, summary: guard.reason! };
     if (caseId)
@@ -84,9 +93,15 @@ export async function handlePatientReply(
     // fallback/resilience mode this branch is skipped entirely and the
     // legacy deterministic path below runs unchanged.
     const payload = (rec?.payload as any) ?? {};
-    const prior = caseId
-      ? (((getCase(caseId).meta as any) ?? {}).latestConstraints?.set ?? null)
-      : null;
+    // Per-appointment memory: the merge prior belongs to THIS thread only.
+    const constraintKey: string | null =
+      payload.appointmentId ?? msg.appointmentId ?? null;
+    const prior =
+      caseId && constraintKey
+        ? ((((getCase(caseId).meta as any) ?? {}).constraintsByAppt ?? {})[
+            constraintKey
+          ]?.set ?? null)
+        : null;
     const run = await extractConstraints(
       {
         caseId,
@@ -100,23 +115,35 @@ export async function handlePatientReply(
     const v = validateConstraintSet(run.output);
     const set = v.ok ? v.normalized : run.output;
     const triage = triageConstraintSet(set, v);
+    if (v.ok && !set.clinicalContentDetected) richSet = set;
     // Multi-turn audit: the diff WE compute between the prior accumulated set
     // and the merged output — never the model's own account of what changed.
     const diff =
       prior && run.mode === "live" ? diffConstraintSets(prior, set) : [];
 
-    // Persist the rich set for the constraint editor regardless of lane.
-    if (caseId)
+    // Persist the rich set for the constraint editor regardless of lane —
+    // keyed PER APPOINTMENT with the patient identity captured here, so
+    // parallel patients on one case can never clobber or cross-contaminate
+    // each other (the bug that once had the negotiator asking Miguel about
+    // Camille's constraints).
+    if (caseId && constraintKey)
       updateCaseMeta(caseId, {
-        latestConstraints: {
-          set,
-          messageId,
-          extractedAt: demoNowIso(),
-          mode: run.mode,
-          validation: { ok: v.ok, errors: v.errors, warnings: v.warnings },
-          disposition: triage.disposition,
-          reason: triage.reason,
-          diff: diff.length > 0 ? diff : undefined,
+        constraintsByAppt: {
+          ...(((getCase(caseId).meta as any) ?? {}).constraintsByAppt ?? {}),
+          [constraintKey]: {
+            set,
+            appointmentId: constraintKey,
+            patientId: msg.patientId,
+            patientName: patient.name,
+            recommendationId: rec?.id ?? null,
+            messageId,
+            extractedAt: demoNowIso(),
+            mode: run.mode,
+            validation: { ok: v.ok, errors: v.errors, warnings: v.warnings },
+            disposition: triage.disposition,
+            reason: triage.reason,
+            diff: diff.length > 0 ? diff : undefined,
+          },
         },
       });
     if (caseId && diff.length > 0)
@@ -203,7 +230,7 @@ export async function handlePatientReply(
     );
 
   if (!caseId || !rec) return caseId;
-  await route(caseId, rec, msg, patient.name, interp);
+  await route(caseId, rec, msg, patient.name, interp, richSet);
   return caseId;
 }
 
@@ -213,10 +240,57 @@ async function route(
   msg: typeof schema.messages.$inferSelect,
   patientName: string,
   interp: ReplyInterpretation,
+  richSet: SchedulingConstraintSet | null = null,
 ) {
   const payload = rec.payload as any;
   const targetApptId: string | undefined =
     payload.createdAppointmentId ?? payload.appointmentId;
+
+  // Replies to a CLARIFICATION are negotiation moves, not offer decisions:
+  // there is no held slot to confirm or release. Any substantive answer
+  // (acceptance of a relaxation, a new counter, or a refusal) re-enters the
+  // loop with the merged constraints; without a live extraction, or for
+  // questions, a person takes over.
+  if (rec.kind === "clarification" && interp.intent !== "cancel") {
+    const substantive = [
+      "confirm",
+      "accept_offer",
+      "reject_offer",
+      "counter_proposal",
+    ].includes(interp.intent);
+    if (substantive && richSet && payload.appointmentId) {
+      timeline(
+        caseId,
+        "negotiator",
+        "status",
+        `${patientName} answered the question`,
+        interp.summary,
+        {
+          recommendationId: rec.id,
+        },
+      );
+      await negotiationTurn({
+        caseId,
+        appointmentId: payload.appointmentId,
+        patientId: msg.patientId,
+        patientName,
+        supersededRecId: rec.id,
+        set: richSet,
+      });
+    } else {
+      db.update(schema.recommendations)
+        .set({ outcome: "needs_human" })
+        .where(eq(schema.recommendations.id, rec.id))
+        .run();
+      escalateCase(
+        caseId,
+        "negotiator",
+        `${patientName} replied to our question — staff should read it: ${interp.summary}`,
+      );
+    }
+    maybeResolveCase(caseId);
+    return;
+  }
 
   switch (interp.intent) {
     case "confirm":
@@ -447,6 +521,53 @@ async function route(
       ]
         .filter(Boolean)
         .join(", ");
+      // Negotiation engagement (live extractions only): the policy takes
+      // over on second-and-later rounds and whenever zero slots match as
+      // stated; the very first simple counter keeps the fast replan path.
+      if (richSet) {
+        const c2 = getCase(caseId);
+        const meta2 = (c2.meta as any) ?? {};
+        const nego = getOrCreateNegotiation({
+          caseId,
+          appointmentId: apptId,
+          patientId: msg.patientId,
+          constraintSet: richSet,
+        });
+        if (
+          ((nego.offeredSlots as any[]) ?? []).some(
+            (o) => o.outcome === "offered",
+          )
+        )
+          recordOfferOutcome(nego, "declined", interp.summary.slice(0, 160));
+        const matching = await findSlotsForConstraints({
+          set: richSet,
+          type: appt?.type ?? payload.type,
+          ignoreAppointmentId: apptId,
+          originalDoctorId: meta2.doctorId ?? appt?.doctorId,
+          horizonDays: 14,
+          limit: 1,
+        });
+        if (nego.turn >= 1 || matching.length === 0) {
+          await negotiationTurn({
+            caseId,
+            appointmentId: apptId,
+            patientId: msg.patientId,
+            patientName,
+            supersededRecId: rec.id,
+            set: richSet,
+          });
+          break;
+        }
+        // First simple round: fast path, but the round still counts and the
+        // offered slot is recorded by replanWithConstraintSet's twin below.
+        await replanWithConstraintSet(caseId, {
+          appointmentId: apptId,
+          supersededRecId: rec.id,
+          set: richSet,
+          note: constraintBits || interp.summary,
+        });
+        break;
+      }
       await replanSingle(caseId, {
         appointmentId: apptId,
         supersededRecId: rec.id,

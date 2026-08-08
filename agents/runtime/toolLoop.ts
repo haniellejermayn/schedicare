@@ -60,7 +60,7 @@ export async function runToolLoop<In, Out>(
 
   const messages: BaseMessage[] = [
     new SystemMessage(
-      `${def.system}\n\nWhen you have gathered what you need, call ${SUBMIT} with the final answer. Never answer in plain text.`,
+      `${def.system}\n\nWhen you have gathered what you need, call ${SUBMIT} with the final answer. Never answer in plain text. String fields in the schema have maximum lengths — write CONCISELY and stay well under every limit; an over-length submission is rejected and wastes a step.`,
     ),
     new HumanMessage(prompt),
   ];

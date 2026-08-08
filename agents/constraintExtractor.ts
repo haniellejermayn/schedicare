@@ -75,6 +75,7 @@ Extraction conventions — follow these EXACTLY:
 - evidence: for EVERY extracted field, include {sourceText: the verbatim phrase, field: the dot-path like "hard.timeWindows[0]"}. No field without evidence.
 - confidence in [0,1] for the overall extraction; summary is one plain sentence for staff.
 - Extract only what is stated. Never invent dates, times, or doctors. An empty message or pure pleasantry → intent per its meaning, no constraints.
+- Filipino correspondence: a polite acknowledgment of an offered time WITHOUT any objection or new condition ("Okay po", "Noted po", "Sige po", "Okay po, noted. Thank you!") IS an acceptance — intent accept with high confidence, not ambiguous. Only treat an acknowledgment as ambiguous when it explicitly defers ("I'll check muna", "depende pa").
 
 MERGING (applies only when PRIOR CONSTRAINTS are provided in the prompt):
 - Output the FULL UPDATED constraint set for the whole conversation, not just this message: carry forward every prior constraint still in effect unchanged.

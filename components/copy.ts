@@ -29,11 +29,16 @@ export const APPT_STATUS: Record<string, { label: string; tone: Tone }> = {
   superseded: { label: "Moved", tone: "neutral" },
 };
 
-export function appointmentStatus(appt: { status: string; source?: string | null }) {
+export function appointmentStatus(appt: {
+  status: string;
+  source?: string | null;
+}) {
   if (appt.status === "booked" && appt.source === "schedicare") {
     return { label: "Temporary hold", tone: "warn" as Tone };
   }
-  return APPT_STATUS[appt.status] ?? { label: appt.status, tone: "neutral" as Tone };
+  return (
+    APPT_STATUS[appt.status] ?? { label: appt.status, tone: "neutral" as Tone }
+  );
 }
 
 export const REC_STATUS: Record<string, { label: string; tone: Tone }> = {
@@ -46,13 +51,21 @@ export const REC_STATUS: Record<string, { label: string; tone: Tone }> = {
 };
 
 /** Human status for one patient's thread after execution. */
-export function outcomeLabel(rec: { status: string; outcome?: string | null }): { label: string; tone: Tone } {
+export function outcomeLabel(rec: {
+  status: string;
+  outcome?: string | null;
+}): { label: string; tone: Tone } {
   if (rec.outcome === "called") return { label: "Called by staff", tone: "ok" };
-  if (rec.outcome === "handled") return { label: "Handled manually", tone: "ok" };
-  if (rec.outcome === "released") return { label: "Hold released", tone: "neutral" };
-  if (rec.status === "rejected") return { label: "Will call instead", tone: "neutral" };
-  if (rec.status === "failed") return { label: "Couldn't complete — see activity", tone: "bad" };
-  if (rec.status !== "executed") return REC_STATUS[rec.status] ?? { label: rec.status, tone: "neutral" };
+  if (rec.outcome === "handled")
+    return { label: "Handled manually", tone: "ok" };
+  if (rec.outcome === "released")
+    return { label: "Hold released", tone: "neutral" };
+  if (rec.status === "rejected")
+    return { label: "Will call instead", tone: "neutral" };
+  if (rec.status === "failed")
+    return { label: "Couldn't complete — see activity", tone: "bad" };
+  if (rec.status !== "executed")
+    return REC_STATUS[rec.status] ?? { label: rec.status, tone: "neutral" };
   switch (rec.outcome) {
     case "accepted":
       return { label: "Confirmed", tone: "ok" };
@@ -74,9 +87,11 @@ export function kindLabel(kind: string): string {
     ? "New time"
     : kind === "waitlist_fill"
       ? "Waitlist offer"
-      : kind === "confirm_nudge"
-        ? "Confirmation reminder"
-        : "Check-in message";
+      : kind === "clarification"
+        ? "Ask the patient"
+        : kind === "confirm_nudge"
+          ? "Confirmation reminder"
+          : "Check-in message";
 }
 
 /* ------------------------------------------------------------- activity feed */

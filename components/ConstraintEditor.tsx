@@ -62,45 +62,42 @@ function present(v: any): boolean {
 export function ConstraintEditor({
   caseId,
   latest,
-  messages,
   conversations,
   onDone,
 }: {
   caseId: string;
-  latest: any; // meta.latestConstraints
-  messages: any[];
+  latest: any; // one entry of meta.constraintsByAppt — carries its own identity
   conversations: any[];
   onDone: () => void;
 }) {
   const [set, setSet] = useState<AnySet>(() => structuredClone(latest.set));
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState<"" | "save" | "search" | "offer">("");
+  const [busy, setBusy] = useState<
+    "" | "save" | "search" | "offer" | "negotiate"
+  >("");
   const [note, setNote] = useState<string>("");
   const [slots, setSlots] = useState<any[] | null>(null);
   const [relaxations, setRelaxations] = useState<any[]>([]);
 
-  // Which appointment/recommendation does this reply belong to?
+  // Identity was captured server-side at extraction time — the entry IS the
+  // source of truth. Only the current recommendation may have moved since.
   const target = useMemo(() => {
-    const msg = messages.find((m: any) => m.id === latest.messageId);
-    const conv = conversations.find((c: any) => c.patientId === msg?.patientId);
-    const rec = conv?.recommendations?.find(
-      (r: any) =>
-        r.id === (conv?.currentRecommendationId ?? msg?.recommendationId),
+    const conv = conversations.find(
+      (c: any) => c.patientId === latest.patientId,
     );
-    const payload = rec?.payload ?? {};
     return {
-      patientName: conv?.patientName ?? "the patient",
-      // The assessment (and all slot machinery) is keyed by the ORIGINAL
-      // appointment, not the offer's created hold — prefer it explicitly.
-      appointmentId:
-        payload.appointmentId ??
-        msg?.appointmentId ??
-        payload.createdAppointmentId ??
-        null,
+      patientName: latest.patientName ?? conv?.patientName ?? "the patient",
+      appointmentId: latest.appointmentId ?? null,
       supersededRecId:
-        conv?.currentRecommendationId ?? msg?.recommendationId ?? null,
+        conv?.currentRecommendationId ?? latest.recommendationId ?? null,
     };
-  }, [latest.messageId, messages, conversations]);
+  }, [
+    latest.patientId,
+    latest.patientName,
+    latest.appointmentId,
+    latest.recommendationId,
+    conversations,
+  ]);
 
   const evidenceFor = (scope: string, key: string): string | null => {
     const hit = set.evidence?.find((e) =>
@@ -145,7 +142,7 @@ export function ConstraintEditor({
     try {
       const r = await jfetch(`/api/cases/${caseId}/constraints`, {
         method: "PUT",
-        body: JSON.stringify({ set }),
+        body: JSON.stringify({ set, appointmentId: target.appointmentId }),
       });
       setSet(r.set);
       setDirty(false);
@@ -182,6 +179,35 @@ export function ConstraintEditor({
         );
     } catch (e: any) {
       setNote(`Search failed: ${e.message ?? e}`);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const delegateToNegotiator = async () => {
+    if (!target.appointmentId || !target.supersededRecId)
+      return setNote(
+        "Missing appointment/recommendation linkage — handle manually.",
+      );
+    setBusy("negotiate");
+    setNote("");
+    try {
+      await jfetch(`/api/cases/${caseId}/constraints/negotiate`, {
+        method: "POST",
+        body: JSON.stringify({
+          set,
+          appointmentId: target.appointmentId,
+          supersededRecId: target.supersededRecId,
+        }),
+      });
+      setNote(
+        "The negotiator is deciding the next move — its draft will appear below for your approval in a moment.",
+      );
+      setSlots(null);
+      setRelaxations([]);
+      onDone();
+    } catch (e: any) {
+      setNote(`Could not start the negotiation: ${e.message ?? e}`);
     } finally {
       setBusy("");
     }
@@ -458,10 +484,23 @@ export function ConstraintEditor({
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-[12px] text-muted">
-            Or keep everything and ask the patient — the negotiation loop can
-            draft that question.
-          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              small
+              disabled={busy !== "" || dirty}
+              onClick={delegateToNegotiator}
+            >
+              {busy === "negotiate" ? (
+                <Spinner />
+              ) : (
+                "Keep everything — ask the patient"
+              )}
+            </Button>
+            <span className="text-[12px] text-muted">
+              The AI drafts the question (citing these numbers); you approve it
+              before anything is sent.
+            </span>
+          </div>
         </div>
       )}
 

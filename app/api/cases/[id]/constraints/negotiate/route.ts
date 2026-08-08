@@ -1,0 +1,70 @@
+/**
+ * POST: staff delegates the next move to the negotiation loop ("ask the
+ * patient"). The policy runs asynchronously via the queue; whatever it drafts
+ * (a question or an offer) still lands as a recommendation behind the normal
+ * approval gate — this endpoint sends nothing.
+ */
+import { eq } from "drizzle-orm";
+import { boot, err, json } from "@/lib/api";
+import { db, schema } from "@/core/db/client";
+import { getCase } from "@/core/cases";
+import { audit } from "@/core/audit";
+import { SchedulingConstraintSetSchema } from "@/core/constraints";
+import { validateConstraintSet } from "@/core/constraintValidation";
+import { enqueueEvent } from "@/worker/queue";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function POST(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
+  boot();
+  const c = getCase(params.id);
+  const body = await req.json().catch(() => null);
+  const parsed = SchedulingConstraintSetSchema.safeParse(body?.set);
+  if (!parsed.success) return err("invalid constraint set", 422);
+  if (!body?.appointmentId || !body?.supersededRecId)
+    return err("appointmentId and supersededRecId required", 422);
+  const v = validateConstraintSet(parsed.data);
+  if (!v.ok) return json({ ok: false, errors: v.errors }, { status: 422 });
+  if (
+    v.normalized.unresolvedStatements.length > 0 ||
+    v.normalized.clinicalContentDetected
+  )
+    return err(
+      "resolve highlighted statements first — the loop only runs on clean sets",
+      422,
+    );
+  const appt = db
+    .select()
+    .from(schema.appointments)
+    .where(eq(schema.appointments.id, body.appointmentId))
+    .get();
+  const patient = appt
+    ? db
+        .select()
+        .from(schema.patients)
+        .where(eq(schema.patients.id, appt.patientId))
+        .get()
+    : undefined;
+  if (!appt || !patient) return err("appointment not found", 404);
+  audit({
+    actor: "staff",
+    action: "negotiation.delegated",
+    refType: "case",
+    refId: c.id,
+    caseId: c.id,
+    detail: { appointmentId: body.appointmentId },
+  });
+  const eventId = enqueueEvent("negotiation_turn", {
+    caseId: c.id,
+    appointmentId: body.appointmentId,
+    patientId: patient.id,
+    patientName: patient.name,
+    supersededRecId: body.supersededRecId,
+    set: v.normalized,
+  });
+  return json({ ok: true, eventId });
+}

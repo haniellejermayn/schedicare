@@ -129,6 +129,26 @@ export function DecisionCard({
             <span className="text-muted">with {p.doctorName}</span>
           </p>
         )}
+        {rec.kind === "clarification" && (
+          <>
+            <p className="text-[14px]">{p.question}</p>
+            {(p.choices ?? []).length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {p.choices.map((o: string, i: number) => (
+                  <Chip key={i} tone="accent">
+                    {o}
+                  </Chip>
+                ))}
+              </div>
+            )}
+            {p.relaxationYield != null && (
+              <p className="mt-1 text-[12px] text-muted">
+                If they can flex, {p.relaxationYield} option
+                {p.relaxationYield === 1 ? "" : "s"} open up.
+              </p>
+            )}
+          </>
+        )}
         {(rec.kind === "confirm_nudge" || rec.kind === "preventive") && (
           <>
             <p className="text-[14px]">
@@ -245,29 +265,31 @@ export function DecisionCard({
           Every option below already fits the doctor&apos;s rules and calendar.
         </p>
         <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto thin-scroll pr-1">
-          {(p.options ?? []).map((o: any) => (
-            <label
-              key={o.id}
-              className={cn(
-                "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
-                optionId === o.id
-                  ? "border-accent bg-accent-soft"
-                  : "border-line bg-white hover:border-[#c8cdd8]",
-              )}
-            >
-              <input
-                type="radio"
-                name={`opt-${rec.id}`}
-                checked={optionId === o.id}
-                onChange={() => setOptionId(o.id)}
-                className="accent-[#1D4ED8]"
-              />
-              <span className="tnum text-[14px] font-semibold text-ink">
-                {fmtWhenManila(o.startUtc)}
-              </span>
-              <span className="text-[13px] text-muted">{o.doctorName}</span>
-            </label>
-          ))}
+          {(p.options ?? [])
+            .filter((o: any) => o && o.startUtc)
+            .map((o: any) => (
+              <label
+                key={o.id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
+                  optionId === o.id
+                    ? "border-accent bg-accent-soft"
+                    : "border-line bg-white hover:border-[#c8cdd8]",
+                )}
+              >
+                <input
+                  type="radio"
+                  name={`opt-${rec.id}`}
+                  checked={optionId === o.id}
+                  onChange={() => setOptionId(o.id)}
+                  className="accent-[#1D4ED8]"
+                />
+                <span className="tnum text-[14px] font-semibold text-ink">
+                  {fmtWhenManila(o.startUtc)}
+                </span>
+                <span className="text-[13px] text-muted">{o.doctorName}</span>
+              </label>
+            ))}
         </div>
       </Modal>
 

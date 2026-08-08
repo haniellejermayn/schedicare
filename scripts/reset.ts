@@ -1,4 +1,5 @@
 /** npm run demo:reset [lite] — wipe and reseed to the exact pre-demo state. */
+import "@/eval/loadEnv"; // .env.local / .env — must be the FIRST import
 import { seed } from "@/sim/seed";
 
 const profile =

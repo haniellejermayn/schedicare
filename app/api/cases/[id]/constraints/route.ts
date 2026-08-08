@@ -35,16 +35,23 @@ export async function PUT(
       { ok: false, errors: v.errors, warnings: v.warnings },
       { status: 422 },
     );
-  const prior = ((c.meta as any) ?? {}).latestConstraints ?? {};
+  const appointmentId: string | undefined = body?.appointmentId;
+  if (!appointmentId) return err("appointmentId required", 422);
+  const byAppt = ((c.meta as any) ?? {}).constraintsByAppt ?? {};
+  const prior = byAppt[appointmentId] ?? {};
   const triage = triageConstraintSet(v.normalized, v);
   updateCaseMeta(c.id, {
-    latestConstraints: {
-      ...prior,
-      set: v.normalized,
-      staffEditedAt: demoNowIso(),
-      disposition: triage.disposition,
-      reason: `staff-edited · ${triage.reason}`,
-      validation: { ok: true, errors: [], warnings: v.warnings },
+    constraintsByAppt: {
+      ...byAppt,
+      [appointmentId]: {
+        ...prior,
+        set: v.normalized,
+        appointmentId,
+        staffEditedAt: demoNowIso(),
+        disposition: triage.disposition,
+        reason: `staff-edited · ${triage.reason}`,
+        validation: { ok: true, errors: [], warnings: v.warnings },
+      },
     },
   });
   audit({

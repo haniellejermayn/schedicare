@@ -242,6 +242,7 @@ export const recommendations = sqliteTable("recommendations", {
       "confirm_nudge",
       "preventive",
       "callback",
+      "clarification",
     ],
   }).notNull(),
   payload: text("payload", { mode: "json" }).notNull(),

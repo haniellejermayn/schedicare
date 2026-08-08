@@ -42,6 +42,14 @@
       }
     },
     {
+      "id": "a6",
+      "category": "clean_accept",
+      "body": "Okay po, noted. Thank you!",
+      "expected": {
+        "intent": "accept"
+      }
+    },
+    {
       "id": "d1",
       "category": "clean_decline",
       "body": "Sorry, that time doesn't work for me.",

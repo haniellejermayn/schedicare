@@ -12,6 +12,11 @@ import { env } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { findSlotsForConstraints } from "@/core/constraintMatching";
 import {
+  getOrCreateNegotiation,
+  recordOfferedSlot,
+  updateNegotiation,
+} from "@/core/negotiations";
+import {
   describeConstraintSet,
   type SchedulingConstraintSet,
 } from "@/core/constraints";
@@ -798,6 +803,32 @@ export async function replanWithConstraintSet(
     args.set.summary,
     { appointmentId },
   );
+
+  // Negotiation bookkeeping: every constraint-driven offer is a round, and
+  // the offered slot is recorded so later declines carry history.
+  if (keep.length > 0) {
+    const nego = getOrCreateNegotiation({
+      caseId,
+      appointmentId,
+      patientId: item.patientId,
+      constraintSet: args.set,
+    });
+    const doctorName = db
+      .select()
+      .from(schema.doctors)
+      .where(eq(schema.doctors.id, keep[0].doctorId))
+      .get()?.name;
+    recordOfferedSlot(nego, {
+      doctorId: keep[0].doctorId,
+      startUtc: keep[0].startUtc,
+      label: `${fmtWhen(keep[0].startUtc)} · ${doctorName ?? keep[0].doctorId}`,
+    });
+    updateNegotiation(nego.id, {
+      constraintSet: args.set,
+      turn: nego.turn + 1,
+      lastAction: "offer_slots",
+    });
+  }
 
   await recoverStep(caseId, appointmentId);
   return commsStep(caseId, {

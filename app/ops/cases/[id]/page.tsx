@@ -367,15 +367,21 @@ export default function CasePage() {
             </div>
           )}
 
-          {data?.case?.meta?.latestConstraints && (
-            <ConstraintEditor
-              caseId={id as string}
-              latest={data.case.meta.latestConstraints}
-              messages={messages}
-              conversations={conversations}
-              onDone={refresh}
-            />
-          )}
+          {Object.values(data?.case?.meta?.constraintsByAppt ?? {})
+            .filter(
+              (e: any) =>
+                e.disposition === "constraint_review" ||
+                e.disposition === "approved",
+            )
+            .map((entry: any) => (
+              <ConstraintEditor
+                key={entry.appointmentId}
+                caseId={id as string}
+                latest={entry}
+                conversations={conversations}
+                onDone={refresh}
+              />
+            ))}
 
           {(proposed.length === 0 ||
             (proposed.length > 0 && decidedSubstantive.length > 0

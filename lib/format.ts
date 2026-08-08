@@ -1,9 +1,14 @@
 /** Client-safe formatting helpers (mirror server formats without imports from core). */
 export function fmtTimeManila(iso: string): string {
-  return new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  }).format(new Date(iso));
 }
 
 export function fmtWhenManila(iso: string): string {
+  if (!iso || Number.isNaN(Date.parse(iso))) return "—";
   return new Intl.DateTimeFormat("en-PH", {
     weekday: "short",
     month: "short",
@@ -15,11 +20,20 @@ export function fmtWhenManila(iso: string): string {
 }
 
 export function fmtDayManila(iso: string): string {
-  return new Intl.DateTimeFormat("en-PH", { weekday: "long", month: "long", day: "numeric", timeZone: "Asia/Manila" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Manila",
+  }).format(new Date(iso));
 }
 
 export function typeLabel(t: string): string {
-  return t === "follow_up" ? "Follow-up" : t === "urgent" ? "Urgent" : "Routine";
+  return t === "follow_up"
+    ? "Follow-up"
+    : t === "urgent"
+      ? "Urgent"
+      : "Routine";
 }
 
 export function agentLabel(actor: string): string {
@@ -39,7 +53,10 @@ export function agentLabel(actor: string): string {
   return map[actor] ?? actor;
 }
 
-export async function jfetch<T = any>(url: string, init?: RequestInit): Promise<T> {
+export async function jfetch<T = any>(
+  url: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },

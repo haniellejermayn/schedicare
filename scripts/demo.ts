@@ -2,6 +2,7 @@
  * npm run demo — one-command demo: reset data, then run web + worker together.
  * Ctrl-C stops both.
  */
+import "@/eval/loadEnv"; // .env.local / .env — must be the FIRST import
 import { spawn } from "node:child_process";
 import { seed } from "@/sim/seed";
 
