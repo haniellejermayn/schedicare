@@ -368,14 +368,10 @@ export default function CasePage() {
           )}
 
           {Object.values(data?.case?.meta?.constraintsByAppt ?? {})
-            .filter(
-              (e: any) =>
-                e.disposition === "constraint_review" ||
-                e.disposition === "approved",
-            )
+            .filter((e: any) => e.disposition === "constraint_review")
             .map((entry: any) => (
               <ConstraintEditor
-                key={entry.appointmentId}
+                key={`${entry.appointmentId}:${entry.extractedAt ?? ""}`}
                 caseId={id as string}
                 latest={entry}
                 conversations={conversations}

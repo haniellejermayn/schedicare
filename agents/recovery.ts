@@ -46,7 +46,11 @@ export const RecoveryPlanSchema = z.object({
   options: z.array(RecoveryOptionSchema).max(8),
   rationale: z.string().max(700),
   /** Required if chosenOptionId is not the top-ranked option. */
-  reorderReason: z.string().max(350).optional(),
+  reorderReason: z
+    .string()
+    .max(350)
+    .nullish()
+    .transform((v) => v ?? undefined),
 });
 
 export const RecoveryResultSchema = z.object({
@@ -150,7 +154,7 @@ export const recoveryAgent: AgentDef<RecoveryInput, RecoveryResult> = {
   system: `You are SchediCare's Recovery agent.
 For each affected appointment, call rank_recovery_options to get the deterministic ranking, then package a plan: keep the returned options and scores EXACTLY as ranked, pick chosenOptionId (normally rank 1 — if you deviate, you MUST provide reorderReason grounded in the assessment context), and write a 1-2 sentence rationale that cites the top scoring factors and the patient's priority reason. Never invent times, scores, or chips. Finish with submit_result covering every appointment given.`,
   tools: [toolToday, toolRankOptions],
-  resultSchema: RecoveryResultSchema,
+  resultSchema: RecoveryResultSchema as unknown as z.ZodType<RecoveryResult>,
   maxSteps: 16,
   buildPrompt: (i) =>
     `Case ${i.caseId}. Package recovery plans for:\n` +

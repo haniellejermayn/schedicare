@@ -276,7 +276,7 @@ export async function negotiationTurn(
       `Hi ${firstName},\n\n` +
       `${question}\n` +
       ((action.options?.length ?? 0) > 0
-        ? `\n${action.options!.map((o) => `• ${o}`).join("\n")}\n`
+        ? `\nYou can reply with something like:\n${action.options!.map((o) => `• ${o}`).join("\n")}\n`
         : "") +
       `\nJust reply to this email and we'll take care of the rest.\n\nRiverside Family Clinic`;
     const recId = newId();
