@@ -178,7 +178,10 @@ export default function CasePage() {
   const conversations = data?.conversations ?? [];
   const proposed = recs.filter((r: any) => r.status === "proposed");
   const decidedSubstantive = recs.filter(
-    (r: any) => r.status !== "proposed" && r.outcome !== "superseded",
+    (r: any) =>
+      r.status !== "proposed" &&
+      r.outcome !== "superseded" &&
+      !r.supersededBy,
   );
   const showTabs = proposed.length > 0 && decidedSubstantive.length > 0;
   const showReview = proposed.length > 0 && (!showTabs || section === "review");

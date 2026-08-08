@@ -71,7 +71,7 @@ function template(
       if (c.reason === "counter") {
         return {
           subject: `${CLINIC_NAME} - a time that matches your request`,
-          body: `Hi ${first},\n\nThanks for letting us know — we've looked again with your preference in mind${c.extraNote ? ` (${c.extraNote})` : ""}.\n\nThe closest match is ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nReply YES to lock it in, or tell us another preference and we'll keep looking.\n\n${SIGNOFF}`,
+          body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open. Will that work for you?\n\n${SIGNOFF}`,
         };
       }
       return {
@@ -140,7 +140,8 @@ Voice: warm, plain, brief (under 140 words), apologetic when the clinic caused t
 Hard rules:
 - Scheduling logistics ONLY. Never any medical advice, symptom talk, diagnoses, medication or dosage language.
 - Never invent times, doctors, or promises — use exactly the times given in the context.
-- Every message must state the single clear action: reply YES to confirm/accept, or reply with a preferred time.
+- FIRST CONTACT (context.reason is anything except "counter"): state the single clear action — reply YES to confirm, or reply with a preferred time.
+- CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,
   tools: [toolToday],
   resultSchema: CommsDraftResultSchema,

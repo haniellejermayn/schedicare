@@ -272,13 +272,11 @@ export async function negotiationTurn(
     const subject = lastOutbound?.subject
       ? `Re: ${lastOutbound.subject.replace(/^(re:\s*)+/i, "")}`
       : "Quick question about your appointment";
-    const body =
-      `Hi ${firstName},\n\n` +
-      `${question}\n` +
-      ((action.options?.length ?? 0) > 0
-        ? `\nYou can reply with something like:\n${action.options!.map((o) => `• ${o}`).join("\n")}\n`
-        : "") +
-      `\nJust reply to this email and we'll take care of the rest.\n\nRiverside Family Clinic`;
+    // Free-form by design: the extraction pipeline exists precisely so the
+    // patient can answer in their own words — no multiple-choice bullets, no
+    // reply instructions. The policy's `choices` still appear on the staff
+    // DecisionCard as a preview of likely answers.
+    const body = `Hi ${firstName},\n\n${question}\n\nRiverside Family Clinic`;
     const recId = newId();
     db.insert(schema.recommendations)
       .values({

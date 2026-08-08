@@ -5,7 +5,7 @@
  * write it re-runs the deterministic placement validator; a validator veto
  * beats a staff approval (the world may have changed since approval).
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
 import { demoNowIso, fmtWhen } from "@/core/clock";
 import { env } from "@/core/env";
@@ -625,11 +625,34 @@ async function executeReschedule(
       .run();
   }
 
+  let draft = payload.draft;
+  if (payload.replanOf) {
+    const lastOutbound = db
+      .select()
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.caseId, caseId),
+          eq(schema.messages.patientId, patient.id),
+          eq(schema.messages.direction, "outbound"),
+        ),
+      )
+      .orderBy(desc(schema.messages.createdAt), desc(schema.messages.id))
+      .get();
+    if (lastOutbound) {
+      draft = {
+        ...draft,
+        subject: `Re: ${(lastOutbound.subject ?? draft.subject).replace(/^(re:\s*)+/i, "")}`,
+        ...(lastOutbound.threadId ? { threadId: lastOutbound.threadId } : {}),
+      };
+    }
+  }
+
   const msgId = await createMailDraft(
     caseId,
     rec,
     { patientId: patient.id, email: patient.email },
-    payload.draft,
+    draft,
     newAppt.id,
   );
 

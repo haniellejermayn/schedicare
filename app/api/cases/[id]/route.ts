@@ -29,7 +29,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const patientRecommendations = recommendations.filter((r) => r.patientId === patientId);
     const currentRecommendation = [...patientRecommendations]
       .reverse()
-      .find((r) => r.outcome !== "superseded");
+      .find((r) => r.outcome !== "superseded" && !r.supersededBy);
     const payload = (currentRecommendation?.payload as any) ?? {};
     const activeHold = appointments.find(
       (a) =>
@@ -50,7 +50,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return {
       patientId,
       patientName: patient?.name ?? (patientRecommendations.at(-1)?.payload as any)?.patientName ?? patientId,
-      recommendations: patientRecommendations,
+      recommendations: patientRecommendations.filter(
+        (r) => r.outcome !== "superseded" && !r.supersededBy,
+      ),
       currentRecommendationId: currentRecommendation?.id ?? null,
       currentAppointment: currentAppointment ?? null,
       activeHold: activeHold ?? null,
