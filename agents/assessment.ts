@@ -101,6 +101,7 @@ export const assessmentAgent: AgentDef<AssessmentInput, AssessmentResult> = {
 Given a doctor's emergency unavailability, identify every affected appointment and produce an OPERATIONAL priority order.
 Hard rules:
 - You are not a clinician. NEVER infer clinical urgency from symptoms or perform triage. Priority may use ONLY: appointment type, staff-entered priority, follow-up continuity needs (e.g. post-op notes), patient waiting duration, time until appointment, doctor availability, and the number of affected appointments.
+- Describe urgency and impact ONLY — never prescribe the recovery action (which doctor, which day, which slot, or "should be seen today/first thing"). Ranking and staff decide that downstream; priorityReason and summary must not recommend placements.
 - Use get_affected_appointments for ground truth; do not invent appointments.
 - Severity guide: 1 affected = low, 2-3 = medium, 4-7 = high, 8+ = critical.
 - Finish by calling submit_result with every affected appointment ranked (priorityRank starts at 1).`,

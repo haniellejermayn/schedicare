@@ -37,7 +37,11 @@ import {
   updateNegotiation,
 } from "@/core/negotiations";
 import type { SchedulingConstraintSet } from "@/core/constraints";
-import { deleteCalendarEvent, updateCalendarEvent } from "./executor";
+import {
+  deleteCalendarEvent,
+  sendConfirmationAck,
+  updateCalendarEvent,
+} from "./executor";
 import type { ReplyInterpretation } from "@/core/types";
 import { latestReplyOnly } from "@/core/messages";
 
@@ -382,6 +386,20 @@ async function route(
           refId: targetApptId,
           caseId,
         });
+        // Deterministic post-confirmation acknowledgment on the SAME thread.
+        // Template only — no model content — so no approval gate applies.
+        // Best-effort: a mail failure never un-confirms the appointment.
+        if (appt)
+          await sendConfirmationAck(
+            caseId,
+            { id: rec.id },
+            {
+              patientId: msg.patientId,
+              appointmentId: targetApptId,
+              startUtc: appt.startUtc,
+              doctorName: getDoctor(appt.doctorId).name,
+            },
+          );
       } else {
         db.update(schema.recommendations)
           .set({ outcome: "accepted" })

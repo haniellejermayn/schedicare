@@ -66,17 +66,30 @@ function template(
 ): { subject: string; body: string } {
   const c = item.context;
   const first = item.patientName.split(" ")[0];
+  // A cross-doctor offer must say so explicitly (P0 copy rule): name the
+  // covering arrangement and keep the "wait for your usual doctor" door open
+  // — as an invitation only, since the template holds no date for it.
+  const crossDoctor =
+    !!c.proposedDoctorName &&
+    !!c.doctorName &&
+    c.proposedDoctorName !== c.doctorName;
+  const waitOption = crossDoctor
+    ? ` If you'd rather wait for ${c.doctorName}'s next opening instead, just tell us and we'll arrange it.`
+    : "";
   switch (purpose) {
     case "reschedule_offer":
       if (c.reason === "counter") {
+        const slotLine = crossDoctor
+          ? `${c.proposedWhen} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
+          : `${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
         return {
           subject: `${CLINIC_NAME} - a time that matches your request`,
-          body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open. Will that work for you?\n\n${SIGNOFF}`,
+          body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${slotLine}. Will that work for you?${waitOption}\n\n${SIGNOFF}`,
         };
       }
       return {
         subject: `${CLINIC_NAME} - a new time for your appointment`,
-        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${c.originalWhen}. We're very sorry for the short notice.\n\nThe earliest good match we found for you is ${c.proposedWhen}${c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nReply YES to confirm this new time, or tell us what works better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${c.originalWhen}. We're very sorry for the short notice.\n\nThe earliest good match we found for you is ${c.proposedWhen}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nReply YES to confirm this new time, or tell us what works better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
       };
     case "confirm_nudge":
       return {
@@ -99,6 +112,25 @@ function template(
         body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${c.originalWhen}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
       };
   }
+}
+
+/**
+ * Deterministic post-confirmation acknowledgment (P0). This is the ONE
+ * outbound that legitimately skips the staff approval gate: zero model
+ * content, a fixed template, and it fires only after the patient themselves
+ * confirmed. Cancellations never come through here — they keep the
+ * escalate-to-call path.
+ */
+export function confirmationAckTemplate(i: {
+  patientName: string;
+  when: string;
+  doctorName: string;
+}): { subject: string; body: string } {
+  const first = i.patientName.split(" ")[0];
+  return {
+    subject: `${CLINIC_NAME} - you're booked for ${i.when}`,
+    body: `Hi ${first},\n\nAll set — we've reserved ${i.when} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
+  };
 }
 
 /**
@@ -140,6 +172,8 @@ Voice: warm, plain, brief (under 140 words), apologetic when the clinic caused t
 Hard rules:
 - Scheduling logistics ONLY. Never any medical advice, symptom talk, diagnoses, medication or dosage language.
 - Never invent times, doctors, or promises — use exactly the times given in the context.
+- Availability wording: state an exact number of open slots only when it is 5 or fewer (where the number helps the patient decide); otherwise use qualitative phrasing ("we have several openings on weekday afternoons"). Large exact counts are internal and never reach the patient.
+- Cross-doctor offers must SAY SO: when the proposed doctor differs from the patient's usual doctor (context.doctorName), name the arrangement plainly — "with Dr. Reyes, who is covering for Dr. Santos" — and offer the alternative of waiting for their usual doctor (an invitation to reply; NEVER name a date for it that wasn't provided).
 - FIRST CONTACT (context.reason is anything except "counter"): state the single clear action — reply YES to confirm, or reply with a preferred time.
 - CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,

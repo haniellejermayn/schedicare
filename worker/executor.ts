@@ -24,6 +24,7 @@ import {
 import { SimulatedCalendarProvider } from "@/integrations/calendar/simulated";
 import { SimulatedMailProvider } from "@/integrations/mail/simulated";
 import { getDoctor, getPatient } from "@/agents/tools";
+import { confirmationAckTemplate } from "@/agents/comms";
 import { personaReply } from "@/sim/personas";
 import { enqueueEvent } from "./queue";
 
@@ -335,6 +336,132 @@ async function createMailDraft(
     throw error;
   }
   return msg.id;
+}
+
+/**
+ * Post-confirmation acknowledgment (P0). Deterministic template only — no
+ * model content — which is why this single outbound may skip the staff
+ * approval gate. It continues the patient's existing thread and is strictly
+ * best-effort: a mail failure never un-confirms the appointment, it only
+ * logs. The message row carries the confirming recommendation's id and the
+ * confirmed appointment id so that a later inbound reply on the thread
+ * (attributed to the LATEST outbound) routes exactly as it does today.
+ */
+export async function sendConfirmationAck(
+  caseId: string,
+  rec: { id: string },
+  args: {
+    patientId: string;
+    appointmentId: string;
+    startUtc: string;
+    doctorName: string;
+  },
+): Promise<void> {
+  try {
+    const patient = getPatient(args.patientId);
+    const lastOutbound = db
+      .select()
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.caseId, caseId),
+          eq(schema.messages.patientId, args.patientId),
+          eq(schema.messages.direction, "outbound"),
+        ),
+      )
+      .orderBy(desc(schema.messages.createdAt), desc(schema.messages.id))
+      .get();
+    const tpl = confirmationAckTemplate({
+      patientName: patient.name,
+      when: fmtWhen(args.startUtc),
+      doctorName: args.doctorName,
+    });
+    const subject = lastOutbound?.subject
+      ? `Re: ${lastOutbound.subject.replace(/^(re:\s*)+/i, "")}`
+      : tpl.subject;
+    const threadId = lastOutbound?.threadId ?? undefined;
+
+    const pick = pickMailProvider();
+    let provider = pick.provider;
+    let live = pick.live;
+    let created: { draftId: string; threadId?: string };
+    try {
+      created = await provider.createDraft({
+        to: patient.email,
+        subject,
+        body: tpl.body,
+        ...(threadId ? { threadId } : {}),
+      });
+      if (live) markMailHealthy();
+    } catch (e) {
+      if (!live) throw e;
+      markMailUnhealthy(e);
+      timeline(
+        caseId,
+        "executor",
+        "error",
+        "Gmail acknowledgment failed — falling back to simulated mail",
+        String((e as Error).message).slice(0, 160),
+      );
+      provider = new SimulatedMailProvider();
+      live = false;
+      created = await provider.createDraft({
+        to: patient.email,
+        subject,
+        body: tpl.body,
+      }); // simulated fallback ignores threads
+    }
+    const sent = await provider.sendDraft(created.draftId);
+    const msg = db
+      .insert(schema.messages)
+      .values({
+        caseId,
+        recommendationId: rec.id,
+        appointmentId: args.appointmentId,
+        patientId: patient.id,
+        direction: "outbound",
+        subject,
+        body: tpl.body,
+        status: "sent",
+        provider: live ? "gmail" : "simulated",
+        providerDraftId: created.draftId,
+        providerMessageId:
+          sent.messageId ||
+          (live ? null : created.draftId.replace("simdraft_", "simmsg_")),
+        threadId: sent.threadId ?? created.threadId ?? threadId ?? null,
+        createdAt: demoNowIso(),
+      })
+      .returning()
+      .get();
+    timeline(
+      caseId,
+      "executor",
+      "effect",
+      `${mailLabel(live)}: confirmation acknowledged to ${patient.name}`,
+      `${fmtWhen(args.startUtc)} with ${args.doctorName} — deterministic template, no approval needed`,
+      { messageId: msg.id, appointmentId: args.appointmentId },
+    );
+    audit({
+      actor: "executor",
+      action: "mail.ack_sent",
+      refType: "message",
+      refId: msg.id,
+      caseId,
+      detail: {
+        provider: live ? "gmail" : "simulated",
+        threadId: sent.threadId ?? threadId ?? null,
+      },
+    });
+  } catch (e) {
+    timeline(
+      caseId,
+      "executor",
+      "error",
+      "Confirmation acknowledgment could not be sent",
+      String((e as Error).message).slice(0, 160),
+      { appointmentId: args.appointmentId },
+    );
+  }
 }
 
 /**
