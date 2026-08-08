@@ -248,9 +248,33 @@ export async function negotiationTurn(
       });
       return;
     }
+    // The template owns the greeting/sign-off; strip any greeting the model
+    // added anyway so the patient never reads "Hi Camille, Hi Camille!".
+    const firstName = args.patientName.split(" ")[0];
+    const question = (action.question ?? "")
+      .replace(
+        new RegExp(
+          `^\\s*(hi|hello|hi po|hello po|kumusta|magandang \\w+)\\s*(${firstName})?\\s*[!,.:]*\\s*`,
+          "i",
+        ),
+        "",
+      )
+      .trim();
+    // Continue the existing conversation thread when we know it.
+    const lastOutbound = db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.recommendationId, args.supersededRecId))
+      .all()
+      .filter((m) => m.direction === "outbound")
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+    const threadId = lastOutbound?.threadId ?? undefined;
+    const subject = lastOutbound?.subject
+      ? `Re: ${lastOutbound.subject.replace(/^(re:\s*)+/i, "")}`
+      : "Quick question about your appointment";
     const body =
-      `Hi ${args.patientName.split(" ")[0]},\n\n` +
-      `${action.question}\n` +
+      `Hi ${firstName},\n\n` +
+      `${question}\n` +
       ((action.options?.length ?? 0) > 0
         ? `\n${action.options!.map((o) => `  • ${o}`).join("\n")}\n`
         : "") +
@@ -272,7 +296,7 @@ export async function negotiationTurn(
           targetField: action.targetField,
           relaxationYield: relax?.slotsIfDropped ?? null,
           rationale: run.output.rationale,
-          draft: { subject: "Quick question about your appointment", body },
+          draft: { subject, body, ...(threadId ? { threadId } : {}) },
         },
         explanation: run.output.rationale,
         status: "proposed",

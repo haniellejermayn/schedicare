@@ -208,7 +208,7 @@ async function createMailDraft(
   caseId: string,
   rec: typeof schema.recommendations.$inferSelect,
   to: { patientId: string; email: string },
-  draft: { subject: string; body: string },
+  draft: { subject: string; body: string; threadId?: string },
   appointmentId: string | null,
 ): Promise<string> {
   const pick = pickMailProvider();
@@ -220,6 +220,7 @@ async function createMailDraft(
       to: to.email,
       subject: draft.subject,
       body: draft.body,
+      ...(draft.threadId ? { threadId: draft.threadId } : {}),
     });
     if (live) markMailHealthy();
   } catch (e) {
@@ -238,7 +239,7 @@ async function createMailDraft(
         to: to.email,
         subject: draft.subject,
         body: draft.body,
-      });
+      }); // simulated fallback ignores threads
     } else {
       throw e;
     }
@@ -257,7 +258,7 @@ async function createMailDraft(
       status: "draft_created",
       provider: live ? "gmail" : "simulated",
       providerDraftId: created.draftId,
-      threadId: created.threadId ?? null,
+      threadId: created.threadId ?? draft.threadId ?? null,
       createdAt: demoNowIso(),
     })
     .returning()
