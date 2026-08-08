@@ -35,6 +35,13 @@ export interface ExtractorInput {
   patientName?: string;
   /** One line of outbound context, e.g. the offer this replies to. */
   outboundContext?: string;
+  /**
+   * Accumulated constraints from earlier turns of this conversation. When
+   * present, the extractor MERGES: the output is the full updated set, with
+   * lifted constraints removed. The audit diff is computed deterministically
+   * downstream (diffConstraintSets), never taken from the model.
+   */
+  priorConstraints?: SchedulingConstraintSet;
 }
 
 function doctorRoster(): Array<{ id: string; name: string }> {
@@ -68,6 +75,14 @@ Extraction conventions — follow these EXACTLY:
 - evidence: for EVERY extracted field, include {sourceText: the verbatim phrase, field: the dot-path like "hard.timeWindows[0]"}. No field without evidence.
 - confidence in [0,1] for the overall extraction; summary is one plain sentence for staff.
 - Extract only what is stated. Never invent dates, times, or doctors. An empty message or pure pleasantry → intent per its meaning, no constraints.
+
+MERGING (applies only when PRIOR CONSTRAINTS are provided in the prompt):
+- Output the FULL UPDATED constraint set for the whole conversation, not just this message: carry forward every prior constraint still in effect unchanged.
+- REMOVE a prior constraint when the patient lifts it ("okay na pala ang umaga", "any day works now", "kahit sino na pala"). Removing means the field is absent from your output.
+- REPLACE a prior constraint when the new message changes it ("make that after 3 instead").
+- evidence entries are required for every field you ADD or CHANGE from THIS message; carried-forward fields keep their standing and need no new evidence.
+- unresolvedStatements: only from THIS message.
+- Never resurrect a constraint the patient previously lifted, and never drop one they have not addressed.
 
 Learned conventions (each of these has been wrong before — follow exactly):
 - intent accept: do NOT restate the accepted slot as constraints; an accept carries constraints only if the patient adds NEW conditions.
@@ -106,6 +121,14 @@ export const constraintExtractorAgent: AgentDef<
     }).join(", ");
     return (
       `Today is ${today} (Asia/Manila).\nCalendar for date resolution: ${calendar}\n` +
+      (i.priorConstraints
+        ? `PRIOR CONSTRAINTS (accumulated from earlier turns — apply the MERGING rules):\n${JSON.stringify(
+            {
+              hard: i.priorConstraints.hard,
+              soft: i.priorConstraints.soft,
+            },
+          )}\n`
+        : "") +
       `Doctor roster: ${roster.length ? roster.map((d) => `${d.id} = ${d.name}`).join("; ") : "(unknown — do not map doctor names to IDs)"}\n` +
       (i.outboundContext
         ? `Our last outbound message: ${i.outboundContext}\n`

@@ -127,29 +127,18 @@ export const SchedulingConstraintSetSchema = z.object({
   confidence: z.number().min(0).max(1),
   summary: z.string().max(300),
 });
-export type SchedulingConstraintSet = z.infer<
-  typeof SchedulingConstraintSetSchema
->;
+export type SchedulingConstraintSet = z.infer<typeof SchedulingConstraintSetSchema>;
 
 /** Empty set helper (staff-created cases, dictation intake before extraction). */
-export function emptyConstraintSet(
-  intent: ConstraintIntent = "ambiguous",
-): SchedulingConstraintSet {
-  return SchedulingConstraintSetSchema.parse({
-    intent,
-    confidence: 0,
-    summary: "",
-  });
+export function emptyConstraintSet(intent: ConstraintIntent = "ambiguous"): SchedulingConstraintSet {
+  return SchedulingConstraintSetSchema.parse({ intent, confidence: 0, summary: "" });
 }
 
 // ---------------------------------------------------------------------------
 // Legacy bridge
 // ---------------------------------------------------------------------------
 
-const INTENT_TO_LEGACY: Record<
-  ConstraintIntent,
-  ReplyInterpretation["intent"]
-> = {
+const INTENT_TO_LEGACY: Record<ConstraintIntent, ReplyInterpretation["intent"]> = {
   accept: "accept_offer",
   decline: "reject_offer",
   counter_proposal: "counter_proposal",
@@ -186,15 +175,12 @@ export function isLegacyRepresentable(set: SchedulingConstraintSet): boolean {
   );
 }
 
-export function toLegacyInterpretation(
-  set: SchedulingConstraintSet,
-): ReplyInterpretation {
+export function toLegacyInterpretation(set: SchedulingConstraintSet): ReplyInterpretation {
   if (set.clinicalContentDetected) {
     return {
       intent: "needs_human",
       confidence: Math.min(set.confidence, 0.5),
-      summary:
-        "Message contains possible clinical content — staff must read it.",
+      summary: "Message contains possible clinical content — staff must read it.",
     };
   }
   const h = set.hard;
@@ -253,31 +239,16 @@ export function triageConstraintSet(
   if (set.clinicalContentDetected)
     return { disposition: "needs_human", reason: "possible clinical content" };
   if (!validation.ok)
-    return {
-      disposition: "needs_human",
-      reason: "extracted constraints failed validation",
-    };
+    return { disposition: "needs_human", reason: "extracted constraints failed validation" };
   if (set.confidence < 0.6)
     return { disposition: "needs_human", reason: "low extraction confidence" };
   if (set.intent !== "counter_proposal")
-    return {
-      disposition: "route_legacy",
-      reason: `terminal intent: ${set.intent}`,
-    };
+    return { disposition: "route_legacy", reason: `terminal intent: ${set.intent}` };
   if (set.unresolvedStatements.length > 0)
-    return {
-      disposition: "constraint_review",
-      reason: "unresolved statements need staff input",
-    };
+    return { disposition: "constraint_review", reason: "unresolved statements need staff input" };
   if (!isLegacyRepresentable(set))
-    return {
-      disposition: "constraint_review",
-      reason: "compound constraints — staff review and search",
-    };
-  return {
-    disposition: "route_legacy",
-    reason: "simple counter — automatic replan",
-  };
+    return { disposition: "constraint_review", reason: "compound constraints — staff review and search" };
+  return { disposition: "route_legacy", reason: "simple counter — automatic replan" };
 }
 
 /** One-line human summary for timelines and audit entries. */
@@ -289,8 +260,83 @@ export function describeConstraintSet(set: SchedulingConstraintSet): string {
     (v) => v != null && (!Array.isArray(v) || v.length > 0),
   ).length;
   const bits = [`${hard} hard`, `${soft} soft`];
-  if (set.unresolvedStatements.length > 0)
-    bits.push(`${set.unresolvedStatements.length} unresolved`);
+  if (set.unresolvedStatements.length > 0) bits.push(`${set.unresolvedStatements.length} unresolved`);
   if (set.clinicalContentDetected) bits.push("clinical flag");
   return `${bits.join(", ")} · confidence ${Math.round(set.confidence * 100)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// Multi-turn support: field labels + deterministic diffing
+// ---------------------------------------------------------------------------
+
+/** Human labels shared by the editor UI and timeline narration. */
+export const CONSTRAINT_FIELD_LABELS: Record<string, string> = {
+  allowedDates: "Only these dates",
+  excludedDates: "Not these dates",
+  allowedDaysOfWeek: "Only these days",
+  excludedDaysOfWeek: "Not these days",
+  timeWindows: "Time of day",
+  earliestDate: "Not before",
+  latestDate: "Not after",
+  requiredDoctorId: "Doctor (required)",
+  requireSameDoctor: "Same doctor (required)",
+  preferredDoctorId: "Preferred doctor",
+  preferSameDoctor: "Prefers same doctor",
+  preferredDates: "Preferred dates",
+  preferredDaysOfWeek: "Preferred days",
+  preferredTimeWindows: "Preferred time of day",
+  earliestPreferredDate: "Prefers not too soon",
+};
+
+export interface ConstraintFieldChange {
+  scope: "hard" | "soft";
+  field: string;
+  op: "added" | "removed" | "changed";
+  before?: unknown;
+  after?: unknown;
+}
+
+const hasValue = (v: unknown) =>
+  v != null && (!Array.isArray(v) || v.length > 0) && v !== false;
+
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).sort().join(",")}]`;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).sort().map((k) => `${k}:${canonical(o[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/**
+ * Deterministic diff between two constraint sets (the audit trail for
+ * multi-turn merging). We log the diff WE compute — never a diff the model
+ * reports about itself.
+ */
+export function diffConstraintSets(
+  prev: SchedulingConstraintSet,
+  next: SchedulingConstraintSet,
+): ConstraintFieldChange[] {
+  const changes: ConstraintFieldChange[] = [];
+  for (const scope of ["hard", "soft"] as const) {
+    const a = prev[scope] as Record<string, unknown>;
+    const b = next[scope] as Record<string, unknown>;
+    for (const field of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const before = a[field];
+      const after = b[field];
+      if (hasValue(before) && !hasValue(after)) changes.push({ scope, field, op: "removed", before });
+      else if (!hasValue(before) && hasValue(after)) changes.push({ scope, field, op: "added", after });
+      else if (hasValue(before) && hasValue(after) && canonical(before) !== canonical(after))
+        changes.push({ scope, field, op: "changed", before, after });
+    }
+  }
+  return changes;
+}
+
+/** One-line narration for timelines: "removed Time of day; added Not these days". */
+export function describeConstraintDiff(changes: ConstraintFieldChange[]): string {
+  if (changes.length === 0) return "no constraint changes";
+  return changes
+    .map((c) => `${c.op} ${CONSTRAINT_FIELD_LABELS[c.field] ?? c.field}${c.scope === "soft" ? " (preference)" : ""}`)
+    .join("; ");
 }

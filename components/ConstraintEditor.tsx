@@ -11,6 +11,7 @@
 import { useMemo, useState } from "react";
 import { Button, Chip, Spinner, cn } from "@/components/ui";
 import { jfetch, fmtWhenManila } from "@/lib/format";
+import { CONSTRAINT_FIELD_LABELS } from "@/core/constraints";
 
 const DOW = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,23 +27,7 @@ type AnySet = {
   summary: string;
 };
 
-const FIELD_LABELS: Record<string, string> = {
-  allowedDates: "Only these dates",
-  excludedDates: "Not these dates",
-  allowedDaysOfWeek: "Only these days",
-  excludedDaysOfWeek: "Not these days",
-  timeWindows: "Time of day",
-  earliestDate: "Not before",
-  latestDate: "Not after",
-  requiredDoctorId: "Doctor (required)",
-  requireSameDoctor: "Same doctor (required)",
-  preferredDoctorId: "Doctor",
-  preferSameDoctor: "Same doctor",
-  preferredDates: "Dates",
-  preferredDaysOfWeek: "Days",
-  preferredTimeWindows: "Time of day",
-  earliestPreferredDate: "Not too soon",
-};
+const FIELD_LABELS = CONSTRAINT_FIELD_LABELS;
 
 /** hard key ↔ soft twin, for the demote/promote toggle. */
 const SOFT_TWIN: Record<string, string> = {
@@ -255,6 +240,29 @@ export function ConstraintEditor({
         </div>
       </div>
       <p className="mt-1 text-[13px] text-muted">{set.summary}</p>
+
+      {Array.isArray(latest.diff) && latest.diff.length > 0 && (
+        <div className="mt-2 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
+          <p className="text-[12px] font-semibold text-ink">
+            Changed by the latest reply:
+          </p>
+          <ul className="mt-0.5 space-y-0.5">
+            {latest.diff.map((c: any, i: number) => (
+              <li key={i} className="text-[12px] text-ink">
+                <span className="font-semibold capitalize">{c.op}</span> —{" "}
+                {FIELD_LABELS[c.field] ?? c.field}
+                {c.scope === "soft" ? " (preference)" : ""}
+                {c.op !== "removed" && c.after != null && (
+                  <>: {fmtValue(c.field, c.after)}</>
+                )}
+                {c.op === "removed" && c.before != null && (
+                  <> (was {fmtValue(c.field, c.before)})</>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {set.clinicalContentDetected && (
         <div className="mt-2 rounded-ctl border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] text-bad">

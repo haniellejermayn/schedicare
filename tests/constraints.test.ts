@@ -3,7 +3,9 @@ import { formatInTimeZone } from "date-fns-tz";
 import { freshSeed } from "./helpers";
 import {
   SchedulingConstraintSetSchema,
+  describeConstraintDiff,
   describeConstraintSet,
+  diffConstraintSets,
   emptyConstraintSet,
   isLegacyRepresentable,
   toLegacyInterpretation,
@@ -383,6 +385,33 @@ describe("post-extraction triage", () => {
     expect(describeConstraintSet(compoundSet())).toMatch(
       /hard.*soft.*confidence 90%/,
     );
+  });
+});
+
+describe("multi-turn constraint diffing", () => {
+  it("detects added, removed, and changed fields across scopes", () => {
+    const prev = compoundSet(); // Wed/Thu, after 14:00, prefers Santos (excl. fields)
+    const next = structuredClone(prev);
+    delete next.hard.timeWindows; // "okay na pala kahit anong oras"
+    next.hard.allowedDaysOfWeek = [3, 4, 5]; // "Friday works now too"
+    next.soft.preferSameDoctor = true; // new preference
+    const changes = diffConstraintSets(prev, next);
+    const key = (c: any) => `${c.op}:${c.scope}.${c.field}`;
+    const keys = changes.map(key);
+    expect(keys).toContain("removed:hard.timeWindows");
+    expect(keys).toContain("changed:hard.allowedDaysOfWeek");
+    expect(keys).toContain("added:soft.preferSameDoctor");
+    expect(changes).toHaveLength(3);
+    expect(describeConstraintDiff(changes)).toMatch(/removed Time of day/);
+    expect(describeConstraintDiff(changes)).toMatch(/\(preference\)/);
+  });
+
+  it("reports no changes for identical sets (order-insensitive)", () => {
+    const a = compoundSet();
+    const b = structuredClone(a);
+    b.hard.allowedDaysOfWeek = [4, 3]; // same set, different order
+    expect(diffConstraintSets(a, b)).toHaveLength(0);
+    expect(describeConstraintDiff([])).toBe("no constraint changes");
   });
 });
 

@@ -20,7 +20,9 @@ import { guardReply, runCommsInterpret } from "@/agents/comms";
 import { extractConstraints } from "@/agents/constraintExtractor";
 import { aiLiveWanted } from "@/agents/runtime";
 import {
+  describeConstraintDiff,
   describeConstraintSet,
+  diffConstraintSets,
   toLegacyInterpretation,
   triageConstraintSet,
 } from "@/core/constraints";
@@ -82,18 +84,26 @@ export async function handlePatientReply(
     // fallback/resilience mode this branch is skipped entirely and the
     // legacy deterministic path below runs unchanged.
     const payload = (rec?.payload as any) ?? {};
+    const prior = caseId
+      ? (((getCase(caseId).meta as any) ?? {}).latestConstraints?.set ?? null)
+      : null;
     const run = await extractConstraints(
       {
         caseId,
         replyBody,
         patientName: patient.name,
         outboundContext: payload.draft?.subject ?? msg.subject ?? undefined,
+        priorConstraints: prior ?? undefined,
       },
       { caseId },
     );
     const v = validateConstraintSet(run.output);
     const set = v.ok ? v.normalized : run.output;
     const triage = triageConstraintSet(set, v);
+    // Multi-turn audit: the diff WE compute between the prior accumulated set
+    // and the merged output — never the model's own account of what changed.
+    const diff =
+      prior && run.mode === "live" ? diffConstraintSets(prior, set) : [];
 
     // Persist the rich set for the constraint editor regardless of lane.
     if (caseId)
@@ -106,8 +116,18 @@ export async function handlePatientReply(
           validation: { ok: v.ok, errors: v.errors, warnings: v.warnings },
           disposition: triage.disposition,
           reason: triage.reason,
+          diff: diff.length > 0 ? diff : undefined,
         },
       });
+    if (caseId && diff.length > 0)
+      timeline(
+        caseId,
+        "extractor",
+        "status",
+        "Constraints updated from the new reply",
+        describeConstraintDiff(diff),
+        { messageId },
+      );
 
     interp = toLegacyInterpretation(set);
     if (caseId)
