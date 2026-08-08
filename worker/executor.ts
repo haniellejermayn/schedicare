@@ -5,7 +5,7 @@
  * write it re-runs the deterministic placement validator; a validator veto
  * beats a staff approval (the world may have changed since approval).
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
 import { demoNowIso, fmtWhen } from "@/core/clock";
 import { env } from "@/core/env";
@@ -581,6 +581,49 @@ async function executeReschedule(
   const patient = getPatient(payload.patientId);
   const newDoctor = getDoctor(option.doctorId);
 
+  // Multi-round replans: every earlier round's created hold is a real
+  // appointment row. Chain-walking replanOf breaks when a CLARIFICATION sits
+  // between offers (it owns no hold), so sweep by LINEAGE instead: any hold
+  // any recommendation in this case created for this same original
+  // appointment, still sitting in "booked", is superseded now — ghost holds
+  // otherwise block case resolution forever.
+  {
+    const priorHoldIds = db
+      .select()
+      .from(schema.recommendations)
+      .where(
+        and(
+          eq(schema.recommendations.caseId, caseId),
+          eq(schema.recommendations.appointmentId, payload.appointmentId),
+        ),
+      )
+      .all()
+      .filter((r) => r.id !== rec.id)
+      .map(
+        (r) => (r.payload as any)?.createdAppointmentId as string | undefined,
+      )
+      .filter((id): id is string => !!id);
+    for (const holdId of priorHoldIds) {
+      const hold = db
+        .select()
+        .from(schema.appointments)
+        .where(eq(schema.appointments.id, holdId))
+        .get();
+      if (hold && hold.status === "booked") {
+        db.update(schema.appointments)
+          .set({ status: "superseded" })
+          .where(eq(schema.appointments.id, holdId))
+          .run();
+        await deleteCalendarEvent(
+          caseId,
+          getDoctor(hold.doctorId).calendarId,
+          hold.calendarEventId,
+          `Superseded by ${fmtWhen(option.startUtc)}`,
+        );
+      }
+    }
+  }
+
   const newAppt = db
     .insert(schema.appointments)
     .values({
@@ -625,11 +668,34 @@ async function executeReschedule(
       .run();
   }
 
+  let draft = payload.draft;
+  if (payload.replanOf) {
+    const lastOutbound = db
+      .select()
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.caseId, caseId),
+          eq(schema.messages.patientId, patient.id),
+          eq(schema.messages.direction, "outbound"),
+        ),
+      )
+      .orderBy(desc(schema.messages.createdAt), desc(schema.messages.id))
+      .get();
+    if (lastOutbound) {
+      draft = {
+        ...draft,
+        subject: `Re: ${(lastOutbound.subject ?? draft.subject).replace(/^(re:\s*)+/i, "")}`,
+        ...(lastOutbound.threadId ? { threadId: lastOutbound.threadId } : {}),
+      };
+    }
+  }
+
   const msgId = await createMailDraft(
     caseId,
     rec,
     { patientId: patient.id, email: patient.email },
-    payload.draft,
+    draft,
     newAppt.id,
   );
 
