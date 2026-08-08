@@ -107,7 +107,17 @@ export async function handlePatientReply(
         caseId,
         replyBody,
         patientName: patient.name,
-        outboundContext: payload.draft?.subject ?? msg.subject ?? undefined,
+        // A reply to a CLARIFICATION can only be interpreted against the
+        // question we asked — "sige po" means nothing without it. For offer
+        // threads, the subject line suffices.
+        outboundContext:
+          rec?.kind === "clarification"
+            ? `We asked the patient: "${payload.question}"${
+                (payload.choices?.length ?? 0) > 0
+                  ? ` (suggested answers: ${payload.choices.join(" / ")})`
+                  : ""
+              }`
+            : (payload.draft?.subject ?? msg.subject ?? undefined),
         priorConstraints: prior ?? undefined,
       },
       { caseId },

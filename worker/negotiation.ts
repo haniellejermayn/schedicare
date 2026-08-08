@@ -10,7 +10,7 @@
  * clarifications become `clarification` recommendations, both landing behind
  * the normal DecisionCard approval gate.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
 import { demoNowIso, fmtWhen } from "@/core/clock";
 import {
@@ -189,11 +189,25 @@ export async function negotiationTurn(
     },
     { caseId },
   );
+  const askedFields = db
+    .select()
+    .from(schema.recommendations)
+    .where(
+      and(
+        eq(schema.recommendations.caseId, caseId),
+        eq(schema.recommendations.appointmentId, args.appointmentId),
+      ),
+    )
+    .all()
+    .filter((r) => r.kind === "clarification")
+    .map((r) => (r.payload as any)?.targetField)
+    .filter(Boolean);
   const { action, forced } = guardPolicyAction(run.output, {
     turn: nego.turn,
     budget: NEGOTIATION_TURN_BUDGET,
     candidateKeys: candidates.map((x) => x.key),
     relaxFields: analysis.relaxations.map((r) => r.field),
+    askedFields,
   });
   timeline(
     caseId,

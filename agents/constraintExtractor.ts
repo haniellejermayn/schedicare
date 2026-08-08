@@ -84,6 +84,7 @@ MERGING (applies only when PRIOR CONSTRAINTS are provided in the prompt):
 - evidence entries are required for every field you ADD or CHANGE from THIS message; carried-forward fields keep their standing and need no new evidence.
 - unresolvedStatements: only from THIS message.
 - Never resurrect a constraint the patient previously lifted, and never drop one they have not addressed.
+- ANSWERING OUR QUESTION: when the outbound context shows we ASKED the patient about relaxing a constraint, their reply is an answer to that question. An affirmative ("sige po", "okay po", "yes, weekdays work") AGREES TO THE RELAXATION — remove or widen that constraint in the merged set and set intent counter_proposal (their constraints changed; there is no slot on the table to accept). A refusal ("Sunday talaga po") keeps the constraint; intent counter_proposal with the set unchanged. Use intent accept ONLY when a concrete offered time exists to accept — never for agreeing to a question.
 
 Learned conventions (each of these has been wrong before — follow exactly):
 - intent accept: do NOT restate the accepted slot as constraints; an accept carries constraints only if the patient adds NEW conditions.

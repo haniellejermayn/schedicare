@@ -114,6 +114,9 @@ export interface PolicyGuardCtx {
   candidateKeys: string[];
   /** Hard-constraint fields the relaxation analysis actually computed. */
   relaxFields: string[];
+  /** Constraint fields we already asked this patient about — asking twice is
+   * forbidden: if their answer didn't move the constraints, a person calls. */
+  askedFields?: string[];
 }
 
 /**
@@ -151,6 +154,10 @@ export function guardPolicyAction(
     if (!ctx.relaxFields.includes(proposed.targetField))
       return escalate(
         `clarification targeted an unknown constraint (${proposed.targetField})`,
+      );
+    if (ctx.askedFields?.includes(proposed.targetField))
+      return escalate(
+        `already asked about ${proposed.targetField} and the answer didn't resolve it — a person should call`,
       );
     return {
       action: { ...proposed, options: (proposed.options ?? []).slice(0, 3) },

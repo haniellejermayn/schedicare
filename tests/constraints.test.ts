@@ -525,6 +525,18 @@ describe("negotiation state + policy guard", () => {
     );
     expect(badTarget.forced).toMatch(/unknown constraint/);
 
+    const repeat = guardPolicyAction(
+      {
+        action: "ask_clarification",
+        question: "q?",
+        targetField: "timeWindows",
+        rationale: "r",
+      },
+      { ...ctx, askedFields: ["timeWindows"] },
+    );
+    expect(repeat.forced).toMatch(/already asked/);
+    expect(repeat.action.action).toBe("escalate_to_staff");
+
     const overBudget = guardPolicyAction(
       { action: "offer_slots", slotKeys: ["doc_santos|A"], rationale: "r" },
       { ...ctx, turn: NEGOTIATION_TURN_BUDGET },
