@@ -17,12 +17,26 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { StateGraph, Annotation, interrupt, Command, START, END } from "@langchain/langgraph";
+import {
+  StateGraph,
+  Annotation,
+  interrupt,
+  Command,
+  START,
+  END,
+} from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { env } from "@/core/env";
 import { getCase, escalateCase, maybeResolveCase } from "@/core/cases";
 import { timeline } from "@/core/timeline";
-import { assessStep, scheduleStep, recoverStep, commsStep, nudgeStep, waitlistStep } from "@/worker/steps";
+import {
+  assessStep,
+  scheduleStep,
+  recoverStep,
+  commsStep,
+  nudgeStep,
+  waitlistStep,
+} from "@/worker/steps";
 import { executeCase } from "@/worker/executor";
 
 const CaseState = Annotation.Root({
@@ -40,7 +54,10 @@ async function planNode(state: S): Promise<Partial<S>> {
       await scheduleStep(state.caseId);
       await recoverStep(state.caseId);
       await commsStep(state.caseId);
-    } else if (c.type === "patient_cancellation" || c.type === "slot_recovery") {
+    } else if (
+      c.type === "patient_cancellation" ||
+      c.type === "slot_recovery"
+    ) {
       await waitlistStep(state.caseId);
     } else if (c.type === "confirmation") {
       await nudgeStep(state.caseId, "confirm_nudge");
@@ -152,7 +169,10 @@ export function resetCaseGraph(): void {
   compiled = null;
 }
 
-const cfg = (caseId: string) => ({ configurable: { thread_id: caseId }, recursionLimit: 400 });
+const cfg = (caseId: string) => ({
+  configurable: { thread_id: caseId },
+  recursionLimit: 400,
+});
 
 /** Start (or continue) a case's lifecycle graph; runs until the next pause. */
 export async function startCase(caseId: string): Promise<void> {
@@ -161,18 +181,33 @@ export async function startCase(caseId: string): Promise<void> {
 
 /**
  * Wake a paused case graph: after the final staff decision, after a patient
- * reply was handled, or after any external state change. No-op when the graph
- * has no pending interrupt (e.g. the case already ended).
+ * reply was handled, or after any external state change.
+ *
+ * Two revival modes:
+ *  - a pending interrupt (gate/watch) → resume it in place;
+ *  - NO pending interrupt but the case is in an actionable state → the prior
+ *    run ended (typically via escalation) and a human has since revived the
+ *    case (constraint replan, negotiation delegate, an approval). Start a
+ *    FRESH run on the same thread: every edge routes conditionally on the
+ *    case's DB state, so the graph re-enters exactly where the state machine
+ *    says it should. END is not death while humans can revive a case.
  */
 export async function resumeCase(caseId: string): Promise<void> {
   const g = caseGraph();
   const st = await g.getState(cfg(caseId));
-  if (!st || !st.next || st.next.length === 0) return;
-  await g.invoke(new Command({ resume: "wake" }), cfg(caseId));
+  if (st?.next && st.next.length > 0) {
+    await g.invoke(new Command({ resume: "wake" }), cfg(caseId));
+    return;
+  }
+  const c = getCase(caseId);
+  if (c.state === "resolved" || c.state === "escalated") return; // truly nothing to run
+  await g.invoke({ caseId }, cfg(caseId));
 }
 
 /** For /settings demo tooling: where the graph thread is paused right now. */
-export async function caseGraphStatus(caseId: string): Promise<{ paused: boolean; at: string[] }> {
+export async function caseGraphStatus(
+  caseId: string,
+): Promise<{ paused: boolean; at: string[] }> {
   try {
     const st = await caseGraph().getState(cfg(caseId));
     return { paused: (st?.next ?? []).length > 0, at: [...(st?.next ?? [])] };

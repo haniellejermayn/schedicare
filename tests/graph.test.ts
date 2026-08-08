@@ -23,10 +23,20 @@ const TZ = "Asia/Manila";
 const hhmm = (iso: string) => formatInTimeZone(new Date(iso), TZ, "HH:mm");
 
 function jreq(body?: unknown) {
-  return new Request("http://test.local/api", { method: "POST", body: body ? JSON.stringify(body) : undefined, headers: { "Content-Type": "application/json" } });
+  return new Request("http://test.local/api", {
+    method: "POST",
+    body: body ? JSON.stringify(body) : undefined,
+    headers: { "Content-Type": "application/json" },
+  });
 }
-const decide = (recId: string, body: any) => decidePOST(jreq(body), { params: { id: recId } });
-const recsFor = (caseId: string) => db.select().from(schema.recommendations).where(eq(schema.recommendations.caseId, caseId)).all();
+const decide = (recId: string, body: any) =>
+  decidePOST(jreq(body), { params: { id: recId } });
+const recsFor = (caseId: string) =>
+  db
+    .select()
+    .from(schema.recommendations)
+    .where(eq(schema.recommendations.caseId, caseId))
+    .all();
 
 describe("LangGraph lifecycle + auto-replies (resilience mode)", () => {
   beforeEach(() => {
@@ -45,15 +55,31 @@ describe("LangGraph lifecycle + auto-replies (resilience mode)", () => {
   });
 
   it("pauses at the gate, wakes on decisions, auto-replies, and loops back for Miguel's replan", async () => {
-    const doctor = db.select().from(schema.doctors).where(eq(schema.doctors.id, "doc_santos")).get()!;
+    const doctor = db
+      .select()
+      .from(schema.doctors)
+      .where(eq(schema.doctors.id, "doc_santos"))
+      .get()!;
     db.update(schema.doctors)
-      .set({ status: "unavailable", unavailableDates: [...(doctor.unavailableDates ?? []), "2026-08-10"] })
+      .set({
+        status: "unavailable",
+        unavailableDates: [...(doctor.unavailableDates ?? []), "2026-08-10"],
+      })
       .where(eq(schema.doctors.id, "doc_santos"))
       .run();
-    enqueueEvent("doctor_emergency", { doctorId: "doc_santos", date: "2026-08-10", reason: "graph regression" });
+    enqueueEvent("doctor_emergency", {
+      doctorId: "doc_santos",
+      date: "2026-08-10",
+      reason: "graph regression",
+    });
     await pump();
 
-    const c = db.select().from(schema.cases).where(eq(schema.cases.type, "doctor_emergency")).all().at(-1)!;
+    const c = db
+      .select()
+      .from(schema.cases)
+      .where(eq(schema.cases.type, "doctor_emergency"))
+      .all()
+      .at(-1)!;
     expect(getCase(c.id).state).toBe("awaiting_approval");
 
     // The graph thread is literally paused at the approval gate.
@@ -67,14 +93,21 @@ describe("LangGraph lifecycle + auto-replies (resilience mode)", () => {
     for (const rec of recsFor(c.id)) {
       const name = ((rec.payload as any).patientName ?? "") as string;
       const res = name.startsWith("Grace")
-        ? await decide(rec.id, { action: "reject", reason: "Prefers a phone call" })
+        ? await decide(rec.id, {
+            action: "reject",
+            reason: "Prefers a phone call",
+          })
         : await decide(rec.id, { action: "approve" });
       expect(res.status).toBe(200);
     }
     await pump();
 
     // Executor ran and — the old bug — must itself enqueue simulate_reply.
-    const simEvents = db.select().from(schema.events).where(eq(schema.events.type, "simulate_reply")).all();
+    const simEvents = db
+      .select()
+      .from(schema.events)
+      .where(eq(schema.events.type, "simulate_reply"))
+      .all();
     expect(simEvents.length).toBeGreaterThan(0);
 
     // Graph is now paused in the watch loop, waiting on patients.
@@ -88,18 +121,28 @@ describe("LangGraph lifecycle + auto-replies (resilience mode)", () => {
     const inbound = db
       .select()
       .from(schema.messages)
-      .where(and(eq(schema.messages.caseId, c.id), eq(schema.messages.direction, "inbound")))
+      .where(
+        and(
+          eq(schema.messages.caseId, c.id),
+          eq(schema.messages.direction, "inbound"),
+        ),
+      )
       .all();
     expect(inbound.length).toBeGreaterThanOrEqual(4);
 
-    const confirmed = db.select().from(schema.appointments).where(eq(schema.appointments.status, "confirmed")).all();
+    const confirmed = db
+      .select()
+      .from(schema.appointments)
+      .where(eq(schema.appointments.status, "confirmed"))
+      .all();
     expect(confirmed.length).toBeGreaterThanOrEqual(4);
 
     // Miguel's counter looped the graph back to the approval gate.
     const replan = recsFor(c.id).find((r) => (r.payload as any).replanOf);
     expect(replan).toBeTruthy();
     expect(replan!.status).toBe("proposed");
-    for (const o of (replan!.payload as any).options) expect(hhmm(o.startUtc) >= "16:00").toBe(true);
+    for (const o of (replan!.payload as any).options)
+      expect(hhmm(o.startUtc) >= "16:00").toBe(true);
     expect(getCase(c.id).state).toBe("awaiting_approval");
     const backAtGate = await caseGraphStatus(c.id);
     expect(backAtGate.paused).toBe(true);
@@ -112,4 +155,29 @@ describe("LangGraph lifecycle + auto-replies (resilience mode)", () => {
     const ended = await caseGraphStatus(c.id);
     expect(ended.paused).toBe(false);
   }, 90000);
+});
+
+describe("graph revival after termination", () => {
+  it("resumeCase re-enters a dead thread at the state machine's current node", async () => {
+    const { openCase, transitionCase } = await import("@/core/cases");
+    const { resumeCase, caseGraphStatus } = await import("@/graph/caseGraph");
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "low",
+      title: "revival regression",
+      meta: {},
+    });
+    // Simulate a case a human revived after the graph ended: the state
+    // machine says awaiting_approval, but no graph thread is paused.
+    transitionCase(c.id, "assessing", "orchestrator", "t");
+    transitionCase(c.id, "planning", "orchestrator", "t");
+    transitionCase(c.id, "awaiting_approval", "orchestrator", "t");
+    const before = await caseGraphStatus(c.id);
+    expect(before.paused).toBe(false); // thread never ran / not interrupted
+    await resumeCase(c.id);
+    const after = await caseGraphStatus(c.id);
+    expect(after.paused).toBe(true);
+    expect(after.at).toContain("gate"); // re-entered exactly where state says
+  });
 });
