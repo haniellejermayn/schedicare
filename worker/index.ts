@@ -10,7 +10,12 @@ import { db, schema } from "@/core/db/client";
 import { ensureSchema } from "@/core/db/migrate";
 import { env } from "@/core/env";
 import { audit } from "@/core/audit";
-import { claimNextEvent, completeEvent, failEvent, enqueueEvent } from "./queue";
+import {
+  claimNextEvent,
+  completeEvent,
+  failEvent,
+  enqueueEvent,
+} from "./queue";
 import { dispatchEvent } from "@/graph/dispatch";
 import { demoToday } from "@/core/clock";
 import { runDailySweep } from "./sweep";
@@ -34,14 +39,24 @@ async function loop() {
     } catch (e) {
       const msg = String((e as Error)?.message ?? e).slice(0, 300);
       console.error(`[worker] event ${ev.type} failed: ${msg}`);
-      audit({ actor: "worker", action: "event.error", detail: { type: ev.type, id: ev.id, error: msg, attempt: ev.attempts } });
+      audit({
+        actor: "worker",
+        action: "event.error",
+        detail: { type: ev.type, id: ev.id, error: msg, attempt: ev.attempts },
+      });
       const retry = ev.attempts < 2;
       failEvent(ev.id, retry);
       if (!retry && (ev.payload as any)?.caseId) {
         const { escalateCase } = await import("@/core/cases");
         try {
-          escalateCase((ev.payload as any).caseId, "worker", `Event ${ev.type} failed twice: ${msg}`);
-        } catch { /* case may not exist */ }
+          escalateCase(
+            (ev.payload as any).caseId,
+            "worker",
+            `Event ${ev.type} failed twice: ${msg}`,
+          );
+        } catch {
+          /* case may not exist */
+        }
       }
     }
   }
@@ -58,7 +73,13 @@ async function pollGmailInbound() {
       const outbound = db
         .select()
         .from(schema.messages)
-        .where(and(eq(schema.messages.direction, "outbound"), eq(schema.messages.status, "sent"), isNotNull(schema.messages.threadId)))
+        .where(
+          and(
+            eq(schema.messages.direction, "outbound"),
+            eq(schema.messages.status, "sent"),
+            isNotNull(schema.messages.threadId),
+          ),
+        )
         .all();
       const threads = [...new Set(outbound.map((m) => m.threadId!))];
       if (threads.length === 0) continue;
@@ -71,7 +92,13 @@ async function pollGmailInbound() {
         .filter(Boolean);
       const inbound = await pick.provider.pollReplies(threads, seen);
       for (const mail of inbound) {
-        const parent = outbound.find((m) => m.threadId === mail.threadId);
+        // A reply answers the LATEST thing we sent on that thread. With all
+        // of a patient's messages consolidated onto one thread, picking the
+        // first outbound would pin every reply to the original offer forever
+        // (misconfirming superseded holds, bypassing clarification routing).
+        const parent = outbound
+          .filter((m) => m.threadId === mail.threadId)
+          .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
         if (!parent) continue;
         const row = db
           .insert(schema.messages)
@@ -94,16 +121,26 @@ async function pollGmailInbound() {
         enqueueEvent("patient_reply", { messageId: row.id });
       }
     } catch (e) {
-      console.error(`[worker] gmail poll error: ${String((e as Error).message).slice(0, 200)}`);
+      console.error(
+        `[worker] gmail poll error: ${String((e as Error).message).slice(0, 200)}`,
+      );
     }
   }
 }
 
 async function main() {
   ensureSchema();
-  console.log(`[worker] SchediCare worker up — demo day ${demoToday()} · LangGraph case orchestration (SQLite checkpoints)`);
-  audit({ actor: "worker", action: "worker.started", detail: { pid: process.pid } });
-  await runDailySweep().catch((e) => console.error(`[worker] sweep failed: ${e?.message ?? e}`));
+  console.log(
+    `[worker] SchediCare worker up — demo day ${demoToday()} · LangGraph case orchestration (SQLite checkpoints)`,
+  );
+  audit({
+    actor: "worker",
+    action: "worker.started",
+    detail: { pid: process.pid },
+  });
+  await runDailySweep().catch((e) =>
+    console.error(`[worker] sweep failed: ${e?.message ?? e}`),
+  );
   void pollGmailInbound();
   await loop();
 }
