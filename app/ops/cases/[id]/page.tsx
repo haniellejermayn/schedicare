@@ -191,7 +191,17 @@ function buildPatients(recs: any[], convs: any[]) {
   });
 }
 
+function needsDecision(rec: any): boolean {
+  return (
+    !!rec &&
+    (rec.status === "proposed" ||
+      rec.outcome === "superseded" ||
+      rec.outcome === "needs_human")
+  );
+}
+
 function statusTitle(rec: any): string {
+  if (rec.outcome === "superseded") return "Counter-offer — needs your review";
   const oc = outcomeLabel(rec);
   if (oc.label === "Confirmed") return "Confirmed";
   if (oc.label.startsWith("Declined")) return "Declined — needs a call";
@@ -264,10 +274,33 @@ export default function CasePage() {
     [recs, conversations],
   );
 
+  const metrics = useMemo(() => {
+    if (patients.length === 0) return null;
+    const total = patients.length;
+    let confirmed = 0;
+    let waitingForYou = 0;
+    let waitingOnPatient = 0;
+    let toCall = 0;
+    for (const p of patients) {
+      const rec = p.activeRec;
+      if (!rec) continue;
+      if (needsDecision(rec)) {
+        waitingForYou++;
+        continue;
+      }
+      const oc = outcomeLabel(rec);
+      if (oc.label === "Confirmed") confirmed++;
+      else if (oc.label.startsWith("Declined")) toCall++;
+      else if (oc.label === "Message sent" || oc.label === "Waiting for reply")
+        waitingOnPatient++;
+    }
+    return { total, confirmed, waitingForYou, waitingOnPatient, toCall };
+  }, [patients]);
+
   useEffect(() => {
     if (!data || patients.length === 0) return;
     if (!selectedId) {
-      const needsReview = patients.find((p) => p.activeRec?.status === "proposed");
+      const needsReview = patients.find((p) => needsDecision(p.activeRec));
       setSelectedId((needsReview ?? patients[0]).id);
     }
   }, [data, patients, selectedId]);
@@ -363,11 +396,67 @@ export default function CasePage() {
             {c.title}
           </h1>
           <Chip tone={st.tone}>{st.label}</Chip>
+          {proposed.length > 1 && (
+            <Button
+              small
+              disabled={busyAll}
+              onClick={() => setApproveAllOpen(true)}
+              className="ml-auto"
+            >
+              {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
+            </Button>
+          )}
         </div>
         <div className="mt-1">
           <SummaryLine s={data?.scoreboard} state={c.state} />
         </div>
       </div>
+
+      {/* Metric tiles */}
+      {metrics && (
+        <div className="flex flex-wrap gap-2">
+          <div className="rounded-ctl border border-line bg-white px-3 py-2">
+            <span className="tnum block text-[18px] font-bold leading-none text-ink">
+              {metrics.total}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Patients affected
+            </span>
+          </div>
+          <div className="rounded-ctl border border-ok-line bg-ok-soft px-3 py-2">
+            <span className="tnum block text-[18px] font-bold leading-none text-ok">
+              {metrics.confirmed}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Confirmed
+            </span>
+          </div>
+          <div className="rounded-ctl border border-warn-line bg-warn-soft px-3 py-2">
+            <span className="tnum block text-[18px] font-bold leading-none text-warn">
+              {metrics.waitingForYou}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Waiting for you
+            </span>
+          </div>
+          <div className="rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
+            <span className="tnum block text-[18px] font-bold leading-none text-accent">
+              {metrics.waitingOnPatient}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Waiting on patient
+            </span>
+          </div>
+          <div className="rounded-ctl border border-bad-line bg-bad-soft px-3 py-2">
+            <span className="tnum block text-[18px] font-bold leading-none text-bad">
+              {metrics.toCall}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              To call
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Escalated banner */}
       {c.state === "escalated" && (
@@ -407,15 +496,6 @@ export default function CasePage() {
           <aside className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="eyebrow">Patients in this case</span>
-              {proposed.length > 1 && (
-                <Button
-                  small
-                  disabled={busyAll}
-                  onClick={() => setApproveAllOpen(true)}
-                >
-                  {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
-                </Button>
-              )}
             </div>
             {patients.map((p) => {
               const oc = p.activeRec
@@ -423,7 +503,7 @@ export default function CasePage() {
                 : { label: "No action", tone: "neutral" as const };
               const isActive = selectedId === p.id;
               const sub =
-                p.activeRec?.status === "proposed"
+                needsDecision(p.activeRec)
                   ? "Needs your decision"
                   : oc.label;
               return (
@@ -470,27 +550,6 @@ export default function CasePage() {
                 </button>
               );
             })}
-            <div className="case-log mt-3 rounded-card border border-line bg-white">
-              <button
-                type="button"
-                onClick={() => setCaseOpen((v) => !v)}
-                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink"
-                aria-expanded={caseOpen}
-              >
-                Case log
-                <span className="ml-auto text-[12px] text-muted">
-                  {grouped.caseLevel.length}
-                </span>
-                <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
-              </button>
-              {caseOpen && (
-                <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
-                  {grouped.caseLevel.map((it) => (
-                    <ActivityRow key={it.id} it={it} tech={tech} />
-                  ))}
-                </ol>
-              )}
-            </div>
           </aside>
 
           <div>
@@ -528,7 +587,7 @@ export default function CasePage() {
 
                 {/* Decision / Status box */}
                 <div className="px-4 py-3">
-                  {selectedPatient.activeRec?.status === "proposed" ? (
+                  {needsDecision(selectedPatient.activeRec) ? (
                     <DecisionCard
                       rec={selectedPatient.activeRec}
                       messages={messages}
@@ -721,6 +780,31 @@ export default function CasePage() {
               <Empty>No patients in this case.</Empty>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Case log — moved to page bottom, matching case-detail-ref.html */}
+      {grouped.caseLevel.length > 0 && (
+        <div className="case-log rounded-card border border-line bg-white">
+          <button
+            type="button"
+            onClick={() => setCaseOpen((v) => !v)}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink"
+            aria-expanded={caseOpen}
+          >
+            Case log
+            <span className="ml-auto text-[12px] text-muted">
+              {grouped.caseLevel.length}
+            </span>
+            <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
+          </button>
+          {caseOpen && (
+            <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
+              {grouped.caseLevel.map((it) => (
+                <ActivityRow key={it.id} it={it} tech={tech} />
+              ))}
+            </ol>
+          )}
         </div>
       )}
 
