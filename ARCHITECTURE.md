@@ -1,201 +1,250 @@
-# ARCHITECTURE.md — SchediCare
+# SchediCare architecture — current implementation
 
-## 1. Design principles
+This document describes the implemented capstone system, not a future production design.
+SchediCare is a **deterministically orchestrated, human-in-the-loop agentic workflow**:
+models interpret ambiguous language and propose bounded decisions; code owns scheduling
+correctness, state transitions, approval gates, and side effects.
 
-1. **Deterministic core, agentic shell.** Anything that must be *correct* (slot availability, conflicts, capacity, rule compliance) is a pure function. Anything that must be *smart* (routing, prioritization, drafting, interpreting humans) is an LLM agent that can only act through those functions. The LLM never invents a time slot; it can only choose among validated ones.
-2. **Everything is a case.** A disruption becomes a `case` row with a strict state machine. Agents advance cases; they cannot skip states. Humans own the `awaiting_approval → executing` transition.
-3. **No unapproved side effects.** External writes (calendar mutation, message send) live exclusively in the Executor, which only consumes **approved** recommendations.
-4. **Two providers for every integration.** `google` and `simulated` implement the same interface. The system cannot tell the difference; the demo cannot be killed by OAuth.
-5. **Observability is a feature.** Every agent step is persisted and streamed. The audit log is the same data that powers the live feed and the replay scrubber.
-
-## 2. System overview
+## 1. System overview
 
 ```mermaid
 flowchart LR
-  subgraph Clients
-    P[Patient app]
-    D[Doctor dashboard]
-    S[Staff ops center]
-  end
+  U["Patient · Doctor · Front desk"] --> APP["Next.js UI + API routes"]
+  APP <--> DB[("SQLite<br/>domain state · cases · event queue")]
 
-  subgraph NextJS[Next.js app]
-    API[API routes]
-    SSE[SSE live feed]
-  end
+  W["Worker<br/>queue poller · daily sweep"] <--> DB
+  W --> G["LangGraph case graph<br/>plan → gate → execute → watch"]
 
-  subgraph Worker[Agent worker process]
-    EQ[(events queue)]
-    ORC[Orchestrator agent]
-    SA[Scheduling]
-    RA[Risk]
-    AA[Assessment]
-    RC[Recovery]
-    CA[Comms]
-    EX[Executor]
-  end
+  G --> CORE["Deterministic core<br/>rules · slots · ranking · validators · guards"]
+  G --> AI["Bounded AI specialists<br/>Bedrock or Gemini"]
+  AI -->|"structured proposals"| CORE
+  CORE -->|"recommendations"| DB
 
-  DB[(SQLite / Drizzle)]
-  GC[Google Calendar or Simulated]
-  GM[Gmail or Simulated]
+  APP -->|"staff approve · modify · reject"| DB
+  G -->|"approved case"| EX["Executor"]
+  EX --> IO["Gmail + Google Calendar<br/>or simulated twins"]
+  EX --> DB
 
-  P --> API
-  D --> API
-  S --> API
-  API --> DB
-  API -->|insert event| EQ
-  EQ --> ORC
-  ORC --> SA & RA & AA & RC & CA
-  SA & RA & AA & RC & CA --> DB
-  S -->|approve / modify / reject| API
-  API -->|approved recs| EX
-  EX --> GC
-  EX --> GM
-  Worker --> SSE
-  SSE --> S
+  DB --> FEED["SSE timeline · metrics · audit UI"]
+  FEED --> APP
 ```
 
-Two processes:
+There is no LLM supervisor. `graph/caseGraph.ts` is the orchestrator: a deterministic
+LangGraph state machine whose conditional edges read the current case state from SQLite.
 
-- **Next.js app** — UI, CRUD, trigger ingestion (`POST /api/events`), approval endpoints, SSE feed.
-- **Worker** (`worker/index.ts`, plain Node via `tsx`) — polls the `events` table, runs the Orchestrator, runs sub-agents, runs the Executor for approved recommendations. DB-backed queue means no Redis, survives restarts, and every message is inspectable — ideal for a capstone.
+Two long-running processes share the database:
 
-## 3. Trigger model
+- **Next.js application** — patient, doctor, and front-desk interfaces; API routes;
+  staff decisions; status, metrics, audit, and SSE endpoints.
+- **Worker** — claims events sequentially, runs the daily sweep, starts or resumes case
+  graphs, polls known Gmail threads when connected, and executes approved work.
 
-| Class | Examples | Entry point |
-|---|---|---|
-| Manual | patient books/cancels/reschedules; staff reports issue; doctor marks unavailable | UI → `POST /api/events` |
-| Scheduled | daily sweep: unconfirmed check, no-show risk review, capacity imbalance, waitlist-fill scan | `worker` cron tick → synthetic events |
-| Event-driven | calendar change webhook/poll; patient reply received; capacity threshold crossed; slot vacated | provider poller → events |
+## 2. Ingress and case lifecycle
 
-All three converge on one table: `events(id, type, payload, status, created_at)`. Uniform ingestion is what makes the agent layer simple.
+Events enter the SQLite queue from implemented sources:
 
-## 4. Case state machine
+- doctor unavailability and patient cancellation API routes;
+- the daily sweep for confirmation, no-show-risk, and vacated-slot cases;
+- replies on known Gmail threads or simulated patient replies;
+- internal resume, constraint-replan, and negotiation events.
 
-```
-open ──► assessing ──► planning ──► awaiting_approval ──► executing ──► resolving ──► resolved
-  │                                        │                              │
-  └────────────► escalated ◄───────────────┴──────────────────────────────┘
-```
+The case state machine in `core/cases.ts` is authoritative:
 
-- `assessing` — Assessment agent computes blast radius, severity, priority list.
-- `planning` — Scheduling + Recovery agents produce validated, ranked recommendations; Comms drafts messages.
-- `awaiting_approval` — **hard stop.** Only a staff decision moves the case.
-- `executing` — Executor applies approved calendar writes / sends approved messages.
-- `resolving` — waiting on patient replies; Comms interprets; counter-proposals loop the *affected item* (not the whole case) back to `planning`.
-- `escalated` — any agent failure, validator failure, timeout, or explicit agent judgment call lands here with a reason for staff.
-
-Transitions are enforced in code (`core/cases.ts`); agents request transitions, the state machine validates them. An LLM cannot teleport a case to `executing`.
-
-## 5. Agent architecture
-
-### 5.1 Runtime
-
-One generic runtime (`agents/runtime.ts`) implements the Anthropic tool-use loop: system prompt + tools in, iterate on `tool_use` blocks, execute mapped TypeScript functions, feed back `tool_result`, stop on end-turn or step cap. Every step writes an `agent_runs` / `case_timeline` row and emits to the SSE bus. All six agents are configurations of this runtime — different prompt, different toolset, same loop. This is the anti-scope-creep decision: adding an agent is ~100 lines.
-
-### 5.2 Orchestrator (agents as tools)
-
-The Orchestrator's tools *are the sub-agents* plus case-management primitives:
-
-- `run_assessment(case_id)`, `run_scheduling(case_id, constraints)`, `run_recovery(case_id)`, `run_comms(case_id, purpose)`, `run_risk(scope)`
-- `get_case(case_id)`, `transition_case(case_id, to, reason)`, `escalate(case_id, reason)`
-
-It receives an event, decides whether it belongs to an existing case or opens a new one, sequences sub-agents, and escalates when stuck. Sub-agent invocations run their own tool loops and return a compact structured summary to the Orchestrator — the "agent-as-tool" pattern keeps each context window small and each agent auditable in isolation.
-
-### 5.3 Sub-agents and their determinism boundaries
-
-| Agent | Tools (deterministic) | LLM's actual job |
-|---|---|---|
-| Scheduling | `get_doctor_rules`, `find_open_slots`, `check_conflicts`, `get_capacity` | choose search windows, relax constraints in the right order, explain feasibility |
-| Risk | `list_upcoming`, `get_patient_history`, `score_no_show` (rule engine) | decide which flags warrant a case, write human-readable risk explanations |
-| Assessment | `get_affected_appointments`, `get_waitlist`, `get_doctor_capacity` | severity judgment, priority ordering rationale, edge cases (e.g., post-op follow-up continuity) |
-| Recovery | `rank_recovery_options` (deterministic scorer), `propose_plan` | package plans per patient, justify rankings, decide waitlist backfill vs. leave-open |
-| Comms | `draft_message`, `interpret_reply` (LLM w/ Zod-validated JSON), `attach_draft` | tone-correct drafting per channel, mapping messy replies to a closed intent enum |
-
-`rank_recovery_options` scoring (deterministic, weights configurable):
-
-```
-score = w1·slot_soonness + w2·patient_pref_match + w3·doctor_rule_fit
-      + w4·capacity_headroom + w5·waiting_time_fairness + w6·staff_priority
-      + w7·historical_acceptance_likelihood
+```mermaid
+stateDiagram-v2
+  [*] --> open
+  open --> assessing
+  assessing --> planning
+  planning --> awaiting_approval
+  awaiting_approval --> executing: staff actor only
+  executing --> resolving
+  resolving --> planning: counter or negotiation
+  resolving --> resolved
+  open --> escalated
+  assessing --> escalated
+  planning --> escalated
+  executing --> escalated
+  resolving --> escalated
 ```
 
-The LLM sees scored options and explains them; it cannot reorder silently (modifications by the agent require a stated reason recorded on the recommendation).
+The LangGraph thread sequences `plan → gate → execute → watch`, pauses at staff and
+patient boundaries, and is checkpointed in a separate SQLite checkpoint database. The
+domain database remains the source of truth, so a resumed graph routes from the case's
+current persisted state.
 
-### 5.4 Structured outputs
+## 3. Where AI is—and is not—authoritative
 
-Sub-agents finish by calling a `submit_result` tool whose input schema is the Zod contract (e.g., `RecoveryPlan`, `ReplyIntent`). Invalid input → tool returns the validation error → agent retries once → still invalid → case escalates. Using a terminal tool instead of free-text JSON eliminates fence-stripping fragility.
+| Component | Model contribution | Deterministic authority | Practical importance of AI |
+|---|---|---|---|
+| Constraint extraction | Turns English, Tagalog, or Taglish replies into a structured constraint set; merges prior constraints; attaches evidence text | Guard, Zod schema, canonicalizer, validator, confidence/complexity triage, staff editor | **Core AI value** |
+| Negotiation policy | Chooses one move: offer known slots, ask about one computed relaxation, or escalate | Candidate-key guard, valid relaxation fields, turn budget, never-ask-twice rule, approval gate | **Core bounded agency** |
+| Continuation drafting | Acknowledges a patient's counter or clarification naturally | Known facts only, content lint, safe template fallback, staff approval | Useful but supporting |
+| Assessment | Summarizes blast radius and operational priority | Ground-truth appointment lookup; deterministic fallback | Replaceable/supporting |
+| Scheduling | Chooses calls to read-only slot-search tools and packages options | Slot engine revalidates every submitted option; executor validates the selected placement again | Replaceable/supporting |
+| Recovery and waitlist packaging | Explains tool-produced ranking | Deterministic scoring, top-choice policy, cross-patient deduplication, staff override | Replaceable/supporting |
+| Attendance risk | Selects and explains flags | Rule-based score and factors; deterministic fallback | Replaceable/supporting |
 
-## 6. Data model (summary — full Drizzle schema in IMPLEMENTATION_PLAN.md §Phase 1)
+First-contact reschedule offers are rendered from a deterministic template. They do not
+use model-written prose. This is intentional: once a task is enumerable, code is safer,
+faster, and cheaper.
 
-```
-clinics ─┬─ doctors ──┬─ doctor_rules
-         │            └─ appointments ── messages
-         ├─ patients ─┬─ appointments
-         │            └─ waitlist
-         ├─ users (staff/admin, role-based)
-         ├─ appointment_types (duration, kind)
-         ├─ events (queue: type, payload, status, attempts)
-         ├─ cases (type, severity, state, opened_by_event)
-         ├─ case_timeline (case_id, actor, kind, content, refs) ← powers feed + audit + replay
-         ├─ agent_runs (agent, case_id, input, output, tokens, latency, status)
-         ├─ recommendations (case_id, patient_id?, kind, payload, explanation,
-         │                   status: proposed|approved|modified|rejected|executed, decided_by)
-         └─ audit_log (immutable: trigger, action, recommendation, decision, outcome)
-```
+The most defensible AI story is therefore the reply loop: semantic extraction supplies
+meaning that rules cannot reliably recover, and the negotiation policy chooses among a
+small, verified action set.
 
-Key appointment statuses: `booked, confirmed, unconfirmed, completed, no_show, cancelled_by_patient, cancelled_by_doctor`.
+## 4. Agent runtime and tool contracts
 
-## 7. Integrations
+`agents/runtime/` provides one provider-neutral tool loop for Claude on Amazon Bedrock
+and Gemini. An agent definition contains:
 
-```ts
-interface CalendarProvider {
-  listEvents(doctorId: string, range: TimeRange): Promise<CalEvent[]>
-  createEvent(e: NewCalEvent): Promise<CalEvent>
-  updateEvent(id: string, patch: Partial<NewCalEvent>): Promise<CalEvent>
-  deleteEvent(id: string): Promise<void>
-  watchChanges(onChange: (c: CalChange) => void): Poller
-}
-interface MailProvider {
-  createDraft(d: MailDraft): Promise<{ draftId: string }>
-  send(draftId: string): Promise<{ messageId: string }>
-  pollReplies(threadIds: string[]): Promise<InboundMail[]>
-}
-```
+- a system prompt and input prompt builder;
+- a set of `ToolDef` objects, each with a Zod input schema and TypeScript function;
+- a Zod result schema;
+- a step cap and a deterministic or safe-handoff fallback.
 
-- **GoogleCalendarProvider / GmailProvider** — `googleapis`, OAuth2 with minimal scopes (`calendar.events`, `gmail.compose`, `gmail.readonly` on a label). Change detection via polling `events.list(updatedMin)` (webhooks need a public HTTPS endpoint — documented as future work; polling is honest and demo-safe).
-- **Simulated providers** — same interfaces over DB tables; the patient-simulator agent injects `InboundMail`. Deterministic seeds → repeatable demo.
-- Only the **Executor** holds write-capable provider instances. Agents receive read-only wrappers.
+The loop binds domain tools plus a terminal `submit_result` tool. Plain-text answers do
+not complete a run. Tool inputs and final output must pass their Zod schemas; invalid
+results are returned to the model for correction until the step cap is reached.
 
-## 8. Live feed & replay
+Representative tools:
 
-`case_timeline` inserts publish to an in-process `EventEmitter` bridged to `GET /api/feed` (SSE). The dashboard subscribes once and renders the agent activity stream. Replay is a client-side scrub over the same rows ordered by time — zero extra backend.
+| Tool | Inputs | Returns | Authority |
+|---|---|---|---|
+| `get_affected_appointments` | doctor ID, local date | active appointments plus patient context | Read-only |
+| `find_open_slots` | doctor, type, date range, optional time constraints | rule-valid open slots | Read-only |
+| `score_no_show` | appointment ID | deterministic score and factor breakdown | Read-only |
+| `rank_recovery_options` | appointment ID | scored options and explanation chips | Read-only |
+| `submit_result` | agent-specific Zod object | terminal structured result | No side effect |
 
-## 9. Security & safety design
+The constraint extractor and negotiation policy do not need domain tools: their prompts
+receive bounded context, and their outputs pass deterministic validation or policy guards.
 
-- **RBAC**: `patient | doctor | staff | admin` roles on `users`; route-level guards; patients see only their own data; doctors see own calendar + cases touching it.
-- **Approval gate**: enforced at three layers — state machine (no `planning → executing`), Executor (only `status='approved'|'modified'` recommendations), and provider layer (write providers only instantiated in Executor).
-- **Untrusted input**: inbound email bodies are data, never instructions. They are passed to `interpret_reply` whose only output is a closed enum + optional constrained fields (proposed time, free-text note ≤ 280 chars, flagged `needs_human` for anything ambiguous, angry, or clinical). Prompt-injection attempts degrade to `needs_human`, not to actions.
-- **Data minimization**: no diagnoses, no clinical notes; appointment type + timing + contact only. Contact fields encrypted at rest (libsodium sealed box) in the demo DB.
-- **Secrets**: OAuth tokens server-side only; `.env` excluded; demo runs on seeded fictional data.
-- **Non-goals enforced in prompts and tools**: no agent has a tool that could produce clinical advice; Comms templates are validated against a banned-content lint (dosage, diagnosis keywords → escalate).
+Current enforcement nuance: scheduling output is revalidated for real availability, and
+negotiation slot keys are checked against computed candidates. The runtime does not retain
+a byte-for-byte provenance check proving that every scheduling or recovery field was copied
+from a preceding tool result. Safety is preserved by validation, staff review, and
+execution-time revalidation, but exact tool-output provenance is not yet enforced.
 
-## 10. Failure & degraded modes
+## 5. Approval and side-effect boundary
 
-| Failure | Behavior |
+Agents do not receive Calendar or mail write tools. They create structured recommendations
+in `proposed` state.
+
+1. Staff approve, revise to a validator-approved option, or reject with a reason.
+2. Only a `staff*` actor may move a case into `executing`.
+3. The graph resumes and calls the executor.
+4. The executor revalidates calendar placement, creates or updates Calendar events, sends
+   mail, and records the outcome.
+
+Automated recommendations reach external providers only through the executor. Explicit
+human actions—such as direct booking, cancellation, or marking a doctor unavailable—also
+write through their API route handlers and are recorded in the audit log.
+
+A deterministic confirmation acknowledgment is the sole gate-exempt outbound message. It
+is sent only after the patient's acceptance has already confirmed the appointment.
+
+## 6. Memory and persistence
+
+SchediCare uses task memory, not semantic memory:
+
+- **Domain state:** appointments, messages, recommendations, cases, and events in SQLite.
+- **Case working memory:** assessment, slot options, plans, and per-appointment constraint
+  sets in the case's JSON metadata.
+- **Conversation memory:** accumulated constraints, offer history, asked relaxation fields,
+  turn count, and status in the `negotiations` table.
+- **Control-flow memory:** LangGraph SQLite checkpoints for pause/resume at approval and
+  reply boundaries.
+- **Single-run context:** the provider tool loop's message history.
+
+There is no vector database or long-term semantic profile. The workflow needs exact,
+case-scoped facts and auditable conversation state; retrieval-style memory would add little
+value and create unnecessary privacy and consistency risks.
+
+## 7. Storage model
+
+The main implemented tables are:
+
+- clinic domain: `clinics`, `doctors`, `doctor_rules`, `patients`,
+  `attendance_history`, `appointments`, `waitlist`;
+- coordination: `events`, `cases`, `case_timeline`, `agent_runs`,
+  `recommendations`, `messages`, `negotiations`;
+- operations: `audit_log`, `system_status`, `oauth_tokens`;
+- simulated integrations: `sim_calendar_events`, `sim_mail`.
+
+SQLite and the sequential worker are deliberate capstone constraints. There are no user,
+role, or appointment-type tables.
+
+## 8. Integrations
+
+Calendar and mail each have Google and simulated implementations behind the same interface.
+
+- Calendar supports listing, free/busy checks, create, update, and delete.
+- Gmail supports draft creation/update, sending, and polling replies from known threads.
+- OAuth tokens remain server-side in SQLite.
+- Simulated providers use SQLite and deterministic personas for repeatable demos.
+- MCP exposes a readiness/health path only; direct Google APIs are the active integration.
+
+Provider selection is per service. A working model does not imply that Gmail or Calendar
+is live; the status UI reports each service separately.
+
+## 9. Observability
+
+- `case_timeline` records plain-language statuses, transitions, recommendations, decisions,
+  effects, errors, and non-quiet tool calls/results.
+- `agent_runs` records input, output, live/fallback mode, status, step and tool counts,
+  tool errors, latency, and error text.
+- `audit_log` records attributed triggers, decisions, and effects.
+- `system_status` stores provider health and forced-resilience state.
+- `/api/feed` polls new timeline rows and streams them to the UI over SSE.
+
+The audit log is append-only by application convention, not immutable database storage.
+This is rubric-level observability, not production distributed tracing: there is no
+OpenTelemetry backend, alerting, retention policy, token/cost accounting, or direct span
+linkage between every timeline tool event and an `agent_runs` row.
+
+## 10. Failure and resilience behavior
+
+| Failure | Current behavior |
 |---|---|
-| LLM API down / timeout | Case → `escalated` with deterministic fallback suggestions attached (raw ranked slots, template messages). Degraded-mode toggle demonstrates this live. |
-| Tool throws | Retried once; then step recorded as failed; agent decides to proceed or escalate; runtime hard-caps steps. |
-| Zod validation fails twice | Escalate with both raw outputs attached for staff inspection. |
-| Google API quota/auth error | Provider marks itself unhealthy; system flips to simulated mode with a visible banner; queued writes retry when healthy. |
-| Worker crash | Events are `pending` rows; restart resumes; idempotency keys on executor actions prevent double-sends. |
+| Live model error, quota, timeout, invalid result, or step cap | Marks the provider unhealthy. When fallback is enabled, assessment, scheduling, recovery, risk, and comms use schema-compatible deterministic playbooks. |
+| AI unavailable during reply handling | The current router uses the guarded legacy reply classifier for simple intents/counters. Rich compound extraction and the constraint editor are not equivalent in resilience mode. |
+| Negotiation model unavailable | The policy fallback escalates to staff with the accumulated context. |
+| Invalid or unsafe model proposal | Zod validation, constraint validation, policy guards, content lint, staff approval, and execution-time placement validation constrain it. |
+| Google read failure during planning | Marks Calendar unhealthy and retries free/busy through the simulated provider. |
+| Gmail draft creation failure | Marks Gmail unhealthy and creates a labeled simulated draft. |
+| Gmail send failure after a live draft exists | Retains the draft, records the error, and marks the recommendation failed rather than risking a duplicate send. |
+| Worker event failure | One retry, then the event is failed and an associated case is escalated when possible. |
+| Worker crash before an event is claimed | Pending events remain in SQLite and can be claimed after restart. |
+| Worker crash after an event is marked `processing` | No stale-claim recovery currently exists; the row can remain stuck and needs manual repair/reset. |
 
-## 11. Evaluation architecture
+Executor rows with `executed_at` are skipped on later passes, but there is no universal
+external idempotency key. A crash between an external write and the corresponding database
+update remains a production-hardening gap.
 
-`eval/harness.ts` replays scripted scenario files (`sim/scenarios/*.json`) through the real event pipe with the patient simulator answering, then computes the PRODUCT.md §9 metrics from `case_timeline` + `audit_log`. Same code path as the live demo — the evaluation numbers describe the actual system, not a mock.
+## 11. Security and scope limitations
 
-## 12. Scaling notes (paper's "future work" section)
+Implemented safeguards include the staff-only state transition, read-only agent tools,
+input guards for clinical/upset/injection content, output linting, slot validation, and
+minimal scheduling data rather than clinical records.
 
-- SQLite → Postgres (Drizzle migration only; row-locking for slot contention via `SELECT ... FOR UPDATE`).
-- Polling → Calendar push notifications + Gmail Pub/Sub watch.
-- Rule-based risk scorer → gradient-boosted model on real anonymized history.
-- Single clinic → tenancy via `clinic_id` scoping already present in every table.
+This v0 is not production-secure:
+
+- there is no authentication or authorization; the UI role switcher and actor strings are
+  demo conventions, not verified identities;
+- patient contact data and OAuth tokens are stored server-side but are not encrypted at
+  rest by the application;
+- the audit log is not tamper-proof;
+- the system supports one clinic, one sequential worker, and tracked email threads only;
+- Gmail push, Calendar webhooks, SMS, phone intake, tenancy enforcement, and horizontal
+  worker recovery are not implemented.
+
+## 12. Verification and evidence limits
+
+The automated suite exercises the state machine, validators, providers through test doubles,
+approval routes, LangGraph pause/resume, and full recovery flows in fallback/simulated mode.
+The constraint corpus separately evaluates the live extractor against a deterministic
+baseline.
+
+The extraction corpus is a development set: prompts and labels were iterated against it.
+A frozen held-out set and a live-model end-to-end regression run are still needed before
+claiming generalized AI reliability.
