@@ -1,133 +1,138 @@
 # SchediCare — Riverside Family Clinic
 
-**Multi-agent appointment disruption management for one small outpatient clinic.**
-When a doctor calls in sick, SchediCare's agents map the blast radius, find rule-valid
-alternatives for every affected patient, draft the outreach — and then stop.
-**SchediCare proposes. Clinic staff approve.** Nothing is written to a calendar and
-nothing reaches a patient without an explicit human decision.
+**Agentic appointment disruption recovery for a small outpatient clinic.**
+When a doctor calls in sick, SchediCare maps the blast radius, finds rule-valid
+alternatives for every affected patient, drafts the outreach, understands the
+replies (English or Taglish), and negotiates counter-proposals within strict
+bounds — stopping at every consequential step. **SchediCare proposes. Clinic
+staff approve.** Nothing reaches a patient or a calendar without an explicit
+human decision.
 
-Built as an AI-engineering capstone: Next.js 14 + TypeScript (strict) + SQLite, with
-**LangGraph** orchestration (each case is a checkpointed graph thread that pauses at
-the human approval gate), Gemini function-calling agents in live mode, and
-byte-identical deterministic playbooks in Presentation Resilience Mode.
+Design principle: **authority scales with verifiability.** Everything
+repeatable and checkable is deterministic code — the slot engine, validators,
+ranking, the case state machine, reply triage, and the negotiation guards.
+LLMs sit only at the open-ended joints: interpreting a disruption, extracting
+a patient's free-text constraints, choosing the next negotiation move,
+drafting prose. Model output flows through validators and a staff gate before
+anything happens.
 
----
-
-## 60-second start (no keys, works offline)
-
-```bash
-npm install          # Node 18.17+ (Node 20/22 recommended)
-npm run demo         # seeds data, starts web (localhost:3000) + worker together
-```
-
-Then follow the flagship story:
-
-1. **Doctor** tab → press **⚡ Emergency Unavailability** ("Yes — I'm out today").
-2. Watch the **Front desk** tab: the case appears in the inbox, works through
-   planning, and stops at **Needs your review** with 6 suggestions.
-3. Decide like the front desk would: **Approve** four, **Modify** Jose's time
-   (pick another validated option), **Reject** Grace's with a reason.
-4. The executor rebooks, calendars update (labeled *Simulated* in this mode),
-   offer emails go out, and simulated patients reply within seconds — all in a
-   plain-language Activity feed (a "Technical detail" toggle reveals the agents).
-5. Miguel counters — *"Anything after 4 PM?"* — a single-patient replan appears
-   for approval. Approve it; he accepts; the case resolves.
-6. The scoreboard tells the story: **6 affected → 5 rebooked & confirmed,
-   1 flagged for a phone call, 130 minutes of care recovered.**
-
-Secondary flows to poke at: **Patient** tab (book / confirm / cancel — a
-cancellation opens a waitlist-backfill case), the confirmation nudge (Paolo),
-the no-show-risk outreach (Dennis), and **Settings → Demo & data** (reset,
-re-trigger, force resilience) plus **Settings → Audit log**.
-
-> Everything above runs in **Presentation Resilience Mode** — deterministic
-> agents + simulated Google providers with identical data shapes. The demo can
-> never be taken down by an API outage.
-
-## Two runtime modes
-
-| | Live Agentic Mode | Presentation Resilience Mode |
-|---|---|---|
-| Agent brain | Gemini function calling (`@google/genai`) | Deterministic playbooks (same schemas) |
-| Calendar | Google Calendar (real events) | Simulated provider (SQLite-backed) |
-| Email | Gmail — **drafts until staff press Send** | Simulated mail, auto-sends, personas reply |
-| Switch | automatic on any live failure, or forced from Admin | always available |
-
-Setup for live mode: [docs/GEMINI_SETUP.md](docs/GEMINI_SETUP.md) and
-[docs/GOOGLE_WORKSPACE_SETUP.md](docs/GOOGLE_WORKSPACE_SETUP.md). The current
-mode is always visible in the header dot and in Settings → Connections, with the
-reasons listed whenever resilience is active. Details: [docs/FALLBACK_MODE.md](docs/FALLBACK_MODE.md).
-
-## The trust contract (what the agents can and cannot do)
-
-- **Slot truth is code, not tokens.** A deterministic engine generates every
-  valid slot from doctor rules (windows per visit type, buffers, daily/block
-  caps, workdays, external calendar busy blocks). Agents choose among validated
-  options and explain the choice ("Why?" chips) — they can never invent a time.
-- **The approval gate is a state machine, not a convention.** Only an actor
-  named `staff*` can move a case `awaiting_approval → executing`
-  (`core/cases.ts`); the executor re-validates every placement at execution
-  time and vetoes anything stale.
-- **Effects are late and labeled.** Calendar writes happen only in the
-  executor, after approval. Live Gmail messages stay as drafts until a human
-  presses **Send**. Simulated effects are labeled *Simulated* everywhere.
-- **No clinical judgment.** Priority uses appointment type, staff-set priority,
-  continuity notes, and history only. Inbound replies pass a guard first:
-  medical content, anger, or prompt-injection quarantines the thread for a
-  person. Outbound drafts are linted; clinical language is replaced with a safe
-  template. See [docs/SECURITY_AND_SCOPE.md](docs/SECURITY_AND_SCOPE.md).
-- **Everything is audited.** Every consequential action lands in the audit log
-  with an actor, and the case timeline replays the whole story.
-
-## Commands
+## Quickstart
 
 ```bash
-npm run setup          # create schema + seed the demo world
-npm run dev            # web only (localhost:3000)
-npm run worker         # agent worker (run alongside dev)
-npm run demo           # seed + web + worker in one command
-npm run demo:reset     # restore the exact pre-demo state
-npm run demo:cascade   # trigger the flagship emergency from the CLI
-npm test               # vitest — 42 tests incl. cascade E2E + LangGraph lifecycle
-npm run eval           # measured metrics → eval/results.json (see docs/EVALUATION.md)
-npm run typecheck      # tsc --noEmit (strict)
-npm run lint           # eslint (next/core-web-vitals)
-npm run build          # production build
-bash scripts/headless-verify.sh   # 20-check E2E against the real servers
+npm install                # Node 18.17+ (20/22 recommended)
+npm run demo:reset:lite    # seed the 3-patient demo world (clears the clock anchor)
+npm run dev                # terminal 1 — web on http://localhost:3000
+npm run worker             # terminal 2 — agent worker
+npm run demo:cascade       # trigger the disruption (or press ⚡ in the Doctor view)
 ```
 
-The demo clock is anchored to **Monday 2026-08-10 07:30 Asia/Manila**
-(`DEMO_NOW`), so the seeded world is stable and every screenshot reproduces.
+`npm run demo` seeds the full world and starts web + worker in one command.
+The demo clock is anchored to **Mon 2026-08-10 07:30 Asia/Manila**; restart
+both processes after any reset or env change.
+
+Live mode: `AI_PROVIDER=bedrock` runs the agents on **Claude Sonnet 4.6 via
+Amazon Bedrock** (the primary demo brain); Gmail and Google Calendar are wired
+per [docs/GOOGLE_WORKSPACE_SETUP.md](docs/GOOGLE_WORKSPACE_SETUP.md). Without
+keys, everything degrades to deterministic fallbacks and simulated providers
+with identical data shapes — degrading to _staff review_, never to dumber
+automation ([docs/FALLBACK_MODE.md](docs/FALLBACK_MODE.md)).
+
+## What it does
+
+- **Disruption cascade** — doctor emergency → assessment (severity, priority,
+  no clinical judgment) → validated slot search → deterministic ranking with
+  "Why?" chips → drafted offers → **staff approval gate** → executor books
+  holds and sends mail → replies tracked to resolution.
+- **Constraint understanding** — free-text, Taglish-native replies become
+  structured compound constraint sets (dates, weekday allow/exclude, time
+  windows, doctor requirements, soft preferences) with evidence quotes, behind
+  a clinical-content guard and a validator/canonicalizer.
+- **Constraint editor** — staff see extracted constraints per appointment,
+  toggle hard/soft, resolve ambiguity, search matching slots, and get
+  relaxation hints with computed per-constraint yields when nothing fits.
+- **Guarded negotiation** — a closed 3-action policy (offer validated slots /
+  ask one clarifying question / escalate), turn budget of 3, never-ask-twice,
+  unknown-slot rejection; every outbound goes through the same approval gate.
+- **One thread per patient** — all mail lives in a single Gmail conversation
+  with proper RFC threading; confirmations get a deterministic same-thread
+  acknowledgment (template-only, the one outbound that needs no gate).
+- **Quieter work, same pattern** — vacated-slot waitlist backfill, no-show-risk
+  preventive outreach, and unconfirmed-visit nudges all wait behind the gate.
+- **Observability** — every tool call, transition, and decision lands in a
+  per-case timeline (plain language, technical detail behind a toggle) and an
+  actor-attributed audit log; `npx tsx scripts/why-not-resolved.ts` explains
+  exactly what blocks a resolving case.
+
+## How it works
+
+```mermaid
+flowchart LR
+  E["Event queue (SQLite)"] --> G["LangGraph case graph"]
+  G --> P["plan: assess → search → rank → draft"]
+  P --> A{{"staff approval gate"}}
+  A --> X["execute: calendar + mail"]
+  X --> W["watch: replies, triage, negotiation"]
+  W -->|"counter / clarification"| A
+  W --> R["resolved"]
+```
+
+Each case is a checkpointed LangGraph thread (plan → gate → execute → watch)
+whose edges route on database state; the state machine in `core/cases.ts`
+makes `→ executing` a staff-only transition. The full workflow — which parts
+are LLM, which are deterministic, and where the branches and loops live — is
+diagrammed in [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md).
+
+## Verification
+
+```bash
+npm run typecheck && npm test   # 79 tests across 10 suites
+npm run build                   # production build
+npm run eval:constraints        # extraction vs deterministic baseline
+```
+
+Constraint extraction on the 66-case labeled dev corpus (compound, negation,
+relative dates, Taglish, doctor preferences, mixed clinical): **100% full
+match** with guard 4/4, vs **34%** for the corrected deterministic rules
+baseline on the same scorer. _Dev-set figure_ — the prompt and labels were
+iterated on these cases; a frozen held-out set is the next evaluation step.
+Details and history: [docs/TEST_REPORT.md](docs/TEST_REPORT.md),
+[docs/EVALUATION.md](docs/EVALUATION.md), [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
+## Scope & limitations (v0, deliberately)
+
+One clinic, two doctors, one worker process, no authentication (role switcher;
+the staff-only gate checks an actor string), demo-anchored clock. Intake is
+**email on tracked threads only** — mailbox-wide intake, SMS, and phone are
+future integrations, not redesigns: the extractor consumes text, the
+negotiator consumes constraint sets, and the gates consume recommendations,
+none of which know the channel. Ranking and negotiation weights are
+hand-tuned, not learned. Extraction accuracy carries the dev-set caveat above.
+The agent mandate is scheduling operations, never medicine: inbound clinical
+content quarantines to a person, outbound drafts are linted
+([docs/SECURITY_AND_SCOPE.md](docs/SECURITY_AND_SCOPE.md)).
 
 ## Repo map
 
 ```
 app/            Next.js App Router — pages (/book /doctor /ops /settings) + API routes
 graph/          LangGraph case lifecycle (plan → gate → execute → watch) + event dispatch
-agents/         Agent definitions: assessment, scheduling, recovery, comms, risk
-agents/runtime/ LangChain Gemini loop + Zod validation + deterministic fallback dispatch
-core/           Slot engine, validator, ranking, risk, case state machine, audit, clock, db
+agents/         Assessment, scheduling, recovery, comms, risk, constraint extractor, negotiation policy
+agents/runtime/ Provider-agnostic tool loop (Bedrock / Gemini) + Zod validation + fallback dispatch
+core/           Slot engine, validators, constraints, ranking, negotiations, case state machine, audit, clock, db
 integrations/   Google Calendar/Gmail providers, simulated twins, OAuth, MCP transport
-worker/         Event queue, pipeline steps, executor, reply handling, daily sweep
-sim/            Deterministic seed (32 patients, ~45 appointments) + reply personas
-tests/          8 suites, 42 tests — incl. cascade E2E and the LangGraph lifecycle test
-eval/           Metric harness + 50-reply labeled dataset + latest results.json
-docs/           Setup guides, runbook, test report, evaluation, LangGraph, security & scope
-scripts/        setup / reset / cascade / demo / headless-verify
+worker/         Event queue, pipeline steps, executor, reply handling + triage, negotiation runner, daily sweep
+sim/            Deterministic seed + reply personas
+tests/          10 suites, 79 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
+eval/           Constraint corpus (66 labeled replies) + baseline scorer + metric harness
+docs/           Setup guides, runbook, agentic workflow, evaluation, security & scope
 ```
 
 ## Documentation
 
-- [PRODUCT.md](PRODUCT.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [DESIGN.md](DESIGN.md) · [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — the original plans
-- [PROJECT_STATUS.md](PROJECT_STATUS.md) — what shipped, deviations from plan, known limitations
+- [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md) — the agent graph: who does what, LLM vs deterministic
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) — what shipped, deviations, known limitations
 - [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md) — presenter script with fallback drills
-- [docs/TEST_REPORT.md](docs/TEST_REPORT.md) · [docs/EVALUATION.md](docs/EVALUATION.md) — real, reproduced numbers
-- [docs/LANGGRAPH.md](docs/LANGGRAPH.md) — how cases run as checkpointed graph threads
-- [docs/MCP_SETUP.md](docs/MCP_SETUP.md) · [docs/MCP_FEASIBILITY.md](docs/MCP_FEASIBILITY.md) — the MCP readiness path
-
-## Scope honesty
-
-One clinic, two doctors, no authentication (role switcher instead), demo-anchored
-clock, English/Taglish replies only, and a deliberately narrow agent mandate:
-scheduling operations, never medicine. The full list — and why each cut was made —
-is in [PROJECT_STATUS.md](PROJECT_STATUS.md).
+- [docs/TEST_REPORT.md](docs/TEST_REPORT.md) · [docs/EVALUATION.md](docs/EVALUATION.md) — reproduced numbers
+- [docs/NEGOTIATION.md](docs/NEGOTIATION.md) · [docs/LANGGRAPH.md](docs/LANGGRAPH.md) — design notes
+- [ARCHITECTURE.md](ARCHITECTURE.md) · [PRODUCT.md](PRODUCT.md) — system + product overviews
+- [DESIGN.md](DESIGN.md) · [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — **historical** pitch-era plans, kept for the record

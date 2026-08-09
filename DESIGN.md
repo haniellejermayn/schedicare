@@ -1,27 +1,34 @@
 # DESIGN.md — SchediCare
 
+> **Historical document.** This is the original pitch-era design spec (warm
+> purple tokens, three-pane ops view, replay scrubber, command bar). The
+> shipped UI was rebuilt as a clinical-neutral, single-column front desk in
+> secretary language — see PROJECT_STATUS.md ("v2 — LangGraph orchestration +
+> front-desk redesign"). Kept for the record; do not treat as current UI
+> documentation.
+
 The pitch mockup (`Schediaid_dc.html`) already establishes a strong, coherent visual identity — a warm purple healthcare-tech look with soft depth and confident typography. This document extracts it into a reusable system, then extends it to the surfaces the mockup didn't cover (staff ops center, agent activity feed, approval flow). **Keep the mockup's language; don't revamp it.** It photographs well, it's distinctive, and consistency between pitch and final demo reads as execution maturity to a panel.
 
 ## 1. Design tokens (extracted from the mockup)
 
 ### Color
 
-| Token | Value | Use |
-|---|---|---|
-| `--primary` | `#5B2FCE` | Brand, primary actions, agent identity |
-| `--primary-strong` | `#3D2A8C` | Emphasis text on lavender surfaces |
-| `--primary-soft` | `#EDE8FF` | Lavender chips, selected states, agent bubbles |
-| `--gradient-brand` | `linear-gradient(160deg,#5B2FCE,#7B4FE0)` | Hero headers |
-| `--bg` | `#F4F2FB` | App background |
-| `--surface` | `#FFFFFF` | Cards |
-| `--surface-tint` | `#F8F6FE` | Nested cards, detail blocks |
-| `--border` | `#E9E6F2` / `#EEEBF7` | Hairlines |
-| `--ink` | `#1E1B2E` | Primary text |
-| `--ink-2` | `#6B6685` / `#7A7390` | Secondary text |
-| `--ink-3` | `#9A93B5` | Tertiary / labels |
-| `--success` | `#18A06A` (`gradient 160deg #18A06A→#23B57C`) | Confirmations, resolved |
-| `--warning` | `#B5791F` on `#FFF6E9`, border `#F6E2BD` | At-risk, unconfirmed |
-| `--danger` | `#C0392B` | Emergency, escalated |
+| Token              | Value                                         | Use                                            |
+| ------------------ | --------------------------------------------- | ---------------------------------------------- |
+| `--primary`        | `#5B2FCE`                                     | Brand, primary actions, agent identity         |
+| `--primary-strong` | `#3D2A8C`                                     | Emphasis text on lavender surfaces             |
+| `--primary-soft`   | `#EDE8FF`                                     | Lavender chips, selected states, agent bubbles |
+| `--gradient-brand` | `linear-gradient(160deg,#5B2FCE,#7B4FE0)`     | Hero headers                                   |
+| `--bg`             | `#F4F2FB`                                     | App background                                 |
+| `--surface`        | `#FFFFFF`                                     | Cards                                          |
+| `--surface-tint`   | `#F8F6FE`                                     | Nested cards, detail blocks                    |
+| `--border`         | `#E9E6F2` / `#EEEBF7`                         | Hairlines                                      |
+| `--ink`            | `#1E1B2E`                                     | Primary text                                   |
+| `--ink-2`          | `#6B6685` / `#7A7390`                         | Secondary text                                 |
+| `--ink-3`          | `#9A93B5`                                     | Tertiary / labels                              |
+| `--success`        | `#18A06A` (`gradient 160deg #18A06A→#23B57C`) | Confirmations, resolved                        |
+| `--warning`        | `#B5791F` on `#FFF6E9`, border `#F6E2BD`      | At-risk, unconfirmed                           |
+| `--danger`         | `#C0392B`                                     | Emergency, escalated                           |
 
 Extend for the ops center (same saturation family):
 `--info #2F6FCE` on `#E8F0FF` (in-progress), `--muted-chip #F1EFF8` (queued).
@@ -39,7 +46,7 @@ Extend for the ops center (same saturation family):
 - `scd-pop` — 500ms overshoot scale: success checks, approvals landing.
 - `scd-blink` — 1.4s opacity pulse: live status dots (agent working, doctor status).
 - `scd-spin` — spinners.
-- Rule: motion communicates *agent activity and state change*, never decoration. Respect `prefers-reduced-motion`.
+- Rule: motion communicates _agent activity and state change_, never decoration. Respect `prefers-reduced-motion`.
 
 ## 2. Information architecture
 
@@ -62,7 +69,7 @@ Additions: **Follow-up** as third type chip (proposal requires it); slot chips s
 ### 3.2 Doctor dashboard (keep mockup, add rules editor)
 
 Retained: identity header with blinking status pill, capacity card (`n / 15` + progress bar), week strip with Morning·Follow-ups / Afternoon·Consults blocks, clinic-flow card with "Walk-ins trending high" chip and at-risk slot rows.
-Added: **Rules editor** — a card of plain-language toggles/steppers that literally are the Scheduling agent's constraints (windows per type, buffer minutes, max/day, max/block). Emphasize in demo: *the doctor edits a rule, the agent's next plan respects it.*
+Added: **Rules editor** — a card of plain-language toggles/steppers that literally are the Scheduling agent's constraints (windows per type, buffer minutes, max/day, max/block). Emphasize in demo: _the doctor edits a rule, the agent's next plan respects it._
 Added: **Emergency unavailability** — red-outline button → date-range sheet → confirm shows "SchediCare is opening a recovery case" with the blink dot. This is the doctor-side trigger of The Cascade.
 
 ### 3.3 Staff ops center (new — the demo star)
@@ -82,7 +89,7 @@ Three-pane layout, 1180px max width like the doctor view:
 
 - **Case card** (queue): severity edge-stripe (danger/warning/info), title ("Dr. Santos — emergency absence"), progress micro-bar of state machine stages, affected count pill.
 - **Recommendation card**: patient avatar-initials, current → proposed appointment (before/after in one row, arrow between), score as a subtle 5-dot meter, "Why?" expander listing constraint chips (each chip = one rule/preference/capacity fact used). Approve = primary button (pop animation on land), Modify opens slot-picker constrained to validator-passing options only, Reject requires a reason (feeds the eval + audit).
-- **Approval bar** is sticky and shows the safety line verbatim: *"Nothing is sent or written until you approve."*
+- **Approval bar** is sticky and shows the safety line verbatim: _"Nothing is sent or written until you approve."_
 - **Agent feed entry**: role-colored logo avatar, agent name, action verb line, optional detail line, timestamp; entries stream in with `scd-in`, active agent's dot blinks; on case resolution the feed collapses into the replay scrubber.
 - **Recovery scoreboard**: slim top strip on `/ops` — big numerals (34/800/−1px style): minutes-to-recovery ticking, slots recovered, drafts awaiting approval, staff clicks saved.
 

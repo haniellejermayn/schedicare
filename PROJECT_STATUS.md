@@ -1,8 +1,55 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (62/62), `npm run eval`
-(all targets met), `npm run eval:constraints` (baseline benchmarked), and
-`npm run build` (clean).
+Status date: build verified against `npm test` (**79/79 across 10 files**),
+`npm run typecheck` (strict, clean), and `npm run build` (clean). Extraction
+numbers carry the dev-set caveat (see v2.3).
+
+## Guarded negotiation + demo hardening (v2.3)
+
+**Negotiation loop.** One negotiation row per (case, appointment); a closed
+3-action policy (offer slots by candidate key only / ask ONE clarifying
+question citing computed relaxation counts / escalate to staff); a
+deterministic guard enforces the turn budget (3), rejects unknown slots and
+targets, and never asks about the same constraint twice. Clarifications are
+recommendations through the normal DecisionCard gate; answers carry the
+question as extractor context; merges are diffed deterministically and
+narrated in the timeline. Policy fallback escalates — never dumber automation.
+
+**Constraint editor + triage.** Inbound replies flow guard → extractor
+(evidence spans, calendar-table date resolution, merge with prior
+constraints) → validator/canonicalizer → deterministic triage lanes
+(route_legacy / constraint_review / needs_human). The editor shows
+per-appointment constraints with evidence quotes, hard/soft toggles, a
+diff panel for multi-turn merges, and zero-slot relaxation hints with
+per-constraint yields; "Keep everything — ask the patient" delegates to the
+negotiation loop.
+
+**Threading + resolution.** All of a patient's mail lives in ONE Gmail
+conversation (threadId + `Re:` subjects + In-Reply-To/References); inbound
+replies attribute to the latest outbound on the thread. Ghost holds fixed via
+a lineage sweep at execution; `scripts/why-not-resolved.ts` prints exactly
+what blocks a resolving case.
+
+**Copy/polish (P0).** Assessment describes urgency and impact only — never
+prescribes the recovery action. Patient-facing availability uses exact counts
+only when ≤5, qualitative wording otherwise (exact figures stay on the staff
+card). Cross-doctor offers say so explicitly ("with Dr. Reyes, who is
+covering for Dr. Santos") and offer the wait-for-usual-doctor alternative.
+Confirmations get a deterministic same-thread acknowledgment — template only,
+the one outbound that legitimately skips the gate.
+
+**Gate integrity fix.** With parallel patients on one case, one patient's
+needs_human escalation could demote `awaiting_approval` and lock another
+patient's pending approval behind a 409. Escalation now preserves a pending
+staff gate (logged, state kept), decisions are accepted on escalated cases
+with pending proposals, and the staff-only guard on any transition into
+`executing` is unchanged. Two regression tests pin the behavior.
+
+**Extraction re-run (supersedes the v2.2 numbers).** After label corrections
+and prompt iteration: dev corpus **66 cases — 100% full match, guard 4/4**,
+vs the corrected deterministic baseline at **34%**. _Dev-set figures_ — a
+frozen held-out set (~35 fresh cases, run once) is still owed before the
+defense, with dev numbers re-run at freeze time.
 
 ## Constraint foundation + resolution fixes (v2.1)
 
@@ -56,7 +103,7 @@ corpus labeling conventions, a Taglish glossary, a 15-day calendar table
 conventions" from three error-analysis loops. Guard runs before it;
 output flows only through validator → staff editor → engine.
 
-**Results (dev set, 65 cases, 3 runs).** Claude Sonnet 4.6: **97% full
+**Results (dev set, 65 cases, 3 runs — superseded by the v2.3 re-run above).** Claude Sonnet 4.6: **97% full
 match** (97/97/97), 97% intent, 100% field precision/recall, vs corrected
 deterministic baseline 31% / 63%. Sole residuals are two known
 guard-layer bugs (Tagalog "dose" false quarantine; "headaches" miss) —
@@ -118,10 +165,12 @@ case: decisions, patient outcomes, Activity/Messages tabs), `/settings`
 (Connections · Demo & data · Audit log; `/integrations` and `/admin`
 redirect here).
 
-**Runtime modes:** Gemini function-calling agents (`@google/genai`, tool loop
-with Zod-validated results) and deterministic fallbacks producing the same
+**Runtime modes:** a provider-agnostic tool-loop runtime — **Claude Sonnet
+4.6 on Amazon Bedrock** (primary, `AI_PROVIDER=bedrock`) or Gemini via
+`@langchain/google` — with deterministic fallbacks producing the same Zod
 schemas; Google Calendar + Gmail providers with simulated twins; automatic,
-labeled degradation on any live failure; MCP transport stub with health check.
+labeled degradation on any live failure; MCP transport with a real handshake
+and health check (a readiness path, not the active integration).
 
 ## Deviations from the original plans (and why)
 
@@ -164,9 +213,13 @@ labeled degradation on any live failure; MCP transport stub with health check.
 - **Demo-anchored clock.** `DEMO_NOW` freezes the world at Mon 2026-08-10
   07:30 Manila and advances in real time from process start; restarting resets
   the anchor. Cron-style scheduling is simplified to a per-demo-day sweep.
-- **Reply understanding is intent-level.** Free-text constraints cover
-  after/before times, day-parts, weekdays, and noon-ish phrases; anything
-  richer routes to a human by design.
+- **Intake is email on tracked threads only.** Replies are understood as
+  compound constraint sets (dates, weekday allow/exclude, OR'd time windows,
+  doctor requirements, soft preferences) with evidence spans — but only on
+  Gmail threads SchediCare started. Mailbox-wide intake, SMS, and phone are
+  integrations left to future work; the extractor, negotiator, and gates are
+  channel-agnostic by design. Extraction accuracy is a dev-set figure (v2.3);
+  ranking and negotiation weights are hand-tuned, not learned.
 - **Live-mode extras not built:** Gmail push (we poll known threads every 20s),
   webhook calendars, timezone-per-patient, SMS. MCP is a readiness path with a
   working health check, not the active integration (see docs/MCP_FEASIBILITY.md).

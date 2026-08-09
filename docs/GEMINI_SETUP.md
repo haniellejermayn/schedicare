@@ -1,8 +1,11 @@
-# Gemini setup (Live Agentic Mode brain)
+# Gemini setup (alternate live provider)
 
-SchediCare's agents run on Gemini function calling via `@google/genai`. Without
-a key the same pipeline runs on deterministic playbooks (Presentation
-Resilience Mode) — every feature still works.
+Gemini is SchediCare's **alternate** live provider, running through the same
+provider-agnostic tool loop via `@langchain/google` (`AI_PROVIDER=gemini`).
+The primary demo brain is **Claude Sonnet 4.6 on Amazon Bedrock**
+(`AI_PROVIDER=bedrock` — see `.env.example`). Without any key, the same
+pipeline runs on deterministic fallbacks — every feature still works,
+degrading to staff review rather than dumber automation.
 
 ## 1. Get a free API key
 
@@ -33,7 +36,7 @@ Restart `npm run dev` **and** the worker (env is read at process start).
 ## 3. Verify
 
 Open **/integrations** → Gemini card → **Verify**. A live round-trip runs and
-the health badge flips to *Healthy* ("Model … responded: pong"). The header
+the health badge flips to _Healthy_ ("Model … responded: pong"). The header
 pill switches to **Live Agentic Mode** once calendar/mail are also live — or
 immediately if those stay simulated but `AI_PROVIDER=gemini` (mode reasons are
 listed on the page).
@@ -55,4 +58,4 @@ the same way — mid-demo, without stopping the pipeline.
 - **"AI_PROVIDER is set to fallback"** on Verify: set `AI_PROVIDER=gemini` and
   restart both processes.
 - **Key works in curl but not here**: ensure `.env.local` is in the repo root
-  and you restarted the *worker* too — it makes the model calls.
+  and you restarted the _worker_ too — it makes the model calls.
