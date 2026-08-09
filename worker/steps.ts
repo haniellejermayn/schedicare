@@ -353,7 +353,10 @@ export async function commsStep(
         originalWhen: fmtWhen(it.startUtc),
         proposedWhen: fmtWhen(chosen.startUtc),
         proposedDoctorName: chosen.doctorName,
-        reason: opts?.replanOf ? "counter" : m.reason,
+        // Privacy: the doctor's stated reason (e.g. "Family emergency") is
+        // for the FRONT DESK — patients only ever hear a generic
+        // "unexpected emergency". The model can't repeat what it never sees.
+        reason: opts?.replanOf ? "counter" : "unexpected_unavailability",
         extraNote: opts?.replanNote ?? undefined,
       },
     });
