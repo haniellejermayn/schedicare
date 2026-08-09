@@ -210,9 +210,9 @@ and health check (a readiness path, not the active integration).
   production.
 - **Single clinic, two doctors, one worker process.** The queue is SQLite
   (`busy_timeout` + claim-by-update); horizontal scale is out of scope.
-- **Demo-anchored clock.** `DEMO_NOW` freezes the world at Mon 2026-08-10
-  07:30 Manila and advances in real time from process start; restarting resets
-  the anchor. Cron-style scheduling is simplified to a per-demo-day sweep.
+- **Configurable application clock.** `DEMO_NOW=now` follows the current Manila
+  time for live presentations; an ISO value keeps tests and offline rehearsals
+  deterministic. Cron-style scheduling is simplified to a per-day sweep.
 - **Intake is email on tracked threads only.** Replies are understood as
   compound constraint sets (dates, weekday allow/exclude, OR'd time windows,
   doctor requirements, soft preferences) with evidence spans — but only on
@@ -220,7 +220,8 @@ and health check (a readiness path, not the active integration).
   integrations left to future work; the extractor, negotiator, and gates are
   channel-agnostic by design. Extraction accuracy is a dev-set figure (v2.3);
   ranking and negotiation weights are hand-tuned, not learned.
-- **Live-mode extras not built:** Gmail push (we poll known threads every 20s),
+- **Live-mode extras not built:** Gmail push (known threads are polled at the
+  configurable `GMAIL_POLL_MS`, currently 3s for the presentation),
   webhook calendars, timezone-per-patient, SMS. MCP is a readiness path with a
   working health check, not the active integration (see docs/MCP_FEASIBILITY.md).
 - **Accessibility:** semantic labels, no color-only status, reduced-motion

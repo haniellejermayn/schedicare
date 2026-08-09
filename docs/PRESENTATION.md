@@ -155,8 +155,8 @@ Fields for the provided template:
 1. **Agentic workflow (slide 3):** `docs/AGENTIC_WORKFLOW.md` Diagram 1 →
    mermaid.live → export SVG/PNG. Diagram 2 as a backup slide.
 2. **Observability (slide 5):** timeline screenshots (toggle off/on) +
-   audit log inset — capture from a fresh `demo:reset:lite` run so the
-   clock reads Mon Aug 10.
+   audit log inset — capture from a fresh `demo:reset` run so the clock and
+   showcase day match the live presentation.
 3. **Demo insurance (slide 6):** screen recording of one clean run.
 4. Optional slide-2 background: `/ops` inbox screenshot.
 5. Numbers table (slide 8): baseline 34% vs extractor 100%, guard 2/4 vs

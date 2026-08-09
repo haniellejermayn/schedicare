@@ -6,13 +6,13 @@ import "@/eval/loadEnv"; // .env.local / .env — must be the FIRST import
 import { spawn } from "node:child_process";
 import { seed } from "@/sim/seed";
 
-const s = seed();
+const s = seed("lite", { preserveIntegrations: true });
 console.log(
-  `\n[demo] Seeded ${s.patients} patients / ${s.appointments} appointments. Demo day: Monday 2026-08-10 (Asia/Manila).`,
+  `\n[demo] Seeded ${s.patients} patients / ${s.appointments} appointments. Three-patient cascade: ${s.demoDay} (Asia/Manila).`,
 );
 console.log("[demo] Starting web (http://localhost:3000) and worker …");
 console.log(
-  "[demo] Flow: Doctor view → ⚡ Emergency Unavailability → watch /ops → approve/modify/reject.\n",
+  "[demo] Flow: Doctor → I can't come in → watch /ops → approve three offers → reply through Gmail.\n",
 );
 
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";

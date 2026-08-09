@@ -1,22 +1,20 @@
 /**
- * Deterministic demo seed for Riverside Family Clinic (Pasig City).
- * All data is fictional. Fixed ids make the flagship cascade, tests, and the
- * eval harness reproducible run after run.
- *
- * Demo clock: Monday 2026-08-10, 07:30 Asia/Manila.
+ * Demo seed for Riverside Family Clinic (Pasig City). All data is fictional.
+ * Fixed ids keep tests reproducible; dates follow the configured application
+ * clock so a live presentation has realistic history and upcoming visits.
  */
-import { fromZonedTime } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { eq } from "drizzle-orm";
-import { addDays, addMinutes, format } from "date-fns";
+import { addDays, addMinutes, format, getISODay } from "date-fns";
 import { db, schema } from "@/core/db/client";
 import { ensureSchema, wipeData } from "@/core/db/migrate";
 import { SANTOS_RULES, REYES_RULES } from "@/core/rules";
 import { env, CLINIC_TZ } from "@/core/env";
+import { demoNow, demoToday } from "@/core/clock";
 
 export const CLINIC_ID = "clinic_riverside";
 export const SANTOS = "doc_santos";
 export const REYES = "doc_reyes";
-export const DEMO_DAY = "2026-08-10"; // Monday
 
 const DUR: Record<string, number> = { routine: 30, follow_up: 20, urgent: 30 };
 
@@ -26,11 +24,33 @@ function utc(day: string, hhmm: string): string {
 function end(day: string, hhmm: string, type: string): string {
   return addMinutes(new Date(utc(day, hhmm)), DUR[type]).toISOString();
 }
-function day(offsetFromDemoDay: number): string {
+function offsetDay(baseDay: string, offset: number): string {
   return format(
-    addDays(new Date(`${DEMO_DAY}T00:00:00Z`), offsetFromDemoDay),
+    addDays(new Date(`${baseDay}T00:00:00Z`), offset),
     "yyyy-MM-dd",
   );
+}
+
+/**
+ * Once today's clinic has opened, use the next Santos working day for the
+ * showcase disruption. An afternoon demo therefore always has upcoming
+ * appointments to recover.
+ */
+export function demoCascadeDay(): string {
+  let candidate = demoToday();
+  const clinicHour = Number(formatInTimeZone(demoNow(), CLINIC_TZ, "H"));
+  if (clinicHour >= 8) candidate = offsetDay(candidate, 1);
+  while (
+    !SANTOS_RULES.workDays.includes(
+      getISODay(new Date(`${candidate}T00:00:00Z`)),
+    )
+  )
+    candidate = offsetDay(candidate, 1);
+  return candidate;
+}
+
+function day(offsetFromDemoDay: number): string {
+  return offsetDay(demoCascadeDay(), offsetFromDemoDay);
 }
 
 function email(key: string): string {
@@ -200,21 +220,43 @@ export interface SeedSummary {
   patients: number;
   appointments: number;
   demoDayAffected: number;
+  demoDay: string;
   waitlist: number;
 }
 
+export interface SeedOptions {
+  /** Keep Google OAuth tokens and doctor calendar mappings across a reset. */
+  preserveIntegrations?: boolean;
+}
+
 /**
- * profile "full" (default): the 6-patient flagship cascade — used by tests,
- * eval, and the headline demo. profile "lite": the same world but only THREE
- * cascade patients on the demo day (Camille: urgent + priority, Miguel:
- * PM-preference counter-proposal, Grace: silent → callback), so a live
- * disruption run finishes in roughly half the time. Everything else —
- * secondary cases, waitlist, background load — is identical.
+ * "full" keeps all six regression patients. "lite" is the presentation path:
+ * Camille accepts, Grace declines, and Miguel counters once before accepting.
+ * Those replies arrive through real Gmail in live mode; seed never injects them.
  */
-export function seed(profile: "full" | "lite" = "full"): SeedSummary {
+export function seed(
+  profile: "full" | "lite" = "full",
+  opts: SeedOptions = {},
+): SeedSummary {
   ensureSchema();
-  wipeData();
+  const preservedMappings = opts.preserveIntegrations
+    ? new Map(
+        db
+          .select({
+            id: schema.doctors.id,
+            calendarId: schema.doctors.calendarId,
+          })
+          .from(schema.doctors)
+          .all()
+          .filter((d) => d.calendarId)
+          .map((d) => [d.id, d.calendarId!]),
+      )
+    : new Map<string, string>();
+  wipeData({ keepOauth: opts.preserveIntegrations });
   const now = new Date().toISOString();
+  const demoDay = demoCascadeDay();
+  const santosCalendarId = preservedMappings.get(SANTOS) ?? "sim-santos";
+  const reyesCalendarId = preservedMappings.get(REYES) ?? "sim-reyes";
 
   db.insert(schema.clinics)
     .values({
@@ -236,7 +278,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         email: "e.santos@riverside-clinic.example",
         color: "#5B2FCE",
         initials: "ES",
-        calendarId: "sim-santos",
+        calendarId: santosCalendarId,
         status: "available",
         unavailableDates: [],
         createdAt: now,
@@ -249,7 +291,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         email: "m.reyes@riverside-clinic.example",
         color: "#3D2A8C",
         initials: "MR",
-        calendarId: "sim-reyes",
+        calendarId: reyesCalendarId,
         status: "available",
         unavailableDates: [],
         createdAt: now,
@@ -317,7 +359,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         id: `hist_${i}`,
         patientId: h.patientId,
         kind: h.kind,
-        at: addDays(new Date(utc(DEMO_DAY, "08:00")), -h.daysAgo).toISOString(),
+        at: addDays(new Date(utc(demoDay, "08:00")), -h.daysAgo).toISOString(),
       })),
     )
     .run();
@@ -337,13 +379,13 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
   };
 
   const appts: ApptSeed[] = [
-    // ---- Flagship cascade: Dr. Santos, demo day (Mon 2026-08-10) ----
+    // ---- Flagship cascade: Dr. Santos, the dynamic showcase day ----
     {
       id: "appt_teresa",
       doctorId: SANTOS,
       patientId: "pat_teresa",
       type: "follow_up",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "08:30",
       status: "confirmed",
       bookedDaysBefore: 9,
@@ -353,7 +395,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: SANTOS,
       patientId: "pat_jose",
       type: "follow_up",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "09:10",
       status: "confirmed",
       bookedDaysBefore: 7,
@@ -363,7 +405,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: SANTOS,
       patientId: "pat_grace",
       type: "follow_up",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "09:50",
       status: "booked",
       bookedDaysBefore: 6,
@@ -373,7 +415,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: SANTOS,
       patientId: "pat_camille",
       type: "urgent",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "10:40",
       status: "confirmed",
       bookedDaysBefore: 1,
@@ -383,7 +425,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: SANTOS,
       patientId: "pat_miguel",
       type: "routine",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "13:30",
       status: "confirmed",
       bookedDaysBefore: 12,
@@ -393,7 +435,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: SANTOS,
       patientId: "pat_andres",
       type: "routine",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "14:20",
       status: "booked",
       bookedDaysBefore: 5,
@@ -451,7 +493,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: REYES,
       patientId: "pat_f01",
       type: "routine",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "08:30",
       status: "confirmed",
       bookedDaysBefore: 6,
@@ -461,7 +503,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: REYES,
       patientId: "pat_f02",
       type: "routine",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "09:30",
       status: "confirmed",
       bookedDaysBefore: 6,
@@ -471,7 +513,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: REYES,
       patientId: "pat_f03",
       type: "urgent",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "10:30",
       status: "booked",
       bookedDaysBefore: 0,
@@ -481,7 +523,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
       doctorId: REYES,
       patientId: "pat_f04",
       type: "follow_up",
-      day: DEMO_DAY,
+      day: demoDay,
       time: "13:30",
       status: "confirmed",
       bookedDaysBefore: 9,
@@ -837,13 +879,15 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
     )
     .run();
 
-  // Mirror every active appointment onto the doctor's simulated calendar and
-  // link the event id (exactly what the live Google path would store).
+  // Mirror active appointments only for simulated mappings. With a preserved
+  // live Google mapping, seeded rows intentionally have no external event id;
+  // approved replacement holds create genuine Google events later.
   const active = effectiveAppts.filter(
     (a) => (a.status ?? "booked") === "booked" || a.status === "confirmed",
   );
   for (const a of active) {
-    const calId = a.doctorId === SANTOS ? "sim-santos" : "sim-reyes";
+    const calId = a.doctorId === SANTOS ? santosCalendarId : reyesCalendarId;
+    if (!calId.startsWith("sim-")) continue;
     const evId = `simev_${a.id}`;
     db.insert(schema.simCalendarEvents)
       .values({
@@ -897,7 +941,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         doctorId: REYES,
         type: "routine",
         dayPart: "am",
-        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -18).toISOString(),
+        addedAt: addDays(new Date(utc(demoDay, "08:00")), -18).toISOString(),
         staffPriority: 0,
         status: "waiting",
       },
@@ -908,7 +952,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         doctorId: null,
         type: "routine",
         dayPart: "any",
-        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -10).toISOString(),
+        addedAt: addDays(new Date(utc(demoDay, "08:00")), -10).toISOString(),
         staffPriority: 0,
         status: "waiting",
       },
@@ -919,7 +963,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         doctorId: null,
         type: "follow_up",
         dayPart: "pm",
-        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -12).toISOString(),
+        addedAt: addDays(new Date(utc(demoDay, "08:00")), -12).toISOString(),
         staffPriority: 0,
         status: "waiting",
       },
@@ -930,7 +974,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
         doctorId: null,
         type: "routine",
         dayPart: "pm",
-        addedAt: addDays(new Date(utc(DEMO_DAY, "08:00")), -3).toISOString(),
+        addedAt: addDays(new Date(utc(demoDay, "08:00")), -3).toISOString(),
         staffPriority: 0,
         status: "waiting",
       },
@@ -941,6 +985,7 @@ export function seed(profile: "full" | "lite" = "full"): SeedSummary {
     patients: patients.length,
     appointments: effectiveAppts.length,
     demoDayAffected: profile === "lite" ? 3 : 6,
+    demoDay,
     waitlist: 4,
   };
 }

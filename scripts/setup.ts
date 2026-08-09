@@ -18,7 +18,7 @@ async function main() {
   const profile =
     process.argv[2] === "lite" ? ("lite" as const) : ("full" as const);
   if (existingPatients.length === 0) {
-    const s = seed(profile);
+    const s = seed(profile, { preserveIntegrations: true });
     console.log(
       `[setup] Riverside Family Clinic seeded (${profile}): ${s.patients} patients, ` +
         `${s.appointments} appointments (${s.demoDayAffected} on the demo day ` +
@@ -32,8 +32,7 @@ async function main() {
   }
 
   console.log(
-    `[setup] Demo clock anchor: 2026-08-10 07:30 Asia/Manila ` +
-      `(override with DEMO_NOW).`,
+    `[setup] Clock: ${process.env.DEMO_NOW || "now"} (Asia/Manila; use an ISO DEMO_NOW for deterministic runs).`,
   );
 
   console.log(

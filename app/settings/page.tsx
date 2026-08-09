@@ -171,16 +171,18 @@ function Connections() {
       )}
 
       <ServiceCard
-        title="AI (Gemini)"
+        title={`AI (${data.ai?.provider === "bedrock" ? "Claude on Bedrock" : data.ai?.provider === "gemini" ? "Gemini" : "Fallback"})`}
         subtitle={
-          data.gemini.provider === "gemini"
-            ? `Writes suggestions and reads replies with ${data.gemini.model}. If it fails mid-case, the built-in playbooks take over automatically.`
-            : "Not connected — the built-in playbooks handle everything. Add a key in .env.local to go live."
+          data.ai?.provider === "bedrock"
+            ? `Live semantic interpretation and agent reasoning with ${data.ai.model}.`
+            : data.ai?.provider === "gemini"
+              ? `Live semantic interpretation and agent reasoning with ${data.ai.model}.`
+              : "Deterministic fallback is configured; no live model calls will run."
         }
-        health={data.gemini.health}
-        onVerify={() => verify("gemini")}
-        verifying={verifying === "gemini"}
-        result={results.gemini}
+        health={data.ai?.health}
+        onVerify={() => verify(data.ai?.provider ?? "gemini")}
+        verifying={verifying === data.ai?.provider}
+        result={results[data.ai?.provider ?? "gemini"]}
       />
 
       <ServiceCard
@@ -196,6 +198,11 @@ function Connections() {
             {data.google.connected
               ? "Account connected"
               : "No account connected"}
+          </Chip>
+          <Chip tone={data.google.autoSimulateReplies ? "bad" : "ok"}>
+            {data.google.autoSimulateReplies
+              ? "Simulated replies enabled"
+              : `Actual replies only · ${data.google.gmailPollMs / 1000}s polling`}
           </Chip>
           <a
             href="/api/oauth/start"
@@ -297,12 +304,12 @@ function DemoData() {
       if (action === "reset") {
         const r = await jfetch<any>("/api/admin/reset", { method: "POST" });
         setToast(
-          `Demo reset — ${r.patients} patients, ${r.appointments} appointments reseeded. Restart the worker if it's mid-case.`,
+          `Demo reset — ${r.demoDayAffected} live-reply patients staged for ${r.demoDay}. Google connection and calendar mappings were kept.`,
         );
       } else if (action === "cascade") {
-        await jfetch("/api/admin/cascade", { method: "POST" });
+        const r = await jfetch<any>("/api/admin/cascade", { method: "POST" });
         setToast(
-          "Emergency triggered — Dr. Santos is out today. Open Front desk to review the suggestions.",
+          `Emergency triggered — Dr. Santos is out on ${r.date}. Open Front desk to review the suggestions.`,
         );
       } else {
         const r = await jfetch<any>("/api/admin/force-fallback", {
@@ -426,8 +433,8 @@ function DemoData() {
       >
         <p>
           {confirm === "reset"
-            ? "All cases, messages and history are cleared; patients and appointments go back to the starting point."
-            : "Marks Dr. Santos out today and opens a case with suggestions for the front desk to review — the same flow her Emergency button uses."}
+            ? "Cases, messages and demo history are cleared; Google OAuth and doctor calendar mappings stay connected."
+            : "Marks Dr. Santos out on the seeded showcase day and opens a case with three suggestions for the front desk to review."}
         </p>
       </Modal>
     </div>

@@ -7,7 +7,8 @@ import { z } from "zod";
 
 const EnvSchema = z.object({
   DATABASE_URL: z.string().default("file:./schedicare.db"),
-  DEMO_NOW: z.string().default("2026-08-10T07:30:00+08:00"),
+  /** ISO timestamp for deterministic runs, or "now" for a live clock. */
+  DEMO_NOW: z.string().default("now"),
   AI_PROVIDER: z.enum(["gemini", "bedrock", "fallback"]).default("gemini"),
   GEMINI_API_KEY: z.string().optional().default(""),
   GEMINI_MODEL: z.string().optional().default(""),

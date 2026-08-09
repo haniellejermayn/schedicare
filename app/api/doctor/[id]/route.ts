@@ -7,6 +7,7 @@ import { getRules } from "@/core/rules";
 import { scoreNoShowRisk } from "@/core/risk";
 import { patientHistory } from "@/agents/tools";
 import { getBusyIntervals } from "@/integrations/factory";
+import { demoCascadeDay } from "@/sim/seed";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -56,6 +57,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return json({
     doctor,
     demoToday: demoToday(),
+    showcaseDay: demoCascadeDay(),
     rules,
     appointments: appts.map((a) => ({ ...a, patientName: patients.find((p) => p.id === a.patientId)?.name ?? a.patientId })),
     atRisk,

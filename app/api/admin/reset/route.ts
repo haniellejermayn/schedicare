@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST() {
   boot();
-  const s = seed();
+  const s = seed("lite", { preserveIntegrations: true });
   audit({ actor: "staff", action: "demo.reset", detail: s });
   return json({ ok: true, ...s });
 }

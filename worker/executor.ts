@@ -8,7 +8,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
 import { demoNowIso, fmtWhen } from "@/core/clock";
-import { env } from "@/core/env";
+import { autoSimulateReplies } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { audit } from "@/core/audit";
 import { getCase, maybeResolveCase, transitionCase } from "@/core/cases";
@@ -472,9 +472,8 @@ export async function sendConfirmationAck(
  * Keyed off the EFFECTIVE mail provider, not the configured MAIL_PROVIDER env.
  */
 function shouldAutoReply(): boolean {
-  const explicit = env().AUTO_SIMULATE_REPLIES;
-  if (explicit != null) return explicit !== "false";
-  return !pickMailProvider().live;
+  return autoSimulateReplies() ||
+    (process.env.AUTO_SIMULATE_REPLIES == null && !pickMailProvider().live);
 }
 
 function scheduleSimReply(

@@ -8,6 +8,7 @@ import { GmailProvider } from "@/integrations/mail/google";
 import { DisabledMcpTransport, GoogleWorkspaceMcpTransport, runMcpHealthCheck } from "@/integrations/mcp";
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
+import { seed } from "@/sim/seed";
 
 describe("provider factory (resilience)", () => {
   beforeEach(() => freshSeed());
@@ -51,6 +52,44 @@ describe("provider factory (resilience)", () => {
     // seen-id dedupe
     const again = await sim.pollReplies([sent.threadId!], [replies[0].providerMessageId]);
     expect(again).toHaveLength(0);
+  });
+});
+
+describe("demo reset integration persistence", () => {
+  beforeEach(() => freshSeed());
+
+  it("keeps OAuth and live mappings without assigning simulated event ids", () => {
+    db.insert(schema.oauthTokens)
+      .values({
+        provider: "google",
+        tokens: { refresh_token: "test-only" },
+        updatedAt: new Date().toISOString(),
+      })
+      .run();
+    db.update(schema.doctors)
+      .set({ calendarId: "primary" })
+      .where(eq(schema.doctors.id, "doc_santos"))
+      .run();
+    db.update(schema.doctors)
+      .set({ calendarId: "team-calendar@example.com" })
+      .where(eq(schema.doctors.id, "doc_reyes"))
+      .run();
+
+    const summary = seed("lite", { preserveIntegrations: true });
+
+    expect(summary.demoDayAffected).toBe(3);
+    expect(
+      db.select().from(schema.oauthTokens).where(eq(schema.oauthTokens.provider, "google")).get(),
+    ).toBeTruthy();
+    expect(
+      db.select().from(schema.doctors).where(eq(schema.doctors.id, "doc_santos")).get()!.calendarId,
+    ).toBe("primary");
+    expect(
+      db.select().from(schema.doctors).where(eq(schema.doctors.id, "doc_reyes")).get()!.calendarId,
+    ).toBe("team-calendar@example.com");
+    expect(
+      db.select().from(schema.appointments).where(eq(schema.appointments.id, "appt_camille")).get()!.calendarEventId,
+    ).toBeNull();
   });
 });
 

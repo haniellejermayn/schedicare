@@ -20,15 +20,17 @@ anything happens.
 
 ```bash
 npm install                # Node 18.17+ (20/22 recommended)
-npm run demo:reset:lite    # seed the 3-patient demo world (clears the clock anchor)
+npm run demo:reset         # seed the 3-patient live-demo world
 npm run dev                # terminal 1 — web on http://localhost:3000
 npm run worker             # terminal 2 — agent worker
-npm run demo:cascade       # trigger the disruption (or press ⚡ in the Doctor view)
+npm run demo:cascade       # trigger it by CLI (or use “I can't come in” in Doctor)
 ```
 
-`npm run demo` seeds the full world and starts web + worker in one command.
-The demo clock is anchored to **Mon 2026-08-10 07:30 Asia/Manila**; restart
-both processes after any reset or env change.
+`npm run demo` seeds the three-patient world and starts web + worker together.
+With `DEMO_NOW=now`, data is anchored around the current Manila time and the
+afternoon showcase uses Dr. Santos's next working day. An ISO `DEMO_NOW` keeps
+tests and reproducible offline runs deterministic. Demo reset preserves Google
+OAuth and doctor-calendar mappings.
 
 Live mode: `AI_PROVIDER=bedrock` runs the agents on **Claude Sonnet 4.6 via
 Amazon Bedrock** (the primary demo brain); Gmail and Google Calendar are wired
@@ -36,6 +38,9 @@ per [docs/GOOGLE_WORKSPACE_SETUP.md](docs/GOOGLE_WORKSPACE_SETUP.md). Without
 keys, everything degrades to deterministic fallbacks and simulated providers
 with identical data shapes — degrading to _staff review_, never to dumber
 automation ([docs/FALLBACK_MODE.md](docs/FALLBACK_MODE.md)).
+For live replies, keep `AUTO_SIMULATE_REPLIES=false` and use a
+`DEMO_PATIENT_EMAIL` inbox different from the OAuth-connected clinic Gmail.
+See the timed [live demo runbook](docs/DEMO_RUNBOOK.md).
 
 ## What it does
 
@@ -101,7 +106,7 @@ Details and history: [docs/TEST_REPORT.md](docs/TEST_REPORT.md),
 ## Scope & limitations (v0, deliberately)
 
 One clinic, two doctors, one worker process, no authentication (role switcher;
-the staff-only gate checks an actor string), demo-anchored clock. Intake is
+the staff-only gate checks an actor string), configurable live/fixed clock. Intake is
 **email on tracked threads only** — mailbox-wide intake, SMS, and phone are
 future integrations, not redesigns: the extractor consumes text, the
 negotiator consumes constraint sets, and the gates consume recommendations,

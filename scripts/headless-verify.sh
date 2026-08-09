@@ -61,7 +61,7 @@ echo "$SWEEP" | grep -q '"no_show_risk"' && ok "sweep: no-show-risk case (Dennis
 echo "$SWEEP" | grep -q '"slot_recovery"' && ok "sweep: slot-recovery case (Liza) opened" || bad "sweep: no slot-recovery case"
 
 # Trigger the flagship cascade
-R=$(jpost /api/doctor/doc_santos/unavailable '{"date":"2026-08-10","reason":"Family emergency"}')
+R=$(jpost /api/admin/cascade '{}')
 echo "$R" | grep -q '"ok":true' && ok "emergency button accepted" || bad "emergency: $R"
 
 # Poll for awaiting_approval doctor_emergency case

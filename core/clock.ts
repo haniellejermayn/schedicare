@@ -1,14 +1,14 @@
 /**
- * Demo clock. All time in the system flows through demoNow(), anchored to
- * DEMO_NOW and advancing in real time.
+ * Application clock. All time in the system flows through demoNow(). DEMO_NOW
+ * may be a fixed ISO timestamp for deterministic tests or "now" for a live
+ * presentation clock; either way it advances in real time after boot.
  *
  * The anchor is SHARED across processes via a small file (.tmp/clock-anchor):
  * the first process to boot writes the pairing (real time ↔ demo time), and
  * every later process reuses it, so the Next server and the worker agree on
  * "now" and the timeline never sorts staff actions before the events they
- * caused. Delete the file (or run demo:reset, which does) to re-anchor at
- * the demo-day morning. Tests keep the old per-process anchor for
- * determinism.
+ * caused. Delete the file to start a fresh process pairing. Tests keep a
+ * per-process anchor for determinism.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -16,8 +16,14 @@ import { formatInTimeZone } from "date-fns-tz";
 import { env, CLINIC_TZ } from "./env";
 
 function resolveAnchor(): { anchor: number; bootedAt: number } {
+  const configured = env().DEMO_NOW.trim();
+  const anchor = configured.toLowerCase() === "now"
+    ? Date.now()
+    : new Date(configured).getTime();
+  if (!Number.isFinite(anchor))
+    throw new Error('DEMO_NOW must be an ISO timestamp or "now"');
   const fallback = {
-    anchor: new Date(env().DEMO_NOW).getTime(),
+    anchor,
     bootedAt: Date.now(),
   };
   if (process.env.VITEST || process.env.NODE_ENV === "test") return fallback;

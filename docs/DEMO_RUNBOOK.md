@@ -1,112 +1,103 @@
-# Demo runbook — Riverside Family Clinic, Monday 07:30
+# Live demo runbook — three patient paths
 
-Total time: ~6 minutes core story, +3 for secondary flows. Works fully offline.
+Target: 3 minutes inside a 10-minute presentation. This run is intentionally
+live: Claude on Bedrock, Gmail replies, and Google Calendar writes.
 
-## Pre-flight (2 minutes before)
+## Pre-flight
 
-```bash
-npm run demo        # or: npm run demo:reset && npm run dev (+ npm run worker)
-```
+Do this before the room opens, not during the presentation.
 
-- Header pill shows the mode. Amber **Presentation Resilience Mode** is fine —
-  say the line: *"No keys, no network needed; live mode is one env var away and
-  everything you'll see is identical."*
- - **Front desk** already shows three quiet cases from the morning sweep (Paolo's
-  confirmation nudge, Dennis's no-show-risk outreach, Liza's vacated slot) —
-  each **Needs your review**. Leave them; they prove the system was already
-  working before the crisis.
-- Reset any time from **Settings → Demo & data → Reset demo data** (worker keeps running).
+1. In `.env.local`, confirm:
 
-## Act 1 — the phone call (Doctor tab, ~45s)
+   ```dotenv
+   DEMO_NOW=now
+   AI_PROVIDER=bedrock
+   CALENDAR_PROVIDER=google
+   MAIL_PROVIDER=gmail
+   GMAIL_POLL_MS=3000
+   AUTO_SIMULATE_REPLIES=false
+   ```
 
-*"It's 7:30 Monday. Dr. Santos calls: family emergency, she's out."*
+2. Set `DEMO_PATIENT_EMAIL` to a patient inbox you control that is **different
+   from the clinic Gmail account connected through OAuth**. The three patients
+   use plus aliases of this inbox, so one second account is enough.
+3. Run `npm run demo`, then open **Settings → Connections**. Verify Claude,
+   Google Calendar, and Gmail. Map both doctors to the intended live demo
+   calendar. The status chip must say **Actual replies only · 3s polling**.
+4. In **Settings → Demo & data**, press **Reset demo data**. Reset clears the
+   workflow but preserves Google OAuth and both doctor-calendar mappings.
+5. Clear old SchediCare events from the dedicated Google demo calendar if you
+   rehearsed earlier. Reset cannot safely delete external events it no longer
+   tracks.
 
-1. Open **Doctor**. Point at the day: 6 patients, capacity bar, the week grid.
-2. Press **⚡ Emergency Unavailability** → confirm. Read the dialog line out
-   loud: *"Nothing reaches patients until staff approve."*
-3. Open the **Front desk** tab — the case is at the top of the inbox.
+The seed uses the current Manila time. Once the clinic day has begun, the
+showcase disruption is placed on Dr. Santos's next working day, ensuring all
+three affected visits are still upcoming during an afternoon demo. Historical
+and later appointments remain around it so the calendar looks lived-in.
 
-## Act 2 — the system works, then stops (Front desk, ~90s)
+## Three-minute story
 
-Open the case: the Activity tab narrates in plain language — appointments
-affected, times searched under Santos's *and* Reyes's rules (mention the
-Barangay outreach block it avoids), offers drafted. Flip **Technical detail**
-on for the judges to reveal the agents and tool calls, then off again. The
-case lands on **Needs your review — 6 suggestions**.
+### 0:00–0:25 — Trigger
 
-*"And here it stops. On purpose. This is the product."*
+Open **Doctor → This week**, point to the three upcoming Santos visits, then
+press **I can't come in…**. The showcase date is preselected; confirm the
+family-emergency reason and open **Front desk**. Say:
 
-## Act 3 — the human decides (~90s)
+> Dr. Santos is unexpectedly unavailable. The system has three patients to
+> recover, but it cannot contact anyone until staff approve.
 
-- **Camille (urgent, priority 1):** tap **Why this time?** — soonest, same
-  day-part, capacity headroom, in words. **Approve.**
-- **Teresa, Miguel, Andres:** **Approve** (or use **Approve all** later).
-- **Jose:** **Change time** → pick a different validated option → *"staff can
-  override, but only onto times the engine already validated."*
-- **Grace:** **Can't do this** → reason: *"Prefers a phone call — front desk will
-  ring her."* → the case moves to **Booking & notifying**.
+### 0:25–1:05 — Show agent work and the gate
 
-Narrate the executor: originals superseded, replacements booked, calendar
-events written (labeled *Simulated*), offer emails sent. Grace's line: original
-cancelled, **flagged for callback, no email** — the rejection reason is in the
-audit log.
+Open the new case. Point to the three recommendations and briefly toggle
+**Technical detail** to show the agent/tool trace. Emphasize:
 
-## Act 4 — patients answer (~90s)
+- Claude interprets the disruption and later extracts meaning from real replies.
+- Slot generation, conflict checks, ranking policy, and state transitions are
+  deterministic.
+- The graph pauses at **Needs your review** before any Gmail or Calendar write.
 
-Within seconds the feed shows replies: four accepts flip appointments to
-**Confirmed**. Then Miguel: *"Anything after 4 PM?"* → intent
-`counter_proposal`, constraint `after 16:00` → a **replan for one patient**
-appears, all options after 4 PM. **Approve** → offer goes out → he accepts →
-the automated items are settled.
+Approve all three suggestions. This creates live `[HOLD]` events in the mapped
+Google Calendar and sends three real Gmail messages.
 
-Open **Messages** and point out that this is still one doctor-emergency case,
-but each patient has a separate chronological conversation. If a real Gmail
-reply includes the prior email underneath, only the patient's newest text is
-shown; the original raw reply remains stored for debugging.
+### 1:05–2:20 — Three real reply paths
 
-For Grace's rejected item, use **Mark called** or **Mark handled** after the
-front desk follows up. For an unanswered offer with a temporary appointment,
-use **Release hold** to remove its `[HOLD]` Calendar event and close that patient
-item. The case moves to **Done** when no patient item remains outstanding.
+From the separate patient inbox, reply on each conversation:
 
-Close on the summary line: **6 patients → 5 confirmed, 1 to call, 130 care
-minutes saved** — then the case's Activity tab for the full replay and
-**Settings → Audit log** (*"every actor, every decision, every effect"*).
+- **Camille — accept:** `Yes, that works for me. Thank you.`
+- **Grace — decline:** `No, I can't make that time. Please cancel it.`
+- **Miguel — negotiate:** `I'm at work then. Anything after 4 PM?`
 
-## Optional encores (~3 min)
+The worker polls about every three seconds. Show the activity feed changing to
+accepted, declined/callback, and counter-proposal. For Miguel, point to the
+extracted `after 16:00` constraint and the new validated options.
 
-- **Patient tab:** book a slot live (only rule-valid times are offered);
-  cancel Maria's Wednesday visit → a waitlist-backfill case opens → approve →
-  Nica gets the offer and accepts.
-- **Front desk:** press **New appointment**, add a patient with name/email
-  (phone optional), select a doctor and visit type, then choose one of the
-  validator-approved times. The confirmed appointment is written through the
-  mapped Google Calendar or simulated fallback.
-- **Paolo / Dennis cases:** approve the reminder and the check-in — Paolo
-  confirms, Dennis stays silent; record **Mark called** or **Mark handled**
-  after manual follow-up.
-- **Doctor → Rules tab:** tighten Reyes's PM cap; re-run a search and the
-  system obeys immediately.
+### 2:20–3:00 — One short negotiation and live proof
 
-On the Doctor week view, point out **Temporary hold** versus **Confirmed**,
-whole-day unavailability, and external Calendar busy blocks. The same workflow
-works with Gemini or `AI_PROVIDER=fallback`; deterministic validation remains
-authoritative in both.
+Approve Miguel's new option. Reply `Yes, 4:30 PM works.` when the second email
+arrives. End in Google Calendar: Camille and Miguel are confirmed; Grace's hold
+is gone. Return briefly to the case Activity tab for the audit trail.
 
-## Failure drills (rehearse once)
+Close with:
 
-| Symptom | Move |
+> The AI handled semantic ambiguity and coordination. Deterministic rules kept
+> it safe, staff controlled every outbound offer, and the final state is visible
+> in the real systems the clinic already uses.
+
+## What not to do live
+
+- Do not enable **Force demo mode**; it disables the live providers.
+- Do not set `AUTO_SIMULATE_REPLIES=true`; that is only for offline rehearsals.
+- Do not use the connected clinic Gmail as `DEMO_PATIENT_EMAIL`; its replies are
+  correctly labelled outbound `SENT` and ignored by inbound polling.
+- Do not reset after approving offers unless you are prepared to clean the
+  already-created Google Calendar events manually.
+
+## Recovery
+
+| Symptom | Safe move |
 |---|---|
-| Wifi dies / Gemini 429 mid-case | Nothing to do — Activity continues unchanged (flip on Technical detail to show the fallback note). Say the resilience line. |
-| Want to *show* the failover | **Settings → Demo & data → Force demo mode** mid-cascade, point at the header dot flipping. |
-| Worker crashed | Terminal: `npm run worker` — queued events resume. |
-| Demo state polluted | **Settings → Demo & data → Reset**, then **Trigger demo cascade**. |
-| Port 3000 busy | `npx next dev -p 3001` (OAuth redirect only matters in live mode). |
-
-## The five lines that land
-
-1. "SchediCare proposes. Clinic staff approve."
-2. "Agents choose among validated slots — they can't invent a time."
-3. "Only a staff decision moves a case to executing; it's a state-machine rule, not a convention."
-4. "In live mode those emails are Gmail drafts until a human presses Send."
-5. "130 minutes of Dr. Santos's Monday, recovered before the clinic opened."
+| Claude verify fails | Restart after fixing the Bedrock key/region/model; do not claim a live AI run. |
+| Gmail or Calendar verify fails | Reconnect Google and verify again before resetting. |
+| No reply appears after 10 seconds | Confirm the reply came from the separate patient account and the worker terminal is running. |
+| Worker stopped | Run `npm run worker`; queued work resumes from SQLite. |
+| Demo state is dirty | Reset demo data, then remove leftover SchediCare events from the dedicated Google calendar. |

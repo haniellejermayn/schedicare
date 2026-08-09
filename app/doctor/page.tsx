@@ -170,14 +170,15 @@ export default function DoctorPage() {
   const doctor = data?.doctor;
   const rules = data?.rules;
   const demoDay = data?.demoToday ?? "";
+  const showcaseDay = data?.showcaseDay ?? demoDay;
   useEffect(() => {
     setRulesDraft(null);
     setRulesMsg(null);
     setDone(null);
   }, [doctorId]);
   useEffect(() => {
-    if (demoDay && !outDate) setOutDate(demoDay);
-  }, [demoDay, outDate]);
+    if (showcaseDay && !outDate) setOutDate(showcaseDay);
+  }, [showcaseDay, outDate]);
 
   const appts = data?.appointments ?? [];
   const operationalAppts = useMemo(
