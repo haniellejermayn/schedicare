@@ -155,6 +155,8 @@ export async function handlePatientReply(
             mode: run.mode,
             validation: { ok: v.ok, errors: v.errors, warnings: v.warnings },
             disposition: triage.disposition,
+            reviewedAt:
+              triage.disposition === "constraint_review" ? null : undefined,
             reason: triage.reason,
             diff: diff.length > 0 ? diff : undefined,
           },

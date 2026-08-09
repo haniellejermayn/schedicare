@@ -6,9 +6,10 @@ import "@/eval/loadEnv"; // .env.local / .env — must be the FIRST import
 import { spawn } from "node:child_process";
 import { seed } from "@/sim/seed";
 
-const s = seed("lite", { preserveIntegrations: true });
+const profile = process.argv[2] === "full" ? "full" : "lite";
+const s = seed(profile, { preserveIntegrations: true });
 console.log(
-  `\n[demo] Seeded ${s.patients} patients / ${s.appointments} appointments. Three-patient cascade: ${s.demoDay} (Asia/Manila).`,
+  `\n[demo] Seeded ${profile} profile: ${s.patients} patients / ${s.appointments} appointments. ${s.demoDayAffected}-patient cascade: ${s.demoDay} (Asia/Manila).`,
 );
 console.log("[demo] Starting web (http://localhost:3000) and worker …");
 console.log(

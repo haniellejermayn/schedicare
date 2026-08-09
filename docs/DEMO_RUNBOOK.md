@@ -21,8 +21,10 @@ Do this before the room opens, not during the presentation.
 2. Set `DEMO_PATIENT_EMAIL` to a patient inbox you control that is **different
    from the clinic Gmail account connected through OAuth**. The three patients
    use plus aliases of this inbox, so one second account is enough.
-3. Run `npm run demo`, then open **Settings → Connections**. Verify Claude,
-   Google Calendar, and Gmail. Map both doctors to the intended live demo
+3. Run `npm run demo`. This clean profile includes only the flagship scenario
+   and opens no background sweep cases. Then
+   open **Settings → Connections**. Verify Claude, Google Calendar, and Gmail.
+   Map both doctors to the intended live demo
    calendar. The status chip must say **Actual replies only · 3s polling**.
 4. In **Settings → Demo & data**, press **Reset demo data**. Reset clears the
    workflow but preserves Google OAuth and both doctor-calendar mappings.
@@ -34,6 +36,11 @@ The seed uses the current Manila time. Once the clinic day has begun, the
 showcase disruption is placed on Dr. Santos's next working day, ensuring all
 three affected visits are still upcoming during an afternoon demo. Historical
 and later appointments remain around it so the calendar looks lived-in.
+
+For rehearsal questions about the other workflows, run `npm run demo -- full`
+instead. That profile retains the three intentional backup scenarios:
+confirmation nudge, no-show risk outreach, and waitlist recovery. They are not
+part of the normal flagship run.
 
 ## Three-minute story
 

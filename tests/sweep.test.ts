@@ -4,6 +4,7 @@ import { freshSeed, pump } from "./helpers";
 import { runDailySweep } from "@/worker/sweep";
 import { db, schema } from "@/core/db/client";
 import { getCase } from "@/core/cases";
+import { seed } from "@/sim/seed";
 
 describe("daily sweep", () => {
   beforeEach(() => freshSeed());
@@ -42,4 +43,10 @@ describe("daily sweep", () => {
     expect((fill.payload as any).patientName).toBe("Rosa Domingo"); // AM + Reyes preference + longest wait
     expect(getCase(recovery[0].id).state).toBe("awaiting_approval");
   }, 30000);
+
+  it("opens no background cases for the lite presentation seed", async () => {
+    seed("lite");
+    await runDailySweep();
+    expect(db.select().from(schema.cases).all()).toHaveLength(0);
+  });
 });

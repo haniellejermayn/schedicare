@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { usePoll, useFeed } from "@/lib/usePoll";
@@ -238,6 +238,7 @@ export default function CasePage() {
   const [busyPatient, setBusyPatient] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
   const [approveAllOpen, setApproveAllOpen] = useState(false);
+  const [constraintOpen, setConstraintOpen] = useState<any | null>(null);
   const [followUp, setFollowUp] = useState<any | null>(null);
   const [followOutcome, setFollowOutcome] = useState<FollowUpOutcome | null>(
     null,
@@ -245,6 +246,7 @@ export default function CasePage() {
   const [followSlots, setFollowSlots] = useState<any[]>([]);
   const [followSlot, setFollowSlot] = useState("");
   const [followError, setFollowError] = useState<string | null>(null);
+  const messagePanelRef = useRef<HTMLDivElement>(null);
 
   const c = data?.case;
   const recs = data?.recommendations ?? [];
@@ -256,7 +258,8 @@ export default function CasePage() {
       r.status !== "proposed" && r.outcome !== "superseded" && !r.supersededBy,
   );
   const activity = useMemo(
-    () => (tech ? feed.items : feed.items.filter(isPlainEntry)),
+    () =>
+      (tech ? feed.items : feed.items.filter(isPlainEntry)).slice().reverse(),
     [feed.items, tech],
   );
 
@@ -273,6 +276,14 @@ export default function CasePage() {
     () => buildPatients(recs, conversations),
     [recs, conversations],
   );
+  const selectedPatient =
+    patients.find((p) => p.id === selectedId) ?? patients[0] ?? null;
+  const pendingConstraints = Object.values(
+    data?.case?.meta?.constraintsByAppt ?? {},
+  ).filter(
+    (entry: any) =>
+      entry.disposition === "constraint_review" && !entry.reviewedAt,
+  ) as any[];
 
   const metrics = useMemo(() => {
     if (patients.length === 0) return null;
@@ -306,6 +317,12 @@ export default function CasePage() {
   }, [data, patients, selectedId]);
 
   useEffect(() => {
+    if (tab !== "messages") return;
+    const panel = messagePanelRef.current;
+    if (panel) panel.scrollTop = panel.scrollHeight;
+  }, [tab, selectedId, selectedPatient?.conv?.messages?.length]);
+
+  useEffect(() => {
     if (!followUp || followOutcome !== "choose_another") return;
     const appointment = followUp.currentAppointment;
     if (!appointment) return;
@@ -331,12 +348,8 @@ export default function CasePage() {
     tone: "neutral" as const,
   };
 
-  const selectedPatient =
-    patients.find((p) => p.id === selectedId) ?? patients[0] ?? null;
-
   function togglePatient(id: string) {
     setSelectedId(id);
-    setTab("activity");
   }
 
   async function approveAll() {
@@ -396,16 +409,26 @@ export default function CasePage() {
             {c.title}
           </h1>
           <Chip tone={st.tone}>{st.label}</Chip>
-          {proposed.length > 1 && (
-            <Button
-              small
-              disabled={busyAll}
-              onClick={() => setApproveAllOpen(true)}
-              className="ml-auto"
-            >
-              {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
-            </Button>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-semibold text-muted">
+              <input
+                type="checkbox"
+                checked={tech}
+                onChange={(e) => setTech(e.target.checked)}
+                className="accent-accent"
+              />
+              Technical detail
+            </label>
+            {proposed.length > 1 && (
+              <Button
+                small
+                disabled={busyAll}
+                onClick={() => setApproveAllOpen(true)}
+              >
+                {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
+              </Button>
+            )}
+          </div>
         </div>
         <div className="mt-1">
           <SummaryLine s={data?.scoreboard} state={c.state} />
@@ -476,19 +499,6 @@ export default function CasePage() {
           )}
         </RailRow>
       )}
-
-      {/* Constraint reviews */}
-      {Object.values(data?.case?.meta?.constraintsByAppt ?? {})
-        .filter((e: any) => e.disposition === "constraint_review")
-        .map((entry: any) => (
-          <ConstraintEditor
-            key={`${entry.appointmentId}:${entry.extractedAt ?? ""}`}
-            caseId={id as string}
-            latest={entry}
-            conversations={conversations}
-            onDone={refresh}
-          />
-        ))}
 
       {/* Patient list + panel */}
       {patients.length > 0 && (
@@ -588,11 +598,26 @@ export default function CasePage() {
                 {/* Decision / Status box */}
                 <div className="px-[15px] py-[13px]">
                   {needsDecision(selectedPatient.activeRec) ? (
-                    <DecisionCard
-                      rec={selectedPatient.activeRec}
-                      messages={messages}
-                      onDone={refresh}
-                    />
+                    (() => {
+                      const constraintReview = pendingConstraints.find(
+                        (entry) =>
+                          entry.patientId === selectedPatient.id ||
+                          entry.appointmentId ===
+                            (selectedPatient.activeRec.appointmentId ??
+                              selectedPatient.activeRec.payload?.appointmentId),
+                      );
+                      return (
+                        <DecisionCard
+                          rec={selectedPatient.activeRec}
+                          messages={messages}
+                          onDone={refresh}
+                          constraintReview={constraintReview}
+                          onReviewConstraints={() =>
+                            setConstraintOpen(constraintReview)
+                          }
+                        />
+                      );
+                    })()
                   ) : selectedPatient.activeRec ? (
                     (() => {
                       const rec = selectedPatient.activeRec;
@@ -703,21 +728,13 @@ export default function CasePage() {
                       ) : null}
                     </button>
                   </div>
-                  {tab === "activity" && (
-                    <label className="flex cursor-pointer items-center gap-1.5 pb-2 text-[12px] font-semibold text-muted">
-                      <input
-                        type="checkbox"
-                        checked={tech}
-                        onChange={(e) => setTech(e.target.checked)}
-                        className="accent-accent"
-                      />
-                      Technical detail
-                    </label>
-                  )}
                 </div>
 
                 {/* Panel content */}
-                <div className="px-[18px] py-4">
+                <div
+                  ref={messagePanelRef}
+                  className="h-72 overflow-y-auto px-[18px] py-4 thin-scroll"
+                >
                   {tab === "messages" && (
                     <div className="space-y-3">
                       {!selectedPatient.conv?.messages?.length && (
@@ -799,7 +816,7 @@ export default function CasePage() {
             <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
           </button>
           {caseOpen && (
-            <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
+            <ol className="relative ml-1.5 h-72 space-y-0 overflow-y-auto border-l border-line px-3 pb-2.5 thin-scroll">
               {grouped.caseLevel.map((it) => (
                 <ActivityRow key={it.id} it={it} tech={tech} />
               ))}
@@ -807,6 +824,27 @@ export default function CasePage() {
           )}
         </div>
       )}
+
+      <Modal
+        open={!!constraintOpen}
+        onClose={() => setConstraintOpen(null)}
+        title={`Review constraints for ${constraintOpen?.patientName ?? "this patient"}`}
+        wide
+      >
+        {constraintOpen && (
+          <ConstraintEditor
+            caseId={id as string}
+            latest={constraintOpen}
+            conversations={conversations}
+            embedded
+            onRefresh={refresh}
+            onComplete={() => {
+              setConstraintOpen(null);
+              refresh();
+            }}
+          />
+        )}
+      </Modal>
 
       {/* Approve all modal */}
       <Modal

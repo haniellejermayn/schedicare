@@ -7,8 +7,9 @@
 import { eq } from "drizzle-orm";
 import { boot, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
-import { getCase } from "@/core/cases";
+import { getCase, updateCaseMeta } from "@/core/cases";
 import { audit } from "@/core/audit";
+import { demoNowIso } from "@/core/clock";
 import { SchedulingConstraintSetSchema } from "@/core/constraints";
 import { validateConstraintSet } from "@/core/constraintValidation";
 import { and } from "drizzle-orm";
@@ -85,6 +86,19 @@ export async function POST(
     patientName: patient.name,
     supersededRecId: body.supersededRecId,
     set: v.normalized,
+  });
+  const byAppt = ((c.meta as any) ?? {}).constraintsByAppt ?? {};
+  const prior = byAppt[body.appointmentId] ?? {};
+  updateCaseMeta(c.id, {
+    constraintsByAppt: {
+      ...byAppt,
+      [body.appointmentId]: {
+        ...prior,
+        set: v.normalized,
+        appointmentId: body.appointmentId,
+        reviewedAt: demoNowIso(),
+      },
+    },
   });
   return json({ ok: true, eventId });
 }

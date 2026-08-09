@@ -1,6 +1,6 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (**79/79 across 10 files**),
+Status date: build verified against `npm test` (**89/89 across 11 files**),
 `npm run typecheck` (strict, clean), and `npm run build` (clean). Extraction
 numbers carry the dev-set caveat (see v2.3).
 
@@ -45,9 +45,11 @@ staff gate (logged, state kept), decisions are accepted on escalated cases
 with pending proposals, and the staff-only guard on any transition into
 `executing` is unchanged. Two regression tests pin the behavior.
 
-**Extraction re-run (supersedes the v2.2 numbers).** After label corrections
-and prompt iteration: dev corpus **66 cases — 100% full match, guard 4/4**,
-vs the corrected deterministic baseline at **34%**. _Dev-set figures_ — a
+**Extraction re-run (supersedes the v2.2 numbers).** After adding the Grace
+approximate-time regression: dev corpus **67 cases — 91% full match, 100%
+intent, 91% field precision/recall, guard 4/4**, vs the corrected deterministic
+baseline at **34%**. The Grace case itself passes with a soft 11:00–12:00
+window, verbatim evidence, and no duplicate unresolved statement. _Dev-set figures_ — a
 frozen held-out set (~35 fresh cases, run once) is still owed before the
 defense, with dev numbers re-run at freeze time.
 
@@ -74,7 +76,7 @@ plus a lossy bridge down to the legacy four-field `ReplyInterpretation`
 constraints filter, soft preferences rank, and only `findOpenSlots` ever
 produces a time.
 
-**The yardstick.** `eval/constraintCorpus.json` (65 labeled messy replies:
+**The yardstick.** `eval/constraintCorpus.json` (67 labeled messy replies:
 compound, negation, relative dates, Taglish, doctor preferences, ambiguity,
 mixed clinical) + `eval/constraintBaseline.ts` scoring the deterministic
 guard+rules path field-by-field. Baseline (corrected labels): 63% intent, **31% full match**
@@ -115,7 +117,9 @@ frozen held-out set is the next evaluation step.
 
 ## Final capstone polish
 
-- The Messages tab keeps one operational case while grouping messages by patient. Outbound and inbound messages stay chronological, patients with no email still appear, and common Gmail/Outlook quoted history is hidden from the normal UI while the raw inbound body remains stored.
+- The Messages tab keeps one operational case while grouping messages by patient. Outbound and inbound messages stay chronological, patients with no email still appear, and common Gmail/Outlook quoted history—including folded `On …` / `wrote:` headers—is hidden from the normal UI while the raw inbound body remains stored.
+- Constraint review now opens from the relevant decision card in a modal. Saving edits or searching keeps the review pending and open; a successful offer or negotiation action completes the review and closes it.
+- Plain `npm run demo` uses the clean three-patient flagship profile. `npm run demo -- full` retains the three secondary sweep cases for backup questions.
 - Patient outcome cards support **Mark called**, **Mark handled**, and **Release hold** using existing recommendation outcomes, callback flags, Calendar deletion, timeline, and audit records.
 - Front desk staff can create a patient with name/email and optional phone, then create a confirmed appointment from existing doctors, appointment types, and validator-approved slots. The booking uses the doctor rule duration and existing live/simulated Calendar provider factory.
 - The Doctor view follows the demo clock, labels SchediCare `booked` appointments as **Temporary hold**, and shows whole-day unavailability with existing external Calendar busy blocks.

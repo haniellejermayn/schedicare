@@ -63,12 +63,16 @@ export function ConstraintEditor({
   caseId,
   latest,
   conversations,
-  onDone,
+  embedded = false,
+  onRefresh,
+  onComplete,
 }: {
   caseId: string;
   latest: any; // one entry of meta.constraintsByAppt — carries its own identity
   conversations: any[];
-  onDone: () => void;
+  embedded?: boolean;
+  onRefresh: () => void;
+  onComplete: () => void;
 }) {
   const [set, setSet] = useState<AnySet>(() => structuredClone(latest.set));
   const [dirty, setDirty] = useState(false);
@@ -151,7 +155,7 @@ export function ConstraintEditor({
           ? `Saved with ${r.warnings.length} normalization note(s).`
           : "Saved.",
       );
-      onDone();
+      onRefresh();
     } catch (e: any) {
       setNote(`Could not save: ${e.message ?? e}`);
     } finally {
@@ -205,7 +209,7 @@ export function ConstraintEditor({
       );
       setSlots(null);
       setRelaxations([]);
-      onDone();
+      onComplete();
     } catch (e: any) {
       setNote(`Could not start the negotiation: ${e.message ?? e}`);
     } finally {
@@ -234,7 +238,7 @@ export function ConstraintEditor({
         "Approved — the new offer will appear below for your review in a moment.",
       );
       setSlots(null);
-      onDone();
+      onComplete();
     } catch (e: any) {
       setNote(`Could not start the replan: ${e.message ?? e}`);
     } finally {
@@ -258,12 +262,18 @@ export function ConstraintEditor({
   const approved = latest.disposition === "approved";
 
   return (
-    <div className="rounded-card border border-line bg-white p-4">
+    <div
+      className={cn(
+        !embedded && "rounded-card border border-line bg-white p-4",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="eyebrow">
-            Extracted constraints — {target.patientName}
-          </h2>
+          {!embedded && (
+            <h2 className="eyebrow">
+              Extracted constraints — {target.patientName}
+            </h2>
+          )}
           <Chip tone={latest.mode === "live" ? "ok" : "neutral"}>
             {latest.mode === "live" ? "AI extracted" : "manual"}
           </Chip>
@@ -379,7 +389,7 @@ export function ConstraintEditor({
                   className="text-[12px] font-semibold text-accent hover:underline"
                   onClick={() => resolveStatement(i)}
                 >
-                  mark resolved
+                  Ignore for slot search
                 </button>
               </li>
             ))}

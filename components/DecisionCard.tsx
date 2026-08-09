@@ -10,7 +10,11 @@ import {
   Spinner,
   cn,
 } from "@/components/ui";
-import { kindLabel, outcomeLabel } from "@/components/copy";
+import {
+  kindLabel,
+  outcomeLabel,
+  plainPriorityReason,
+} from "@/components/copy";
 
 /** Ranking chips as readable bullets — no scores, no jargon. */
 function whyBullets(option: any, payload: any): string[] {
@@ -35,10 +39,14 @@ export function DecisionCard({
   rec,
   messages,
   onDone,
+  constraintReview,
+  onReviewConstraints,
 }: {
   rec: any;
   messages: any[];
   onDone: () => void;
+  constraintReview?: any;
+  onReviewConstraints?: () => void;
 }) {
   const p = rec.payload ?? {};
   const decided = rec.status !== "proposed";
@@ -202,7 +210,9 @@ export function DecisionCard({
       </div>
 
       {p.priorityReason && !decided && (
-        <p className="mt-1 text-[13px] text-muted">{p.priorityReason}</p>
+        <p className="mt-1 text-[13px] text-muted">
+          {plainPriorityReason(p.priorityReason)}
+        </p>
       )}
 
       <div className="mt-2.5">
@@ -273,6 +283,14 @@ export function DecisionCard({
             }}
           >
             See the message
+          </button>
+        )}
+        {constraintReview && onReviewConstraints && (
+          <button
+            className="font-semibold text-accent hover:underline"
+            onClick={onReviewConstraints}
+          >
+            Review constraints
           </button>
         )}
       </div>

@@ -9,7 +9,6 @@ import { audit } from "@/core/audit";
 import { demoNowIso } from "@/core/clock";
 import {
   SchedulingConstraintSetSchema,
-  triageConstraintSet,
 } from "@/core/constraints";
 import { validateConstraintSet } from "@/core/constraintValidation";
 
@@ -39,7 +38,6 @@ export async function PUT(
   if (!appointmentId) return err("appointmentId required", 422);
   const byAppt = ((c.meta as any) ?? {}).constraintsByAppt ?? {};
   const prior = byAppt[appointmentId] ?? {};
-  const triage = triageConstraintSet(v.normalized, v);
   updateCaseMeta(c.id, {
     constraintsByAppt: {
       ...byAppt,
@@ -48,8 +46,9 @@ export async function PUT(
         set: v.normalized,
         appointmentId,
         staffEditedAt: demoNowIso(),
-        disposition: triage.disposition,
-        reason: `staff-edited · ${triage.reason}`,
+        disposition: prior.disposition ?? "constraint_review",
+        reviewedAt: prior.reviewedAt ?? null,
+        reason: "staff-edited",
         validation: { ok: true, errors: [], warnings: v.warnings },
       },
     },

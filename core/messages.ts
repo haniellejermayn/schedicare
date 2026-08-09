@@ -2,6 +2,7 @@
 export function latestReplyOnly(raw: string): string {
   const text = raw.replace(/\r\n/g, "\n").trim();
   const quotedMarkers = [
+    /\nOn [^\n]{1,500}\n(?:[^\n]{1,200}\n){0,2}wrote:\s*\n/i,
     /\nOn [^\n]{1,500}?wrote:\s*\n/i,
     /\sOn [^\n]{1,500}?wrote:\s*(?=>)/i,
     /\n-{2,}\s*Original Message\s*-{2,}\s*\n/i,

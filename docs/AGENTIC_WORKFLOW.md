@@ -31,6 +31,12 @@ flowchart LR
 The graph is multi-step and stateful, but the model does not control the graph. It cannot
 skip the approval gate or call Calendar and Gmail directly.
 
+For a multi-patient disruption, initial planning and its approval gate are case-wide
+barriers: every proposal is collected before staff approve the batch, and execution starts
+only after the final decision. Later replies and replans are patient-specific, so one
+patient never waits for the others to reply. They are still processed serially by the
+single FIFO worker, one queued event at a time.
+
 ## The reply loop—the strongest AI contribution
 
 ```mermaid

@@ -94,6 +94,15 @@ export function kindLabel(kind: string): string {
           : "Check-in message";
 }
 
+/** Remove implementation labels while retaining the staff-facing explanation. */
+export function plainPriorityReason(reason: string): string {
+  return reason
+    .replace(/\s*\(\s*staffPriority\s*=\s*\d+\s*\)/gi, "")
+    .replace(/\s*\bstaffPriority\s*=\s*\d+\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 /* ------------------------------------------------------------- activity feed */
 
 const TECHNICAL_KINDS = new Set(["tool_call", "tool_result", "thought"]);

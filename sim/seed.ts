@@ -407,7 +407,7 @@ export function seed(
       type: "follow_up",
       day: demoDay,
       time: "09:50",
-      status: "booked",
+      status: "confirmed",
       bookedDaysBefore: 6,
     },
     {
@@ -437,7 +437,7 @@ export function seed(
       type: "routine",
       day: demoDay,
       time: "14:20",
-      status: "booked",
+      status: "confirmed",
       bookedDaysBefore: 5,
     },
 
@@ -515,7 +515,7 @@ export function seed(
       type: "urgent",
       day: demoDay,
       time: "10:30",
-      status: "booked",
+      status: "confirmed",
       bookedDaysBefore: 0,
     },
     {
@@ -844,14 +844,17 @@ export function seed(
     },
   ];
 
-  const LITE_DROPPED_CASCADE = new Set([
+  const LITE_DROPPED_APPOINTMENTS = new Set([
     "appt_teresa",
     "appt_jose",
     "appt_andres",
+    "appt_paolo",
+    "appt_dennis",
+    "appt_liza",
   ]);
   const effectiveAppts =
     profile === "lite"
-      ? appts.filter((a) => !LITE_DROPPED_CASCADE.has(a.id))
+      ? appts.filter((a) => !LITE_DROPPED_APPOINTMENTS.has(a.id))
       : appts;
 
   const bookedAtFor = (a: ApptSeed) =>

@@ -398,6 +398,110 @@ describe("post-extraction triage", () => {
   });
 });
 
+describe("constraint review lifecycle", () => {
+  beforeEach(() => freshSeed());
+
+  const request = (body: unknown) =>
+    new Request("http://localhost/api/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("keeps staff edits pending and marks a successful offer reviewed", async () => {
+    const { openCase, getCase } = await import("@/core/cases");
+    const { PUT } = await import("@/app/api/cases/[id]/constraints/route");
+    const { POST } = await import(
+      "@/app/api/cases/[id]/constraints/replan/route"
+    );
+    const set = compoundSet();
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "high",
+      title: "constraint review",
+      meta: {
+        constraintsByAppt: {
+          appt_camille: {
+            appointmentId: "appt_camille",
+            disposition: "constraint_review",
+            reviewedAt: null,
+            set,
+          },
+        },
+      },
+    });
+
+    expect(
+      (
+        await PUT(request({ set, appointmentId: "appt_camille" }), {
+          params: { id: c.id },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (getCase(c.id).meta as any).constraintsByAppt.appt_camille.reviewedAt,
+    ).toBeNull();
+
+    expect(
+      (
+        await POST(
+          request({
+            set,
+            appointmentId: "appt_camille",
+            supersededRecId: "rec_previous",
+          }),
+          { params: { id: c.id } },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (getCase(c.id).meta as any).constraintsByAppt.appt_camille.reviewedAt,
+    ).toEqual(expect.any(String));
+    expect((getCase(c.id).meta as any).latestConstraints).toBeUndefined();
+  });
+
+  it("marks successful negotiation delegation reviewed", async () => {
+    const { openCase, getCase } = await import("@/core/cases");
+    const { POST } = await import(
+      "@/app/api/cases/[id]/constraints/negotiate/route"
+    );
+    const set = compoundSet();
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "high",
+      title: "constraint negotiation",
+      meta: {
+        constraintsByAppt: {
+          appt_camille: {
+            appointmentId: "appt_camille",
+            disposition: "constraint_review",
+            reviewedAt: null,
+            set,
+          },
+        },
+      },
+    });
+
+    expect(
+      (
+        await POST(
+          request({
+            set,
+            appointmentId: "appt_camille",
+            supersededRecId: "rec_previous",
+          }),
+          { params: { id: c.id } },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (getCase(c.id).meta as any).constraintsByAppt.appt_camille.reviewedAt,
+    ).toEqual(expect.any(String));
+  });
+});
+
 describe("multi-turn constraint diffing", () => {
   it("detects added, removed, and changed fields across scopes", () => {
     const prev = compoundSet(); // Wed/Thu, after 14:00, prefers Santos (excl. fields)

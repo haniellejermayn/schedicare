@@ -11,6 +11,7 @@ import {
 import { runAssessment } from "@/agents/assessment";
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
+import { plainPriorityReason } from "@/components/copy";
 
 describe("agent runtime (fallback mode)", () => {
   beforeEach(() => freshSeed());
@@ -55,6 +56,18 @@ describe("agent runtime (fallback mode)", () => {
       expect(items[i].priorityRank).toBeGreaterThanOrEqual(
         items[i - 1].priorityRank,
       );
+  });
+});
+
+describe("staff-facing agent copy", () => {
+  it("removes internal staffPriority assignments", () => {
+    const reason = plainPriorityReason(
+      "Staff-flagged urgent appointment (staffPriority=1) with confirmed status.",
+    );
+    expect(reason).toBe(
+      "Staff-flagged urgent appointment with confirmed status.",
+    );
+    expect(reason).not.toContain("staffPriority");
   });
 });
 

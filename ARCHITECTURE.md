@@ -136,6 +136,12 @@ in `proposed` state.
 4. The executor revalidates calendar placement, creates or updates Calendar events, sends
    mail, and records the outcome.
 
+Initial planning and final approval are case-wide barriers: the graph collects all patient
+proposals and waits for the final staff decision before executing the batch. Once execution
+finishes, replies and replans are patient-specific; they do not wait for the other patients.
+The single FIFO worker nevertheless serializes all queued events, so these independent
+patient turns run one at a time in arrival order.
+
 Automated recommendations reach external providers only through the executor. Explicit
 human actions—such as direct booking, cancellation, or marking a doctor unavailable—also
 write through their API route handlers and are recorded in the audit log.
