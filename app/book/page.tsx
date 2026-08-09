@@ -442,7 +442,7 @@ export default function BookPage() {
                     hasSlots && !isOutside && !isSelected && !isBlocked
                       ? "font-bold text-accent hover:bg-accent-soft"
                       : "",
-                    isSelected && !isBlocked && "border-accent bg-accent text-white",
+                    isSelected && !isBlocked && "border-accent bg-accent-soft text-accent",
                   )}
                 >
                   {cell.date.getDate()}

@@ -43,15 +43,15 @@ const DAY_END = 17 * 60;
 const DAY_LEN = DAY_END - DAY_START;
 
 const TYPE_COLORS = {
-  follow_up: "#3F6F52",
-  routine: "#3B6478",
-  urgent: "#B8582F",
+  follow_up: "#5B8C6E",
+  routine: "#5C7D90",
+  urgent: "#B87050",
 } as const;
 
 const TYPE_BG = {
-  follow_up: "#E8F1E8",
-  routine: "#E6EEF2",
-  urgent: "#F8EBE2",
+  follow_up: "#E9F1EC",
+  routine: "#E7EEF1",
+  urgent: "#F7EEE8",
 } as const;
 
 function timeToMin(t: string): number {
@@ -609,7 +609,7 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-accent bg-surface-alt text-accent"
+                            ? "border-accent bg-accent-soft text-accent"
                             : "border-line bg-surface-alt text-muted",
                           rulesDraft && "cursor-pointer",
                         )}
@@ -707,8 +707,12 @@ export default function DoctorPage() {
                         >
                           <div className="flex items-center justify-between">
                             <span
-                              className="font-mono text-[11px] font-semibold text-white px-2.5 py-1 rounded-full"
-                              style={{ backgroundColor: TYPE_COLORS[t] }}
+                              className="font-mono text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                              style={{
+                                backgroundColor: TYPE_BG[t],
+                                color: TYPE_COLORS[t],
+                                border: `1px solid ${TYPE_COLORS[t]}55`,
+                              }}
                             >
                               {typeLabel(t)}
                             </span>
@@ -829,7 +833,7 @@ export default function DoctorPage() {
                     return (
                       <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={dailyPct} color="#3F6F52">
+                          <Ring percent={dailyPct} color="#5B8C6E">
                             <span className="font-display text-2xl font-bold text-ink">
                               {dailyMax || "—"}
                             </span>
@@ -839,7 +843,7 @@ export default function DoctorPage() {
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={morningPct} color="#3B6478">
+                          <Ring percent={morningPct} color="#5C7D90">
                             <span className="font-display text-2xl font-bold text-ink">
                               {morningMax || "—"}
                             </span>
@@ -852,7 +856,7 @@ export default function DoctorPage() {
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={afternoonPct} color="#3B6478">
+                          <Ring percent={afternoonPct} color="#5C7D90">
                             <span className="font-display text-2xl font-bold text-ink">
                               {afternoonMax || "—"}
                             </span>
