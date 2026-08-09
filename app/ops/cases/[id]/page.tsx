@@ -415,43 +415,43 @@ export default function CasePage() {
       {/* Metric tiles */}
       {metrics && (
         <div className="flex flex-wrap gap-2">
-          <div className="rounded-ctl border border-line bg-white px-3 py-2">
-            <span className="tnum block text-[18px] font-bold leading-none text-ink">
+          <div className="min-w-[84px] rounded-[10px] border border-line bg-white px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-ink">
               {metrics.total}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
               Patients affected
             </span>
           </div>
-          <div className="rounded-ctl border border-ok-line bg-ok-soft px-3 py-2">
-            <span className="tnum block text-[18px] font-bold leading-none text-ok">
+          <div className="min-w-[84px] rounded-[10px] border border-ok-line bg-ok-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-ok">
               {metrics.confirmed}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
               Confirmed
             </span>
           </div>
-          <div className="rounded-ctl border border-warn-line bg-warn-soft px-3 py-2">
-            <span className="tnum block text-[18px] font-bold leading-none text-warn">
+          <div className="min-w-[84px] rounded-[10px] border border-warn-line bg-warn-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-warn">
               {metrics.waitingForYou}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
               Waiting for you
             </span>
           </div>
-          <div className="rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
-            <span className="tnum block text-[18px] font-bold leading-none text-accent">
+          <div className="min-w-[84px] rounded-[10px] border border-accent-line bg-accent-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-accent">
               {metrics.waitingOnPatient}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
               Waiting on patient
             </span>
           </div>
-          <div className="rounded-ctl border border-bad-line bg-bad-soft px-3 py-2">
-            <span className="tnum block text-[18px] font-bold leading-none text-bad">
+          <div className="min-w-[84px] rounded-[10px] border border-bad-line bg-bad-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-bad">
               {metrics.toCall}
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
               To call
             </span>
           </div>
@@ -492,7 +492,7 @@ export default function CasePage() {
 
       {/* Patient list + panel */}
       {patients.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-[240px_1fr]">
+        <div className="grid gap-3 md:grid-cols-[250px_1fr]">
           <aside className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="eyebrow">Patients in this case</span>
@@ -511,7 +511,7 @@ export default function CasePage() {
                   key={p.id}
                   onClick={() => togglePatient(p.id)}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-card border bg-white px-3 py-2 text-left transition-colors",
+                    "flex w-full items-center gap-2.5 rounded-card border bg-white px-[11px] py-[9px] text-left transition-colors",
                     isActive
                       ? "border-accent bg-accent-soft"
                       : "border-line hover:border-strong",
@@ -556,7 +556,7 @@ export default function CasePage() {
             {selectedPatient ? (
               <div className="overflow-hidden rounded-card border border-line bg-white">
                 {/* Panel head */}
-                <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+                <div className="flex items-center gap-3 border-b border-line px-[18px] py-[14px]">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white">
                     {selectedPatient.name
                       .split(" ")
@@ -586,7 +586,7 @@ export default function CasePage() {
                 </div>
 
                 {/* Decision / Status box */}
-                <div className="px-4 py-3">
+                <div className="px-[15px] py-[13px]">
                   {needsDecision(selectedPatient.activeRec) ? (
                     <DecisionCard
                       rec={selectedPatient.activeRec}
@@ -614,7 +614,7 @@ export default function CasePage() {
                       return (
                         <div
                           className={cn(
-                            "rounded-xl border px-4 py-3",
+                            "rounded-xl border px-[15px] py-[13px]",
                             theme,
                           )}
                         >
@@ -664,7 +664,7 @@ export default function CasePage() {
                 </div>
 
                 {/* Thread tabs */}
-                <div className="flex items-center justify-between border-t border-b border-line bg-surface-alt px-4">
+                <div className="flex items-center justify-between border-t border-b border-line bg-surface-alt px-[18px]">
                   <div className="flex gap-1">
                     <button
                       onClick={() => setTab("messages")}
@@ -717,7 +717,7 @@ export default function CasePage() {
                 </div>
 
                 {/* Panel content */}
-                <div className="px-4 py-3">
+                <div className="px-[18px] py-4">
                   {tab === "messages" && (
                     <div className="space-y-3">
                       {!selectedPatient.conv?.messages?.length && (
