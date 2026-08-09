@@ -85,7 +85,11 @@ export function runtimeMode(): RuntimeMode {
         ? !!e.AWS_BEARER_TOKEN_BEDROCK
         : false;
   const aiHealth = aiProvider === "fallback" ? null : serviceHealth(aiProvider);
-  let aiLive = aiProvider !== "fallback" && aiKeyOk && !forced;
+  let aiLive =
+    aiProvider !== "fallback" &&
+    aiKeyOk &&
+    aiHealth?.status === "ok" &&
+    !forced;
   let aiDetail = aiLive ? aiProviderLabel() : "";
   if (aiProvider === "fallback") {
     aiDetail = "AI_PROVIDER=fallback — deterministic agents";
@@ -102,16 +106,56 @@ export function runtimeMode(): RuntimeMode {
       `${aiProviderLabel()} failed recently (${aiHealth.detail ?? "API error"}); deterministic agents are covering.`,
     );
     aiLive = false;
+  } else if (aiHealth?.status !== "ok") {
+    aiDetail = `${aiProviderLabel()} not verified`;
+    reasons.push(`${aiProviderLabel()} has not been verified in Settings.`);
+    aiLive = false;
   }
   if (forced) aiLive = false;
 
+  const googleConfigured = Boolean(
+    e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET && e.GOOGLE_REDIRECT_URI,
+  );
+  const googleConnected = Boolean(
+    db
+      .select({ provider: schema.oauthTokens.provider })
+      .from(schema.oauthTokens)
+      .where(eq(schema.oauthTokens.provider, "google"))
+      .get(),
+  );
+  const doctors = db
+    .select({ calendarId: schema.doctors.calendarId })
+    .from(schema.doctors)
+    .all();
+  const calendarsMapped =
+    doctors.length > 0 &&
+    doctors.every(
+      (doctor) =>
+        doctor.calendarId && !doctor.calendarId.startsWith("sim-"),
+    );
+
   const calHealth = serviceHealth("calendar");
-  let calLive = e.CALENDAR_PROVIDER === "google" && !forced;
+  let calLive =
+    e.CALENDAR_PROVIDER === "google" &&
+    googleConfigured &&
+    googleConnected &&
+    calendarsMapped &&
+    calHealth.status === "ok" &&
+    !forced;
   let calDetail = "Google Calendar";
   if (e.CALENDAR_PROVIDER !== "google") {
     calLive = false;
     calDetail = "Simulated calendar provider (configured)";
     reasons.push("CALENDAR_PROVIDER is set to simulated.");
+  } else if (!googleConfigured || !googleConnected) {
+    calLive = false;
+    calDetail = "Google Calendar not connected — simulated provider covering";
+    reasons.push("Google Calendar OAuth is not connected.");
+  } else if (!calendarsMapped) {
+    calLive = false;
+    calDetail =
+      "Google Calendar mappings incomplete — simulated provider covering";
+    reasons.push("One or more doctors still use simulated calendar mappings.");
   } else if (calHealth.status === "error") {
     calLive = false;
     calDetail = `Google Calendar unavailable: ${calHealth.detail ?? "error"}`;
@@ -122,16 +166,29 @@ export function runtimeMode(): RuntimeMode {
     calLive = false;
     calDetail = "Google Calendar not connected — simulated provider covering";
     reasons.push("Google Calendar OAuth is not connected.");
+  } else if (calHealth.status !== "ok") {
+    calLive = false;
+    calDetail = "Google Calendar not verified — simulated provider covering";
+    reasons.push("Google Calendar has not been verified in Settings.");
   }
   if (forced) calLive = false;
 
   const mailHealth = serviceHealth("mail");
-  let mailLive = e.MAIL_PROVIDER === "gmail" && !forced;
+  let mailLive =
+    e.MAIL_PROVIDER === "gmail" &&
+    googleConfigured &&
+    googleConnected &&
+    mailHealth.status === "ok" &&
+    !forced;
   let mailDetail = "Gmail";
   if (e.MAIL_PROVIDER !== "gmail") {
     mailLive = false;
     mailDetail = "Simulated mail provider (configured)";
     reasons.push("MAIL_PROVIDER is set to simulated.");
+  } else if (!googleConfigured || !googleConnected) {
+    mailLive = false;
+    mailDetail = "Gmail not connected — simulated provider covering";
+    reasons.push("Gmail OAuth is not connected.");
   } else if (mailHealth.status === "error") {
     mailLive = false;
     mailDetail = `Gmail unavailable: ${mailHealth.detail ?? "error"}`;
@@ -142,10 +199,15 @@ export function runtimeMode(): RuntimeMode {
     mailLive = false;
     mailDetail = "Gmail not connected — simulated provider covering";
     reasons.push("Gmail OAuth is not connected.");
+  } else if (mailHealth.status !== "ok") {
+    mailLive = false;
+    mailDetail = "Gmail not verified — simulated provider covering";
+    reasons.push("Gmail has not been verified in Settings.");
   }
   if (forced) mailLive = false;
 
-  const mode: RuntimeMode["mode"] = aiLive ? "live" : "resilience";
+  const mode: RuntimeMode["mode"] =
+    aiLive && calLive && mailLive ? "live" : "resilience";
   return {
     mode,
     reasons,

@@ -233,7 +233,7 @@ export default function CasePage() {
   const [tab, setTab] = useState<Tab>("activity");
   const [tech, setTech] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [caseOpen, setCaseOpen] = useState(false);
+  const [caseOpen, setCaseOpen] = useState(true);
   const [busyAll, setBusyAll] = useState(false);
   const [busyPatient, setBusyPatient] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);

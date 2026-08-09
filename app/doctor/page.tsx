@@ -610,7 +610,7 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-line bg-surface-strong text-ink/60" 
+                            ? "border-line bg-surface-strong text-ink/60"
                             : "border-line bg-surface-alt text-muted",
                           rulesDraft && "cursor-pointer",
                         )}
@@ -696,7 +696,7 @@ export default function DoctorPage() {
                 ) : (
                   <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-3">
                     {(["follow_up", "routine", "urgent"] as const).map((t) => {
-                      const windows = r.windows[t] ?? [];
+                      const windows: string[] = r.windows[t] ?? [];
                       const duration = r.durationMin?.[t] ?? 30;
                       return (
                         <div

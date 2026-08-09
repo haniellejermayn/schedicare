@@ -2,11 +2,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/ui";
+import { usePoll } from "@/lib/usePoll";
 
 const ROLES = [
   { href: "/doctor", label: "Doctor" },
   { href: "/ops", label: "Front desk" },
 ];
+
+function ModeDot() {
+  const { data } = usePoll<any>("/api/status", 5000);
+  const live = data?.mode === "live";
+  return (
+    <span
+      className="mode-dot"
+      title={
+        data
+          ? live
+            ? "Claude, Google Calendar, and Gmail are connected and verified."
+            : data.reasons?.join(" ") || "Using presentation resilience mode."
+          : "Checking integration status."
+      }
+    >
+      <i style={{ background: live ? "var(--moss)" : "var(--amber)" }}></i>
+      {data ? (live ? "Live" : "Resilience") : "Checking"}
+    </span>
+  );
+}
 
 export function Nav() {
   const path = usePathname();
@@ -27,7 +48,7 @@ export function Nav() {
             </Link>
           ))}
         </nav>
-        <span className="mode-dot"><i></i> Demo mode</span>
+        <ModeDot />
         <Link href="/settings" className="gear" aria-label="Settings">
           ⚙︎
         </Link>

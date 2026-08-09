@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { freshSeed } from "./helpers";
 import { pickCalendarProvider, pickMailProvider, getBusyIntervals } from "@/integrations/factory";
 import { SimulatedCalendarProvider } from "@/integrations/calendar/simulated";
@@ -9,6 +9,53 @@ import { DisabledMcpTransport, GoogleWorkspaceMcpTransport, runMcpHealthCheck } 
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
 import { seed } from "@/sim/seed";
+import { resetEnvCache } from "@/core/env";
+import { runtimeMode, setServiceHealth } from "@/core/status";
+
+describe("runtime status", () => {
+  beforeEach(() => {
+    vi.stubEnv("AI_PROVIDER", "bedrock");
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "test-only");
+    vi.stubEnv("CALENDAR_PROVIDER", "google");
+    vi.stubEnv("MAIL_PROVIDER", "gmail");
+    vi.stubEnv("GOOGLE_CLIENT_ID", "test-only");
+    vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-only");
+    resetEnvCache();
+    freshSeed();
+    setServiceHealth("bedrock", { status: "ok" });
+    setServiceHealth("calendar", { status: "ok" });
+    setServiceHealth("mail", { status: "ok" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetEnvCache();
+  });
+
+  it("does not report Google services live without OAuth and calendar mappings", () => {
+    const mode = runtimeMode();
+    expect(mode.mode).toBe("resilience");
+    expect(mode.services.calendar.live).toBe(false);
+    expect(mode.services.mail.live).toBe(false);
+  });
+
+  it("reports live only after all configured services are connected and healthy", () => {
+    db.insert(schema.oauthTokens)
+      .values({
+        provider: "google",
+        tokens: { refresh_token: "test-only" },
+        updatedAt: new Date().toISOString(),
+      })
+      .run();
+    db.update(schema.doctors).set({ calendarId: "primary" }).run();
+
+    const mode = runtimeMode();
+    expect(mode.mode).toBe("live");
+    expect(mode.services.ai.live).toBe(true);
+    expect(mode.services.calendar.live).toBe(true);
+    expect(mode.services.mail.live).toBe(true);
+  });
+});
 
 describe("provider factory (resilience)", () => {
   beforeEach(() => freshSeed());
