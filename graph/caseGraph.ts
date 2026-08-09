@@ -27,7 +27,12 @@ import {
 } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { env } from "@/core/env";
-import { getCase, escalateCase, maybeResolveCase } from "@/core/cases";
+import {
+  getCase,
+  escalateCase,
+  maybeResolveCase,
+  transitionCase,
+} from "@/core/cases";
 import { timeline } from "@/core/timeline";
 import {
   assessStep,
@@ -51,6 +56,28 @@ async function planNode(state: S): Promise<Partial<S>> {
   try {
     if (c.type === "doctor_emergency") {
       await assessStep(state.caseId);
+      // Empty blast radius (e.g. the demo clock has passed every visit that
+      // day): nothing to search, rank, or send — close with a friendly note
+      // instead of letting scheduleStep fail into an escalation.
+      const affected = (
+        (getCase(state.caseId).meta as any)?.assessment?.items ?? []
+      ).length;
+      if (affected === 0) {
+        timeline(
+          state.caseId,
+          "orchestrator",
+          "status",
+          "No upcoming visits were affected — nothing to rebook",
+          "Every appointment that day had already passed or none existed. The unavailability is recorded; no patient outreach is needed.",
+        );
+        transitionCase(
+          state.caseId,
+          "resolved",
+          "orchestrator",
+          "Nothing to recover — case closed.",
+        );
+        return {};
+      }
       await scheduleStep(state.caseId);
       await recoverStep(state.caseId);
       await commsStep(state.caseId);

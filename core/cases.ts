@@ -13,7 +13,10 @@ import type { CaseState, Severity } from "./types";
 const LEGAL: Record<CaseState, CaseState[]> = {
   open: ["assessing", "escalated"],
   assessing: ["planning", "escalated"],
-  planning: ["awaiting_approval", "escalated"],
+  // "resolved" from planning: a disruption whose blast radius is empty (no
+  // upcoming visits affected) has nothing to recover — it closes immediately
+  // with a plain-language note instead of failing into escalation.
+  planning: ["awaiting_approval", "escalated", "resolved"],
   awaiting_approval: ["executing", "escalated"],
   executing: ["resolving", "escalated"],
   resolving: ["planning", "resolved", "escalated"], // counter-proposals loop the affected item back
