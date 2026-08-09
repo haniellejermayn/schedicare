@@ -419,10 +419,25 @@ export default function CasePage() {
               const conversation = conversations.find(
                 (x: any) => x.patientId === r.patientId,
               );
-              const actions =
-                conversation?.currentRecommendationId === r.id
-                  ? conversation.actions
-                  : null;
+              const proposedForPatient = proposed.find(
+                (p: any) => p.patientId === r.patientId,
+              );
+              const wantsFollowUp =
+                conversation &&
+                conversation.currentRecommendationId === r.id &&
+                oc &&
+                (oc.label === "Waiting for reply" ||
+                  oc.label === "Message sent");
+              if (proposedForPatient) {
+                return (
+                  <DecisionCard
+                    key={proposedForPatient.id}
+                    rec={proposedForPatient}
+                    messages={messages}
+                    onDone={refresh}
+                  />
+                );
+              }
               return (
                 <RailRow key={r.id} tone={oc.tone} className="px-4 py-2.5">
                   <div className="flex items-center gap-3">
@@ -444,7 +459,7 @@ export default function CasePage() {
                     </div>
                     <Chip tone={oc.tone}>{oc.label}</Chip>
                   </div>
-                  {actions?.followUp && (
+                  {wantsFollowUp && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Button
                         variant="secondary"
