@@ -11,6 +11,7 @@ import { demoToday, fmtWhen, sleep } from "@/core/clock";
 import { env } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { findSlotsForConstraints } from "@/core/constraintMatching";
+import { rebuiltOfferDraft } from "@/agents/comms";
 import {
   getOrCreateNegotiation,
   recordOfferedSlot,
@@ -361,17 +362,43 @@ export async function commsStep(
       },
     });
   }
-  const res = await runCommsDraft(
-    { caseId, purpose: "reschedule_offer", items },
-    { caseId },
-  );
-  const linted = bannedContentLint(
-    "reschedule_offer",
-    items,
-    res.output as CommsDraftResult,
-  );
-  for (const w of linted.warnings)
-    timeline(caseId, "comms", "error", "Draft replaced by safe template", w);
+  // First contact is ENUMERABLE (we extended the template until it covered
+  // cross-doctor phrasing, the wait-option, and the reply coaching), so it
+  // renders deterministically — no model call, no variance, no latency.
+  // Counters (a reply to what the patient just said) stay model-drafted:
+  // acknowledging a person is the genuinely open-ended half.
+  let linted: { result: CommsDraftResult; warnings: string[] };
+  if (!opts?.replanOf) {
+    linted = {
+      result: {
+        drafts: items.map((it) => ({
+          patientId: it.patientId,
+          appointmentId: it.appointmentId,
+          ...rebuiltOfferDraft(it),
+        })),
+      },
+      warnings: [],
+    };
+    timeline(
+      caseId,
+      "comms",
+      "status",
+      `${items.length} patient message${items.length === 1 ? "" : "s"} rendered from the standard template`,
+      "First-contact offers are deterministic — no model content, same safe copy every time.",
+    );
+  } else {
+    const res = await runCommsDraft(
+      { caseId, purpose: "reschedule_offer", items },
+      { caseId },
+    );
+    linted = bannedContentLint(
+      "reschedule_offer",
+      items,
+      res.output as CommsDraftResult,
+    );
+    for (const w of linted.warnings)
+      timeline(caseId, "comms", "error", "Draft replaced by safe template", w);
+  }
 
   let created = 0;
   for (const plan of plans) {

@@ -42,7 +42,11 @@ diagram (Diagram 2) as a backup slide for Q&A.
 There's no LLM supervisor: orchestration is a deterministic state machine
 (LangGraph checkpointed threads; edges route on database state). Four LLM
 specialists sit at the open-ended joints — assessment, slot-search
-narration, comms drafting, and reply understanding — and every path out of
+narration, continuation drafting (replies to what a patient said), and
+reply understanding. First-contact mail is deliberately template-rendered:
+we drafted with the model, extended the template until it covered the
+space, then demoted the model — enumeration succeeded, so the model keeps
+only the open-ended half. Every path out of
 a model converges on one choke point: the staff approval gate, which the
 state machine enforces structurally (only a staff actor can move a case
 into executing). Branching lives in reply triage; loops live in the

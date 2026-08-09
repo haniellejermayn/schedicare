@@ -24,7 +24,7 @@ flowchart TD
     AS["🟦 Assessment agent<br/>read-only tools: affected appts,<br/>waitlist, history, day load<br/>urgency + impact only, never placements"]
     SC["🟦 Scheduling agent<br/>chooses which searches to run —<br/>every slot verbatim from find_open_slots"]
     RK["⬜ Recovery ranking<br/>auditable weights, Why chips,<br/>cross-patient dedupe"]
-    CM["🟦 Comms agent<br/>drafts patient mail →<br/>⬜ content lint, safe template on hit"]
+    CM["⬜ First-contact mail from the standard template<br/>🟦 Comms agent — continuation drafts only →<br/>⬜ content lint, safe template on hit"]
     AS --> SC --> RK --> CM
   end
 
@@ -63,17 +63,18 @@ flowchart TD
 
 ## Who does what
 
-| Component                             | Kind    | Tools / inputs                                                                | Fallback when AI is down        |
-| ------------------------------------- | ------- | ----------------------------------------------------------------------------- | ------------------------------- |
-| Assessment                            | 🟦 LLM  | read-only: affected appointments, waitlist, patient history, day load         | deterministic priority playbook |
-| Scheduling                            | 🟦 LLM  | `find_open_slots` (slots verbatim; the agent only picks searches + narrative) | deterministic search plan       |
-| Recovery ranking                      | ⬜ code | validated slots, auditable weights                                            | n/a — always deterministic      |
-| Comms drafting                        | 🟦 LLM  | context JSON (times, doctors) — never invents facts                           | safe templates                  |
-| Reply guard                           | ⬜ code | Taglish clinical lexicon                                                      | n/a                             |
-| Constraint extractor                  | 🟦 LLM  | reply text, calendar table, prior constraints                                 | review handoff — never regex    |
-| Validator / triage / diff             | ⬜ code | extracted sets                                                                | n/a                             |
-| Negotiation policy                    | 🟦 LLM  | constraint set, candidate slots, relaxation counts                            | escalate to staff, always       |
-| Policy guard, state machine, executor | ⬜ code | —                                                                             | n/a                             |
+| Component                             | Kind    | Tools / inputs                                                                                                                                   | Fallback when AI is down        |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Assessment                            | 🟦 LLM  | read-only: affected appointments, waitlist, patient history, day load                                                                            | deterministic priority playbook |
+| Scheduling                            | 🟦 LLM  | `find_open_slots` (slots verbatim; the agent only picks searches + narrative)                                                                    | deterministic search plan       |
+| Recovery ranking                      | ⬜ code | validated slots, auditable weights                                                                                                               | n/a — always deterministic      |
+| First-contact offers                  | ⬜ code | the standard template (cross-doctor phrasing, wait option, reply coaching built in) — demoted from the model once the template covered the space | n/a — always deterministic      |
+| Comms drafting (continuations)        | 🟦 LLM  | context JSON (times, doctors) — acknowledges what the patient said; never invents facts                                                          | safe templates                  |
+| Reply guard                           | ⬜ code | Taglish clinical lexicon                                                                                                                         | n/a                             |
+| Constraint extractor                  | 🟦 LLM  | reply text, calendar table, prior constraints                                                                                                    | review handoff — never regex    |
+| Validator / triage / diff             | ⬜ code | extracted sets                                                                                                                                   | n/a                             |
+| Negotiation policy                    | 🟦 LLM  | constraint set, candidate slots, relaxation counts                                                                                               | escalate to staff, always       |
+| Policy guard, state machine, executor | ⬜ code | —                                                                                                                                                | n/a                             |
 
 Fallbacks degrade to **staff review, never to dumber automation** — the same
 schemas, a person in the loop.
