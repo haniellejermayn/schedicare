@@ -191,7 +191,7 @@ export function DecisionCard({
   return (
     <RailRow tone={decided ? oc.tone : "warn"} className="p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[15px] font-bold text-ink">
+        <span className="text-md font-bold text-ink">
           {p.patientName ?? "Patient"}
         </span>
         <Chip tone="neutral">{kindLabel(rec.kind)}</Chip>
@@ -202,7 +202,7 @@ export function DecisionCard({
       </div>
 
       {p.priorityReason && !decided && (
-        <p className="mt-1 text-[13px] text-muted">{p.priorityReason}</p>
+        <p className="mt-1 text-sm text-muted">{p.priorityReason}</p>
       )}
 
       <div className="mt-2.5">
@@ -214,14 +214,14 @@ export function DecisionCard({
           />
         )}
         {rec.kind === "waitlist_fill" && (
-          <p className="text-[14px]">
+          <p className="text-base">
             Offer <b className="tnum">{p.when}</b>{" "}
             <span className="text-muted">with {p.doctorName}</span>
           </p>
         )}
         {rec.kind === "clarification" && (
           <>
-            <p className="text-[14px]">{p.question}</p>
+            <p className="text-base">{p.question}</p>
             {(p.choices ?? []).length > 0 && (
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {p.choices.map((o: string, i: number) => (
@@ -232,7 +232,7 @@ export function DecisionCard({
               </div>
             )}
             {p.relaxationYield != null && (
-              <p className="mt-1 text-[12px] text-muted">
+              <p className="mt-1 text-xs text-muted">
                 If they can flex, {p.relaxationYield} option
                 {p.relaxationYield === 1 ? "" : "s"} open up.
               </p>
@@ -241,7 +241,7 @@ export function DecisionCard({
         )}
         {(rec.kind === "confirm_nudge" || rec.kind === "preventive") && (
           <>
-            <p className="text-[14px]">
+            <p className="text-base">
               {rec.kind === "confirm_nudge"
                 ? "Ask them to confirm"
                 : "Friendly check-in for"}{" "}
@@ -249,13 +249,13 @@ export function DecisionCard({
               <span className="text-muted"> with {p.from?.doctorName}</span>
             </p>
             {rec.kind === "preventive" && p.rationale && (
-              <p className="mt-1 text-[12px] text-muted">{p.rationale}</p>
+              <p className="mt-1 text-xs text-muted">{p.rationale}</p>
             )}
           </>
         )}
       </div>
 
-      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {rec.kind === "reschedule" && chosen && (
           <button
             className="font-semibold text-accent hover:underline"
@@ -277,40 +277,42 @@ export function DecisionCard({
         )}
       </div>
       {whyOpen && chosen && (
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px] text-muted">
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-muted">
           {whyBullets(chosen, p).map((b, i) => (
             <li key={i}>{b}</li>
           ))}
         </ul>
       )}
       {rec.status === "failed" && p.failedReason && (
-        <p className="mt-1.5 text-[13px] font-semibold text-bad">
+        <p className="mt-1.5 text-sm font-semibold text-bad">
           Couldn&apos;t complete:{" "}
           <span className="font-normal">{p.failedReason}</span>
         </p>
       )}
       {decided && rec.decisionReason && (
-        <p className="mt-1.5 text-[13px] text-muted">
+        <p className="mt-1.5 text-sm text-muted">
           <b className="text-ink/80">Note:</b> {rec.decisionReason}
         </p>
       )}
-      {info && <p className="mt-2 text-[13px] font-semibold text-ok">{info}</p>}
-      {err && <p className="mt-2 text-[13px] font-semibold text-bad">{err}</p>}
+      {info && <p className="mt-2 text-sm font-semibold text-ok">{info}</p>}
+      {err && <p className="mt-2 text-sm font-semibold text-bad">{err}</p>}
 
+      {/* The approval gate. Set apart by a rule and given full-size controls:
+          this is the one point in the whole system where a human decision is
+          structurally required, and the UI should look like it knows that. */}
       {!decided && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
           <Button
             variant="success"
-            small
             disabled={!!busy}
+            loading={busy === "approve"}
             onClick={() => decide("approve")}
           >
-            {busy === "approve" ? <Spinner /> : "Approve"}
+            Approve
           </Button>
           {rec.kind === "reschedule" && (p.options ?? []).length > 0 && (
             <Button
               variant="secondary"
-              small
               disabled={!!busy}
               onClick={() => setChangeOpen(true)}
             >
@@ -319,19 +321,21 @@ export function DecisionCard({
           )}
           <Button
             variant="quiet"
-            small
-            className="text-bad"
+            className="text-bad hover:bg-bad-soft hover:text-bad"
             disabled={!!busy}
             onClick={() => setRejectOpen(true)}
           >
             Can&apos;t do this
           </Button>
+          <span className="ml-auto hidden text-xs text-muted sm:inline">
+            Nothing is sent until you decide.
+          </span>
         </div>
       )}
 
       {outboundDraft && (
         <div className="mt-3 flex items-center gap-2 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
-          <span className="text-[13px] font-semibold text-accent">
+          <span className="text-sm font-semibold text-accent">
             Email drafted — nothing goes out until you press Send.
           </span>
           <Button
@@ -365,12 +369,12 @@ export function DecisionCard({
           </>
         }
       >
-        <p className="text-[13px] text-muted">
+        <p className="text-sm text-muted">
           Every option here fits the doctor&apos;s rules and calendar. Changing
           the time rewrites the message for the new slot.
         </p>
         <p className="eyebrow mt-3">Suggested times</p>
-        <div className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto thin-scroll pr-1">
+        <div className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto scroll-quiet pr-1">
           {(p.options ?? [])
             .filter((o: any) => o && o.startUtc)
             .map((o: any) => (
@@ -380,7 +384,7 @@ export function DecisionCard({
                   "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
                   !manualSel && optionId === o.id
                     ? "border-accent bg-accent-soft"
-                    : "border-line bg-white hover:border-strong",
+                    : "border-line bg-surface hover:border-line-strong",
                 )}
               >
                 <input
@@ -393,10 +397,10 @@ export function DecisionCard({
                   }}
                   className="accent-accent"
                 />
-                <span className="tnum text-[14px] font-semibold text-ink">
+                <span className="tnum text-base font-semibold text-ink">
                   {fmtWhenManila(o.startUtc)}
                 </span>
-                <span className="text-[13px] text-muted">{o.doctorName}</span>
+                <span className="text-sm text-muted">{o.doctorName}</span>
               </label>
             ))}
         </div>
@@ -407,7 +411,7 @@ export function DecisionCard({
             value={manualDoctor}
             onChange={(e) => setManualDoctor(e.target.value)}
             aria-label="Doctor"
-            className="rounded-ctl border border-line bg-white px-2 py-1.5 text-[13px] font-semibold outline-none focus:border-accent"
+            className="rounded-ctl border border-line bg-surface px-2 py-1.5 text-sm font-semibold outline-none focus:border-accent"
           >
             {doctors.map((d) => (
               <option key={d.id} value={d.id}>
@@ -420,7 +424,7 @@ export function DecisionCard({
             value={manualDay}
             onChange={(e) => setManualDay(e.target.value)}
             aria-label="Day"
-            className="tnum rounded-ctl border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
+            className="tnum rounded-ctl border border-line px-2 py-1.5 text-sm outline-none focus:border-accent"
           />
           <Button
             variant="secondary"
@@ -432,9 +436,9 @@ export function DecisionCard({
           </Button>
         </div>
         {manualSlots && (
-          <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto thin-scroll pr-1">
+          <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto scroll-quiet pr-1">
             {manualSlots.length === 0 && (
-              <p className="text-[13px] text-muted">
+              <p className="text-sm text-muted">
                 No open slots for that doctor on that day — the rules, calendar,
                 or caps are in the way.
               </p>
@@ -446,7 +450,7 @@ export function DecisionCard({
                   "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
                   manualSel?.startUtc === s.startUtc
                     ? "border-accent bg-accent-soft"
-                    : "border-line bg-white hover:border-strong",
+                    : "border-line bg-surface hover:border-line-strong",
                 )}
               >
                 <input
@@ -456,7 +460,7 @@ export function DecisionCard({
                   onChange={() => setManualSel(s)}
                   className="accent-accent"
                 />
-                <span className="tnum text-[14px] font-semibold text-ink">
+                <span className="tnum text-base font-semibold text-ink">
                   {fmtWhenManila(s.startUtc)}
                 </span>
                 <Chip tone="neutral">Staff picked</Chip>
@@ -491,7 +495,7 @@ export function DecisionCard({
             ? "The original visit will be cancelled and nothing is emailed."
             : "No message will be sent."}
         </p>
-        <label className="mt-3 block text-[12px] font-bold text-muted">
+        <label className="mt-3 block text-xs font-bold text-muted">
           Reason (kept in the record)
         </label>
         <select
@@ -499,7 +503,7 @@ export function DecisionCard({
           onChange={(e) =>
             setRejectPreset(e.target.value as (typeof REJECT_REASONS)[number])
           }
-          className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] outline-none focus:border-accent"
+          className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base outline-none focus:border-accent"
         >
           {REJECT_REASONS.map((r) => (
             <option key={r} value={r}>
@@ -515,9 +519,9 @@ export function DecisionCard({
               ? "Tell the record what happened (required)"
               : "Anything else for the record? (optional)"
           }
-          className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-[14px] outline-none focus:border-accent"
+          className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-base outline-none focus:border-accent"
         />
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-[13px] text-ink">
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-ink">
           <input
             type="checkbox"
             checked={flagCall}
@@ -568,21 +572,21 @@ export function DecisionCard({
         }
       >
         {p.draft && !editing && (
-          <div className="rounded-ctl border border-line bg-paper p-3">
-            <p className="text-[13px] font-bold text-ink">{p.draft.subject}</p>
+          <div className="rounded-ctl border border-line bg-canvas p-3">
+            <p className="text-sm font-bold text-ink">{p.draft.subject}</p>
             {p.draftEditedByStaff && (
-              <p className="mt-0.5 text-[11px] font-semibold text-accent">
+              <p className="mt-0.5 text-xs font-semibold text-accent">
                 Edited by staff
               </p>
             )}
-            <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
               {p.draft.body}
             </p>
           </div>
         )}
         {editing && (
           <>
-            <p className="text-[12px] text-muted">
+            <p className="text-xs text-muted">
               Your wording replaces the draft. The subject stays standardized,
               and changing the time later rewrites the whole message for the new
               slot.
@@ -591,7 +595,7 @@ export function DecisionCard({
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
               rows={10}
-              className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-accent"
+              className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
             />
           </>
         )}

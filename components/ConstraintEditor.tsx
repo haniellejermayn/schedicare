@@ -258,7 +258,7 @@ export function ConstraintEditor({
   const approved = latest.disposition === "approved";
 
   return (
-    <div className="rounded-card border border-line bg-white p-4">
+    <div className="rounded-card border border-line bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="eyebrow">
@@ -273,16 +273,16 @@ export function ConstraintEditor({
           {approved && <Chip tone="ok">approved</Chip>}
         </div>
       </div>
-      <p className="mt-1 text-[13px] text-muted">{set.summary}</p>
+      <p className="mt-1 text-sm text-muted">{set.summary}</p>
 
       {Array.isArray(latest.diff) && latest.diff.length > 0 && (
         <div className="mt-2 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
-          <p className="text-[12px] font-semibold text-ink">
+          <p className="text-xs font-semibold text-ink">
             Changed by the latest reply:
           </p>
           <ul className="mt-0.5 space-y-0.5">
             {latest.diff.map((c: any, i: number) => (
-              <li key={i} className="text-[12px] text-ink">
+              <li key={i} className="text-xs text-ink">
                 <span className="font-semibold capitalize">{c.op}</span> —{" "}
                 {FIELD_LABELS[c.field] ?? c.field}
                 {c.scope === "soft" ? " (preference)" : ""}
@@ -299,7 +299,7 @@ export function ConstraintEditor({
       )}
 
       {set.clinicalContentDetected && (
-        <div className="mt-2 rounded-ctl border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] text-bad">
+        <div className="mt-2 rounded-ctl border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad">
           Possible clinical content — read the original message before acting.
           Nothing is automated for this reply.
         </div>
@@ -316,20 +316,20 @@ export function ConstraintEditor({
               <div className="flex items-center gap-2">
                 <Chip
                   tone={scope === "hard" ? "bad" : "neutral"}
-                  className="!text-[10px] uppercase"
+                  className="!text-micro uppercase"
                 >
                   {scope}
                 </Chip>
-                <span className="text-[13px] font-semibold text-ink">
+                <span className="text-sm font-semibold text-ink">
                   {FIELD_LABELS[key] ?? key}
                 </span>
-                <span className="text-[13px] text-ink">
+                <span className="text-sm text-ink">
                   {fmtValue(key, value)}
                 </span>
                 <span className="flex-1" />
                 {(scope === "hard" ? SOFT_TWIN[key] : HARD_TWIN[key]) && (
                   <button
-                    className="text-[12px] font-semibold text-accent hover:underline"
+                    className="text-xs font-semibold text-accent hover:underline"
                     onClick={() => toggleScope(scope, key)}
                     title={
                       scope === "hard"
@@ -341,7 +341,7 @@ export function ConstraintEditor({
                   </button>
                 )}
                 <button
-                  className="text-[13px] text-muted hover:text-bad"
+                  className="text-sm text-muted hover:text-bad"
                   onClick={() => removeField(scope, key)}
                   title="Remove"
                 >
@@ -349,7 +349,7 @@ export function ConstraintEditor({
                 </button>
               </div>
               {quote && (
-                <p className="mt-1 pl-1 text-[12px] italic text-muted">
+                <p className="mt-1 pl-1 text-xs italic text-muted">
                   “{quote}”
                 </p>
               )}
@@ -357,7 +357,7 @@ export function ConstraintEditor({
           );
         })}
         {rows.length === 0 && (
-          <li className="text-[13px] text-muted">
+          <li className="text-sm text-muted">
             No constraints — every open slot qualifies.
           </li>
         )}
@@ -365,18 +365,18 @@ export function ConstraintEditor({
 
       {set.unresolvedStatements.length > 0 && (
         <div className="mt-3 rounded-ctl border border-warn/50 bg-warn/5 px-3 py-2">
-          <p className="text-[12px] font-semibold text-ink">
+          <p className="text-xs font-semibold text-ink">
             Needs your judgement (not auto-processed):
           </p>
           <ul className="mt-1 space-y-1">
             {set.unresolvedStatements.map((u, i) => (
               <li
                 key={i}
-                className="flex items-center gap-2 text-[13px] text-ink"
+                className="flex items-center gap-2 text-sm text-ink"
               >
                 <span className="flex-1 italic">“{u}”</span>
                 <button
-                  className="text-[12px] font-semibold text-accent hover:underline"
+                  className="text-xs font-semibold text-accent hover:underline"
                   onClick={() => resolveStatement(i)}
                 >
                   mark resolved
@@ -409,12 +409,12 @@ export function ConstraintEditor({
           {busy === "search" ? <Spinner /> : "Search matching slots"}
         </Button>
         {dirty && (
-          <span className="text-[12px] text-muted">
+          <span className="text-xs text-muted">
             Save your edits before searching.
           </span>
         )}
         {!dirty && set.unresolvedStatements.length > 0 && (
-          <span className="text-[12px] text-muted">
+          <span className="text-xs text-muted">
             Resolve the highlighted statements first.
           </span>
         )}
@@ -422,7 +422,7 @@ export function ConstraintEditor({
 
       {slots && slots.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          <p className="text-[12px] font-semibold text-ink">
+          <p className="text-xs font-semibold text-ink">
             Valid slots (hard constraints enforced; ranked by preferences):
           </p>
           {slots.map((s: any) => (
@@ -430,12 +430,12 @@ export function ConstraintEditor({
               key={`${s.doctorId}|${s.startUtc}`}
               className="flex items-center gap-2 rounded-ctl border border-line px-3 py-2"
             >
-              <span className="text-[13px] font-semibold text-ink">
+              <span className="text-sm font-semibold text-ink">
                 {fmtWhenManila(s.startUtc)}
               </span>
-              <span className="text-[13px] text-muted">{s.doctorName}</span>
+              <span className="text-sm text-muted">{s.doctorName}</span>
               {s.chips?.map((ch: any, i: number) => (
-                <Chip key={i} tone="ok" className="!text-[10px]">
+                <Chip key={i} tone="ok" className="!text-micro">
                   {ch.label} +{ch.pts}
                 </Chip>
               ))}
@@ -457,14 +457,14 @@ export function ConstraintEditor({
 
       {slots && slots.length === 0 && relaxations.length > 0 && (
         <div className="mt-3 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
-          <p className="text-[12px] font-semibold text-ink">
+          <p className="text-xs font-semibold text-ink">
             No slot matches everything — but one relaxation would:
           </p>
           <ul className="mt-1 space-y-1">
             {relaxations.map((r: any) => (
               <li
                 key={r.field}
-                className="flex items-center gap-2 text-[13px] text-ink"
+                className="flex items-center gap-2 text-sm text-ink"
               >
                 <span className="flex-1">
                   Without{" "}
@@ -476,7 +476,7 @@ export function ConstraintEditor({
                   option{r.slotsIfDropped === 1 ? "" : "s"}
                 </span>
                 <button
-                  className="text-[12px] font-semibold text-accent hover:underline"
+                  className="text-xs font-semibold text-accent hover:underline"
                   onClick={() => relaxOne(r.field)}
                 >
                   relax this
@@ -496,7 +496,7 @@ export function ConstraintEditor({
                 "Keep everything — ask the patient"
               )}
             </Button>
-            <span className="text-[12px] text-muted">
+            <span className="text-xs text-muted">
               The AI drafts the question (citing these numbers); you approve it
               before anything is sent.
             </span>
@@ -507,7 +507,7 @@ export function ConstraintEditor({
       {note && (
         <p
           className={cn(
-            "mt-2 text-[13px]",
+            "mt-2 text-sm",
             note.startsWith("Could") || note.startsWith("Search failed")
               ? "text-bad"
               : "text-muted",

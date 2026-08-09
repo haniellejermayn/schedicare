@@ -95,32 +95,32 @@ export function ManualAppointmentModal({
         </>
       }
     >
-      {error && <p className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-[13px] font-semibold text-bad">{error}</p>}
+      {error && <p className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-sm font-semibold text-bad">{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-[12px] font-bold text-muted">
+        <label className="text-xs font-bold text-muted">
           Patient
-          <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
+          <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base text-ink">
             {patients.map((patient: any) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
           </select>
         </label>
-        <label className="text-[12px] font-bold text-muted">
+        <label className="text-xs font-bold text-muted">
           Doctor
-          <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
+          <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base text-ink">
             {doctors.map((doctor: any) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
           </select>
         </label>
       </div>
 
-      <button className="mt-2 text-[12px] font-semibold text-accent hover:underline" onClick={() => setAddingPatient((value) => !value)}>
+      <button className="mt-2 text-xs font-semibold text-accent hover:underline" onClick={() => setAddingPatient((value) => !value)}>
         {addingPatient ? "Use an existing patient" : "Add a new patient"}
       </button>
       {addingPatient && (
-        <div className="mt-2 rounded-card border border-line bg-paper p-3">
+        <div className="mt-2 rounded-card border border-line bg-canvas p-3">
           <div className="grid gap-2 sm:grid-cols-2">
-            <input value={patientForm.name} onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })} placeholder="Name" className="rounded-ctl border border-line px-3 py-2 text-[13px]" />
-            <input value={patientForm.email} onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })} placeholder="Email" type="email" className="rounded-ctl border border-line px-3 py-2 text-[13px]" />
-            <input value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} placeholder="Phone (optional)" className="rounded-ctl border border-line px-3 py-2 text-[13px]" />
+            <input value={patientForm.name} onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })} placeholder="Name" className="rounded-ctl border border-line px-3 py-2 text-sm" />
+            <input value={patientForm.email} onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })} placeholder="Email" type="email" className="rounded-ctl border border-line px-3 py-2 text-sm" />
+            <input value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} placeholder="Phone (optional)" className="rounded-ctl border border-line px-3 py-2 text-sm" />
             <Button small variant="secondary" disabled={busy || !patientForm.name.trim() || !patientForm.email.trim()} onClick={addPatient}>
               {busy ? <Spinner /> : "Save patient"}
             </Button>
@@ -128,7 +128,7 @@ export function ManualAppointmentModal({
         </div>
       )}
 
-      <p className="mt-3 text-[12px] font-bold text-muted">Appointment type</p>
+      <p className="mt-3 text-xs font-bold text-muted">Appointment type</p>
       <div className="mt-1 flex gap-2">
         {TYPES.map((item) => (
           <Button key={item} small variant={type === item ? "primary" : "secondary"} onClick={() => setType(item)}>
@@ -137,18 +137,18 @@ export function ManualAppointmentModal({
         ))}
       </div>
 
-      <label className="mt-3 block text-[12px] font-bold text-muted">
+      <label className="mt-3 block text-xs font-bold text-muted">
         Valid date and time
         {slots.length === 0 ? (
           <div className="mt-1"><Empty>No open slots for this doctor and type.</Empty></div>
         ) : (
-          <select value={slot} onChange={(e) => setSlot(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
+          <select value={slot} onChange={(e) => setSlot(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base text-ink">
             <option value="">Select a time</option>
             {slots.map((item: any) => <option key={item.startUtc} value={item.startUtc}>{fmtWhenManila(item.startUtc)}</option>)}
           </select>
         )}
       </label>
-      <p className="mt-1 text-[11px] text-muted">The selected time is checked again before the appointment is saved.</p>
+      <p className="mt-1 text-xs text-muted">The selected time is checked again before the appointment is saved.</p>
     </Modal>
   );
 }

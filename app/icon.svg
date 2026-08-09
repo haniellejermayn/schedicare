@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    SchediCare mark, concept B: proposed (faded lead-in) becomes approved
+    (solid exit). Colours are literal rather than var(--accent) because this
+    file is served standalone as the favicon, outside the app's stylesheet.
+
+    This is the small-size variant: the dotted lead-in used in-app below 28px
+    turns to mush in a 16px browser tab, so it is drawn continuous and faded
+    here — same gesture, no speckle.
+  -->
+  <rect width="32" height="32" rx="9" fill="#1B5FD9"/>
+  <path d="M7.4 14.9 L13.3 21.1" stroke="#FFFFFF" stroke-width="3.1"
+        stroke-linecap="round" fill="none" opacity="0.4"/>
+  <path d="M13.3 21.1 L24.7 9.9" stroke="#FFFFFF" stroke-width="3.1"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

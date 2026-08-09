@@ -53,7 +53,7 @@ function ServiceCard({
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2">
-        <h3 className="text-[15px] font-bold text-ink">{title}</h3>
+        <h3 className="text-md font-bold text-ink">{title}</h3>
         <Chip tone={healthTone(health)}>{healthLabel(health)}</Chip>
         {onVerify && (
           <Button
@@ -67,11 +67,11 @@ function ServiceCard({
           </Button>
         )}
       </div>
-      <p className="mt-1 text-[13px] text-muted">{subtitle}</p>
+      <p className="mt-1 text-sm text-muted">{subtitle}</p>
       {result && (
         <p
           className={cn(
-            "mt-2 rounded-ctl border px-3 py-2 text-[13px] font-semibold",
+            "mt-2 rounded-ctl border px-3 py-2 text-sm font-semibold",
             result.ok
               ? "border-ok-line bg-ok-soft text-ok"
               : "border-bad-line bg-bad-soft text-bad",
@@ -165,7 +165,7 @@ function Connections() {
   return (
     <div className="space-y-3">
       {oauthToast && (
-        <p className="rounded-ctl border border-accent-line bg-accent-soft px-3 py-2 text-[13px] font-semibold text-accent">
+        <p className="rounded-ctl border border-accent-line bg-accent-soft px-3 py-2 text-sm font-semibold text-accent">
           {oauthToast}
         </p>
       )}
@@ -207,10 +207,10 @@ function Connections() {
           <a
             href="/api/oauth/start"
             className={cn(
-              "rounded-ctl px-3 py-1.5 text-[13px] font-semibold",
+              "rounded-ctl px-3 py-1.5 text-sm font-semibold",
               data.google.configured
                 ? "bg-accent text-white hover:bg-accent-press"
-                : "pointer-events-none bg-paper text-muted",
+                : "pointer-events-none bg-surface-alt text-muted",
             )}
           >
             {data.google.connected ? "Reconnect Google" : "Connect Google"}
@@ -226,7 +226,7 @@ function Connections() {
           {results.gmail && (
             <span
               className={cn(
-                "text-[12px] font-semibold",
+                "text-xs font-semibold",
                 results.gmail.ok ? "text-ok" : "text-bad",
               )}
             >
@@ -237,12 +237,12 @@ function Connections() {
         <div className="mt-4">
           <p className="eyebrow">Doctor → calendar</p>
           {mapMsg && (
-            <p className="mt-1 text-[12px] font-semibold text-ok">{mapMsg}</p>
+            <p className="mt-1 text-xs font-semibold text-ok">{mapMsg}</p>
           )}
           <div className="mt-1.5 space-y-1.5">
             {(data.mapping ?? []).map((m: any) => (
               <div key={m.doctorId} className="flex items-center gap-2">
-                <span className="w-24 text-[13px] font-semibold text-ink">
+                <span className="w-24 text-sm font-semibold text-ink">
                   {m.name}
                 </span>
                 <input
@@ -254,7 +254,7 @@ function Connections() {
                     }))
                   }
                   placeholder="Google Calendar ID"
-                  className="flex-1 rounded-ctl border border-line px-2.5 py-1.5 text-[12px] outline-none focus:border-accent"
+                  className="flex-1 rounded-ctl border border-line px-2.5 py-1.5 text-xs outline-none focus:border-accent"
                 />
                 <Button
                   variant="secondary"
@@ -266,7 +266,7 @@ function Connections() {
               </div>
             ))}
           </div>
-          <p className="mt-1.5 text-[11px] text-muted">
+          <p className="mt-1.5 text-xs text-muted">
             Keep the sim- ids to stay on the built-in calendar for that doctor.
           </p>
         </div>
@@ -335,15 +335,15 @@ function DemoData() {
   return (
     <div className="space-y-3">
       {toast && (
-        <p className="rounded-ctl border border-accent-line bg-accent-soft px-3 py-2 text-[13px] font-semibold text-accent">
+        <p className="rounded-ctl border border-accent-line bg-accent-soft px-3 py-2 text-sm font-semibold text-accent">
           {toast}
         </p>
       )}
 
       <Card className="p-4">
-        <h3 className="text-[15px] font-bold text-ink">Demo controls</h3>
+        <h3 className="text-md font-bold text-ink">Demo controls</h3>
         {status && (
-          <p className="mt-1 text-[13px] text-muted">
+          <p className="mt-1 text-sm text-muted">
             Demo clock:{" "}
             <b className="tnum text-ink">{fmtWhenManila(status.demoNow)}</b>{" "}
             (Asia/Manila) · Mode: {status.mode === "live" ? "Live" : "Demo"}
@@ -383,7 +383,7 @@ function DemoData() {
 
       {m && (
         <Card className="p-4">
-          <h3 className="text-[15px] font-bold text-ink">Today so far</h3>
+          <h3 className="text-md font-bold text-ink">Today so far</h3>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               ["Cases handled", m.cases?.total ?? 0],
@@ -392,15 +392,15 @@ function DemoData() {
               ["Care minutes saved", m.minutesRecovered ?? 0],
             ].map(([label, v]) => (
               <div key={label as string}>
-                <p className="tnum text-[22px] font-bold text-ink">
+                <p className="tnum text-2xl font-bold text-ink">
                   {v as number}
                 </p>
-                <p className="text-[12px] text-muted">{label}</p>
+                <p className="text-xs text-muted">{label}</p>
               </div>
             ))}
           </div>
           {m.agentRuns && (
-            <p className="mt-3 text-[12px] text-muted">
+            <p className="mt-3 text-xs text-muted">
               System runs: {m.agentRuns.total} ({m.agentRuns.live ?? 0} with
               Gemini, {m.agentRuns.fallback ?? 0} on built-in playbooks,{" "}
               {m.agentRuns.errors ?? 0} errors)
@@ -454,11 +454,11 @@ function Audit() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search the record — e.g. reject, doc_santos, mail"
-        className="w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] outline-none focus:border-accent"
+        className="w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base outline-none focus:border-accent"
       />
-      <Card className="max-h-[480px] overflow-y-auto thin-scroll">
+      <Card className="max-h-[480px] overflow-y-auto scroll-quiet">
         {rows.length === 0 && (
-          <p className="p-6 text-center text-[13px] text-muted">
+          <p className="p-6 text-center text-sm text-muted">
             Nothing matches.
           </p>
         )}
@@ -466,18 +466,18 @@ function Audit() {
           {rows.map((a: any) => (
             <li key={a.id} className="px-4 py-2">
               <div className="flex items-baseline gap-2">
-                <Chip tone="neutral" className="!px-1.5 !text-[10px]">
+                <Chip tone="neutral" className="!px-1.5 !text-micro">
                   {a.actor}
                 </Chip>
-                <span className="text-[13px] font-semibold text-ink">
+                <span className="text-sm font-semibold text-ink">
                   {a.action}
                 </span>
-                <span className="tnum ml-auto shrink-0 text-[11px] text-muted">
+                <span className="tnum ml-auto shrink-0 text-xs text-muted">
                   {fmtWhenManila(a.at)}
                 </span>
               </div>
               {a.detail && (
-                <p className="mt-0.5 break-all text-[11px] leading-snug text-muted">
+                <p className="mt-0.5 break-all text-xs leading-snug text-muted">
                   {JSON.stringify(a.detail).slice(0, 220)}
                 </p>
               )}
@@ -485,7 +485,7 @@ function Audit() {
           ))}
         </ul>
       </Card>
-      <p className="text-[12px] text-muted">
+      <p className="text-xs text-muted">
         Every consequential action — human or automatic — lands here with who
         did it.
       </p>
@@ -499,7 +499,9 @@ function SettingsInner() {
   const [tab, setTab] = useState<Tab>(initial);
   return (
     <div className="space-y-5">
-      <PageTitle>Settings</PageTitle>
+      <PageTitle subtitle="Integrations, demo controls, and the audit trail.">
+        Settings
+      </PageTitle>
       <Tabs<Tab>
         value={tab}
         onChange={setTab}

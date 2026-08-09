@@ -119,7 +119,7 @@ const TONE_BLOCK: Record<string, string> = {
   warn: "border-warn-line bg-warn-soft text-warn",
   bad: "border-bad-line bg-bad-soft text-bad",
   accent: "border-accent-line bg-accent-soft text-accent",
-  neutral: "border-line bg-paper text-muted",
+  neutral: "border-line bg-canvas text-muted",
 };
 
 export function WeekCalendar({
@@ -158,7 +158,7 @@ export function WeekCalendar({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
         {(["confirmed", "booked"] as const).map((k) => (
           <span key={k} className="flex items-center gap-1.5">
             <span
@@ -175,7 +175,7 @@ export function WeekCalendar({
           May not show
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-[3px] border border-dashed border-muted bg-paper" />
+          <span className="h-2 w-2 rounded-[3px] border border-dashed border-muted bg-canvas" />
           Busy elsewhere (external calendar)
         </span>
         <span className="flex items-center gap-1.5">
@@ -189,7 +189,7 @@ export function WeekCalendar({
         )}
       </div>
 
-      <Card className="overflow-x-auto thin-scroll p-0">
+      <Card className="overflow-x-auto scroll-quiet p-0">
         <div
           className={cn(
             "grid",
@@ -212,7 +212,7 @@ export function WeekCalendar({
               >
                 <p
                   className={cn(
-                    "text-[11px] font-semibold uppercase tracking-wide",
+                    "text-xs font-semibold uppercase tracking-wide",
                     isToday ? "text-accent" : "text-muted",
                   )}
                 >
@@ -223,7 +223,7 @@ export function WeekCalendar({
                 </p>
                 <p
                   className={cn(
-                    "tnum text-[13px] font-bold",
+                    "tnum text-sm font-bold",
                     isToday ? "text-accent" : "text-ink",
                   )}
                 >
@@ -242,7 +242,7 @@ export function WeekCalendar({
             {HOURS.map((h) => (
               <div
                 key={h}
-                className="tnum absolute right-1.5 -translate-y-1/2 text-[10px] text-muted"
+                className="tnum absolute right-1.5 -translate-y-1/2 text-micro text-muted"
                 style={{ top: (h - HOUR_START) * PX_PER_HOUR }}
               >
                 {h % 12 === 0 ? 12 : h % 12}
@@ -271,7 +271,7 @@ export function WeekCalendar({
               >
                 {unavailable && (
                   <div className="pointer-events-none absolute inset-0 z-[4] flex items-start justify-center bg-bad-soft/70 pt-2">
-                    <span className="rounded-full border border-bad-line bg-white/90 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-bad">
+                    <span className="rounded-full border border-bad-line bg-surface/90 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-bad">
                       Unavailable
                     </span>
                   </div>
@@ -348,7 +348,7 @@ export function WeekCalendar({
                         key={a.id}
                         onClick={() => setSelected(a)}
                         className={cn(
-                          "animate-rise absolute z-[5] overflow-hidden rounded-[8px] border border-line border-l-[3px] bg-white px-2.5 py-1.5 text-left shadow-sm transition-transform hover:z-20 hover:scale-[1.01]",
+                          "animate-rise absolute z-[5] overflow-hidden rounded-[8px] border border-line border-l-[3px] bg-surface px-2.5 py-1.5 text-left shadow-sm transition-transform hover:z-20 hover:scale-[1.01]",
                           RAIL[st.tone],
                         )}
                         style={{
@@ -360,12 +360,12 @@ export function WeekCalendar({
                         title={`${a.patientName} · ${typeLabel(a.type)} · ${fmtTimeManila(a.startUtc)}–${fmtTimeManila(a.endUtc)}`}
                       >
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-[13px] font-semibold text-ink">
+                          <span className="truncate text-sm font-semibold text-ink">
                             {a.patientName}
                           </span>
                           <span
                             className={cn(
-                              "shrink-0 text-[11px] font-semibold",
+                              "shrink-0 text-xs font-semibold",
                               STATUS_TEXT[st.tone],
                             )}
                           >
@@ -373,7 +373,7 @@ export function WeekCalendar({
                           </span>
                         </span>
                         {height > 42 && (
-                          <span className="tnum block truncate text-[11px] text-muted">
+                          <span className="tnum block truncate text-xs text-muted">
                             {fmtTimeManila(a.startUtc)}–
                             {fmtTimeManila(a.endUtc)} · {typeLabel(a.type)}
                             {risky ? " · may not show" : ""}
@@ -387,7 +387,7 @@ export function WeekCalendar({
                       key={a.id}
                       onClick={() => setSelected(a)}
                       className={cn(
-                        "animate-rise absolute z-[5] overflow-hidden rounded-[6px] border px-1.5 py-1 text-left text-[10px] leading-tight shadow-sm transition-transform hover:z-20 hover:scale-[1.02]",
+                        "animate-rise absolute z-[5] overflow-hidden rounded-[6px] border px-1.5 py-1 text-left text-micro leading-tight shadow-sm transition-transform hover:z-20 hover:scale-[1.02]",
                         TONE_BLOCK[st.tone],
                       )}
                       style={{
@@ -429,7 +429,7 @@ export function WeekCalendar({
         title={selected?.patientName ?? "Visit"}
         footer={
           <button
-            className="text-[13px] font-semibold text-accent hover:underline"
+            className="text-sm font-semibold text-accent hover:underline"
             onClick={() => setSelected(null)}
           >
             Close
@@ -449,7 +449,7 @@ export function WeekCalendar({
                   <Chip tone="warn">May not show</Chip>
                 )}
             </div>
-            <p className="tnum text-[12px] text-muted">
+            <p className="tnum text-xs text-muted">
               {durationMin(selected)} min
             </p>
           </div>

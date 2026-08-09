@@ -1,8 +1,17 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (**79/79 across 10 files**),
+Status date: build verified against `npm test` (**83/83 across 10 files**),
 `npm run typecheck` (strict, clean), and `npm run build` (clean). Extraction
 numbers carry the dev-set caveat (see v2.3).
+
+> **Native-dependency note.** `better-sqlite3` must resolve to a *single*
+> deduped copy. `@langchain/langgraph-checkpoint-sqlite` declares
+> `better-sqlite3@^12.10.0`; when the app's own dependency moved to `^13`, npm
+> installed a *second*, nested copy whose native binding never got built, and
+> `SqliteSaver.fromConnString()` threw at graph-compile time. The `overrides`
+> block in `package.json` pins every consumer to the app's version. If the
+> graph tests ever fail with `Could not locate the bindings file`, check for a
+> nested `better-sqlite3` under `node_modules/@langchain/` before anything else.
 
 ## Guarded negotiation + demo hardening (v2.3)
 
@@ -225,7 +234,9 @@ and health check (a readiness path, not the active integration).
   webhook calendars, timezone-per-patient, SMS. MCP is a readiness path with a
   working health check, not the active integration (see docs/MCP_FEASIBILITY.md).
 - **Accessibility:** semantic labels, no color-only status, reduced-motion
-  support; a full audit (focus traps in dialogs, screen-reader passes) was not
+  support, dialog focus traps with focus restore, and a palette whose contrast
+  is asserted in CI (`tests/tokens.test.ts` — AA for every text grade on both
+  grounds, 3:1 for every status rail). A full screen-reader pass was still not
   performed.
 
 ## Metrics snapshot (resilience mode, this machine — reproduce with `npm run eval`)

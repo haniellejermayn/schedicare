@@ -5,16 +5,24 @@ import { useParams } from "next/navigation";
 import { usePoll, useFeed } from "@/lib/usePoll";
 import { jfetch, fmtWhenManila, agentLabel } from "@/lib/format";
 import {
+  Avatar,
   Button,
+  Card,
   Chip,
+  ChoiceCard,
+  Disclosure,
   Empty,
+  Eyebrow,
+  Field,
   Modal,
   RailRow,
   RescheduleLine,
+  Select,
+  SegmentBar,
   Spinner,
-  Tabs,
   cn,
 } from "@/components/ui";
+import { CaseIcon } from "@/components/CaseIcon";
 import {
   CASE_STATE,
   isPlainEntry,
@@ -111,14 +119,14 @@ function ActivityRow({ it, tech }: { it: any; tech: boolean }) {
       />
       <div className="flex items-baseline gap-2">
         {tech && (
-          <Chip tone="neutral" className="!px-1.5 !text-[10px]">
+          <Chip tone="neutral" className="!px-1.5 !text-micro">
             {agentLabel(it.actor)}
           </Chip>
         )}
-        <p className="min-w-0 flex-1 text-[13px] leading-snug text-ink">
+        <p className="min-w-0 flex-1 text-sm leading-snug text-ink">
           {plainTitle(it)}
         </p>
-        <span className="tnum shrink-0 text-[11px] text-muted">
+        <span className="tnum shrink-0 text-xs text-muted">
           {new Date(it.at).toLocaleTimeString("en-PH", {
             hour: "numeric",
             minute: "2-digit",
@@ -127,7 +135,7 @@ function ActivityRow({ it, tech }: { it: any; tech: boolean }) {
         </span>
       </div>
       {(tech ? it.detail : plainDetail(it)) && (
-        <p className="mt-0.5 text-[12px] leading-snug text-muted">
+        <p className="mt-0.5 text-xs leading-snug text-muted">
           {tech ? it.detail : plainDetail(it)}
         </p>
       )}
@@ -147,7 +155,7 @@ function SummaryLine({ s, state }: { s: any; state: string }) {
       s.minutesRecovered > 0 &&
       `${s.minutesRecovered} care minutes saved`,
   ].filter(Boolean);
-  return <p className="text-[13px] text-muted">{bits.join(" · ")}</p>;
+  return <p className="text-sm text-muted">{bits.join(" · ")}</p>;
 }
 
 function buildPatients(recs: any[], convs: any[]) {
@@ -228,7 +236,11 @@ const statusToneClass: Record<string, string> = {
 
 export default function CasePage() {
   const { id } = useParams<{ id: string }>();
-  const { data, refresh } = usePoll<any>(id ? `/api/cases/${id}` : null, 1800);
+  const {
+    data,
+    refresh,
+    error: loadError,
+  } = usePoll<any>(id ? `/api/cases/${id}` : null, 1800);
   const feed = useFeed(id);
   const [tab, setTab] = useState<Tab>("activity");
   const [tech, setTech] = useState(false);
@@ -325,7 +337,26 @@ export default function CasePage() {
       .catch((error) => setFollowError((error as Error).message));
   }, [followUp, followOutcome]);
 
-  if (!c) return <Empty>Loading…</Empty>;
+  // A bad case id previously sat on "Loading…" forever, because the poll error
+  // was never read. Say what happened and offer the way back.
+  if (!c) {
+    if (loadError) {
+      return (
+        <Empty
+          action={
+            <Link href="/ops">
+              <Button variant="secondary" tabIndex={-1}>
+                Back to front desk
+              </Button>
+            </Link>
+          }
+        >
+          We couldn&apos;t open this case — it may have been reset or removed.
+        </Empty>
+      );
+    }
+    return <Empty>Loading…</Empty>;
+  }
   const st = CASE_STATE[c.state] ?? {
     label: c.state,
     tone: "neutral" as const,
@@ -382,93 +413,81 @@ export default function CasePage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       {/* Header */}
-      <div>
+      <div className="flex flex-col gap-2.5">
         <Link
           href="/ops"
-          className="text-[13px] font-semibold text-accent hover:underline"
+          className="inline-flex w-fit items-center gap-1 rounded-ctl text-sm font-semibold text-accent hover:underline"
         >
-          ‹ Front desk
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+            <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Front desk
         </Link>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
-          <h1 className="text-[20px] font-bold tracking-tight text-ink">
-            {c.title}
-          </h1>
-          <Chip tone={st.tone}>{st.label}</Chip>
+        <div className="flex flex-wrap items-start gap-3">
+          <CaseIcon type={c.type} tone={st.tone} size={40} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl font-bold text-ink">{c.title}</h1>
+              <Chip tone={st.tone}>{st.label}</Chip>
+            </div>
+            <SummaryLine s={data?.scoreboard} state={c.state} />
+          </div>
           {proposed.length > 1 && (
             <Button
-              small
               disabled={busyAll}
+              loading={busyAll}
               onClick={() => setApproveAllOpen(true)}
-              className="ml-auto"
             >
-              {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
+              Approve all {proposed.length}
             </Button>
           )}
         </div>
-        <div className="mt-1">
-          <SummaryLine s={data?.scoreboard} state={c.state} />
-        </div>
       </div>
 
-      {/* Metric tiles */}
+      {/* The recovery scoreboard PRODUCT.md asks for, as a proportion rather
+          than five tiles: how far this disruption has been walked back. */}
       {metrics && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-          <div className="rounded-[10px] border border-line bg-white px-[13px] py-2">
-            <span className="tnum block text-[16px] font-bold leading-none text-ink">
-              {metrics.total}
-            </span>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Patients affected
-            </span>
-          </div>
-          <div className="rounded-[10px] border border-ok-line bg-ok-soft px-[13px] py-2">
-            <span className="tnum block text-[16px] font-bold leading-none text-ok">
-              {metrics.confirmed}
-            </span>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Confirmed
-            </span>
-          </div>
-          <div className="rounded-[10px] border border-warn-line bg-warn-soft px-[13px] py-2">
-            <span className="tnum block text-[16px] font-bold leading-none text-warn">
-              {metrics.waitingForYou}
-            </span>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Waiting for you
-            </span>
-          </div>
-          <div className="rounded-[10px] border border-accent-line bg-accent-soft px-[13px] py-2">
-            <span className="tnum block text-[16px] font-bold leading-none text-accent">
-              {metrics.waitingOnPatient}
-            </span>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Waiting on patient
-            </span>
-          </div>
-          <div className="rounded-[10px] border border-bad-line bg-bad-soft px-[13px] py-2">
-            <span className="tnum block text-[16px] font-bold leading-none text-bad">
-              {metrics.toCall}
-            </span>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
-              To call
-            </span>
-          </div>
-        </div>
+        <SegmentBar
+          caption="Recovery"
+          total={metrics.total}
+          totalLabel={metrics.total === 1 ? "patient affected" : "patients affected"}
+          right={
+            metrics.confirmed === metrics.total && metrics.total > 0 ? (
+              <Chip tone="ok">Everyone rebooked</Chip>
+            ) : undefined
+          }
+          segments={[
+            { label: "confirmed", value: metrics.confirmed, tone: "ok" },
+            {
+              label: "waiting on patient",
+              value: metrics.waitingOnPatient,
+              tone: "accent",
+            },
+            {
+              label: "waiting for you",
+              value: metrics.waitingForYou,
+              tone: "warn",
+            },
+            { label: "to call", value: metrics.toCall, tone: "bad" },
+          ]}
+        />
       )}
 
       {/* Escalated banner */}
       {c.state === "escalated" && (
-        <RailRow tone="bad" className="flex items-center gap-3 px-4 py-3">
-          <p className="text-[14px] font-semibold text-ink">
+        <RailRow
+          tone="bad"
+          className="flex flex-wrap items-center gap-3 px-4 py-3"
+        >
+          <p className="flex-1 text-base font-semibold text-ink">
             This one needs a person — the system stopped on purpose.
           </p>
           {conversations.length === 0 && (
             <Button
               variant="secondary"
               small
-              className="ml-auto"
               onClick={() => setResolveOpen(true)}
             >
               Resolve manually
@@ -492,84 +511,71 @@ export default function CasePage() {
 
       {/* Patient list + panel */}
       {patients.length > 0 && (
-        <div className="grid gap-3 md:grid-cols-[250px_1fr]">
-          <aside className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="eyebrow">Patients in this case</span>
-            </div>
-            {patients.map((p) => {
-              const oc = p.activeRec
-                ? outcomeLabel(p.activeRec)
-                : { label: "No action", tone: "neutral" as const };
-              const isActive = selectedId === p.id;
-              const sub =
-                needsDecision(p.activeRec)
-                  ? "Needs your decision"
-                  : oc.label;
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => togglePatient(p.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-card border bg-white px-[11px] py-[9px] text-left transition-colors",
-                    isActive
-                      ? "border-accent bg-accent-soft"
-                      : "border-line hover:border-strong",
-                  )}
-                >
-                  <span
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white"
-                    style={{
-                      backgroundColor:
-                        p.activeRec?.payload?.doctorName
-                          ? undefined
-                          : undefined,
-                    }}
-                  >
-                    {p.name
-                      .split(" ")
-                      .map((w: string) => w[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate text-[13px] text-ink">
-                      {p.name}
-                    </b>
-                    <span className="block truncate text-[11px] text-muted">
-                      {sub}
-                    </span>
-                  </span>
-                  <span
+        <div className="grid items-start gap-3 lg:grid-cols-[264px_1fr]">
+          <aside className="flex flex-col gap-2">
+            <Eyebrow className="px-0.5">
+              Patients in this case · {patients.length}
+            </Eyebrow>
+            {/* Horizontal strip on narrow screens so the decision panel stays
+                above the fold; a vertical list once there is room beside it. */}
+            <div className="scroll-quiet flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+              {patients.map((p) => {
+                const oc = p.activeRec
+                  ? outcomeLabel(p.activeRec)
+                  : { label: "No action", tone: "neutral" as const };
+                const isActive = selectedId === p.id;
+                const decides = needsDecision(p.activeRec);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => togglePatient(p.id)}
+                    aria-current={isActive ? "true" : undefined}
                     className={cn(
-                      "h-2 w-2 shrink-0 rounded-full",
-                      dotToneClass[oc.tone] ?? "bg-line",
+                      "flex w-[220px] shrink-0 items-center gap-2.5 rounded-card border px-3 py-2.5 text-left lg:w-auto",
+                      "transition-colors duration-fast ease-snappy",
+                      isActive
+                        ? "border-accent bg-accent-soft"
+                        : "border-line bg-surface hover:border-line-strong",
                     )}
-                  />
-                </button>
-              );
-            })}
+                  >
+                    <Avatar name={p.name} size={32} />
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-sm font-semibold text-ink">
+                        {p.name}
+                      </b>
+                      <span
+                        className={cn(
+                          "block truncate text-xs",
+                          decides ? "font-semibold text-warn" : "text-muted",
+                        )}
+                      >
+                        {decides ? "Needs your decision" : oc.label}
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        dotToneClass[oc.tone] ?? "bg-line",
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+                );
+              })}
+            </div>
           </aside>
 
           <div>
             {selectedPatient ? (
-              <div className="overflow-hidden rounded-card border border-line bg-white">
+              <Card className="overflow-hidden">
                 {/* Panel head */}
-                <div className="flex items-center gap-3 border-b border-line px-[18px] py-[14px]">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white">
-                    {selectedPatient.name
-                      .split(" ")
-                      .map((w: string) => w[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
-                  </span>
-                  <div>
-                    <h2 className="text-[15px] font-bold text-ink">
+                <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3.5">
+                  <Avatar name={selectedPatient.name} size={36} />
+                  <div className="min-w-0">
+                    <h2 className="text-md font-bold text-ink">
                       {selectedPatient.name}
                     </h2>
-                    <span className="text-[12px] text-muted">
+                    <span className="text-sm text-muted">
                       {selectedPatient.activeRec?.payload?.from?.when
                         ? `Originally ${selectedPatient.activeRec.payload.from.when}`
                         : "Patient"}
@@ -586,7 +592,7 @@ export default function CasePage() {
                 </div>
 
                 {/* Decision / Status box */}
-                <div className="px-[15px] py-[13px]">
+                <div className="p-4">
                   {needsDecision(selectedPatient.activeRec) ? (
                     <DecisionCard
                       rec={selectedPatient.activeRec}
@@ -614,13 +620,11 @@ export default function CasePage() {
                       return (
                         <div
                           className={cn(
-                            "rounded-xl border px-[15px] py-[13px]",
+                            "rounded-card border px-4 py-3.5",
                             theme,
                           )}
                         >
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-muted">
-                            {statusTitle(rec)}
-                          </div>
+                          <div className="eyebrow">{statusTitle(rec)}</div>
                           {rec.kind === "reschedule" && to && (
                             <RescheduleLine
                               fromLabel={p.from?.when}
@@ -629,7 +633,7 @@ export default function CasePage() {
                             />
                           )}
                           {rec.kind !== "reschedule" && (
-                            <p className="tnum text-[15px] font-bold text-ink">
+                            <p className="tnum text-md font-bold text-ink">
                               {p.when ?? p.from?.when ?? "—"}
                             </p>
                           )}
@@ -639,17 +643,14 @@ export default function CasePage() {
                                 variant="secondary"
                                 small
                                 disabled={!!busyPatient}
+                                loading={busyPatient === rec.patientId}
                                 onClick={() => {
                                   setFollowUp(selectedPatient.conv);
                                   setFollowOutcome(null);
                                   setFollowError(null);
                                 }}
                               >
-                                {busyPatient === rec.patientId ? (
-                                  <Spinner />
-                                ) : (
-                                  "Follow up"
-                                )}
+                                Follow up
                               </Button>
                             </div>
                           )}
@@ -657,19 +658,19 @@ export default function CasePage() {
                       );
                     })()
                   ) : (
-                    <div className="rounded-xl border border-line bg-surface-alt px-4 py-3 text-[13px] text-muted">
+                    <div className="rounded-card border border-line bg-surface-alt px-4 py-3 text-sm text-muted">
                       No active recommendation for this patient.
                     </div>
                   )}
                 </div>
 
                 {/* Thread tabs */}
-                <div className="flex items-center justify-between border-t border-b border-line bg-surface-alt px-[18px]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-y border-line bg-surface-alt px-4">
                   <div className="flex gap-1">
                     <button
                       onClick={() => setTab("messages")}
                       className={cn(
-                        "border-b-2 px-2 py-2 text-[13px] font-semibold",
+                        "-mb-px border-b-2 px-2.5 py-2.5 text-base font-semibold transition-colors duration-fast",
                         tab === "messages"
                           ? "border-accent text-ink"
                           : "border-transparent text-muted hover:text-ink",
@@ -677,7 +678,7 @@ export default function CasePage() {
                     >
                       Messages
                       {selectedPatient.conv?.messages?.length ? (
-                        <span className="ml-1 text-[11px] text-muted">
+                        <span className="ml-1 text-xs text-muted">
                           {selectedPatient.conv.messages.length}
                         </span>
                       ) : null}
@@ -685,7 +686,7 @@ export default function CasePage() {
                     <button
                       onClick={() => setTab("activity")}
                       className={cn(
-                        "border-b-2 px-2 py-2 text-[13px] font-semibold",
+                        "-mb-px border-b-2 px-2.5 py-2.5 text-base font-semibold transition-colors duration-fast",
                         tab === "activity"
                           ? "border-accent text-ink"
                           : "border-transparent text-muted hover:text-ink",
@@ -694,7 +695,7 @@ export default function CasePage() {
                       Agent activity
                       {grouped.byPatient.get(selectedPatient.id)?.items
                         .length ? (
-                        <span className="ml-1 text-[11px] text-muted">
+                        <span className="ml-1 text-xs text-muted">
                           {
                             grouped.byPatient.get(selectedPatient.id)!.items
                               .length
@@ -704,12 +705,12 @@ export default function CasePage() {
                     </button>
                   </div>
                   {tab === "activity" && (
-                    <label className="flex cursor-pointer items-center gap-1.5 pb-2 text-[12px] font-semibold text-muted">
+                    <label className="flex cursor-pointer select-none items-center gap-1.5 py-2 text-sm font-semibold text-muted">
                       <input
                         type="checkbox"
                         checked={tech}
                         onChange={(e) => setTech(e.target.checked)}
-                        className="accent-accent"
+                        className="h-3.5 w-3.5 accent-accent"
                       />
                       Technical detail
                     </label>
@@ -717,9 +718,9 @@ export default function CasePage() {
                 </div>
 
                 {/* Panel content */}
-                <div className="px-[18px] py-4">
+                <div className="px-4 py-4">
                   {tab === "messages" && (
-                    <div className="space-y-3">
+                    <div className="flex flex-col gap-3">
                       {!selectedPatient.conv?.messages?.length && (
                         <Empty>No email sent for this patient.</Empty>
                       )}
@@ -727,29 +728,29 @@ export default function CasePage() {
                         <div
                           key={m.id}
                           className={cn(
-                            "max-w-[92%] rounded-card border p-3",
+                            "max-w-[92%] rounded-card border p-3.5",
                             m.direction === "inbound"
-                              ? "border-line bg-white"
+                              ? "border-line bg-surface"
                               : "ml-auto border-accent-line bg-accent-soft/60",
                           )}
                         >
-                          <div className="flex items-center gap-2 text-[12px] text-muted">
-                            <b className="text-ink/80">
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+                            <b className="font-semibold text-ink-soft">
                               {m.direction === "inbound" ? "Patient" : "Clinic"}
                             </b>
                             {m.status === "draft_created" && (
                               <Chip tone="warn">Draft — not sent</Chip>
                             )}
-                            <span className="tnum ml-auto">
+                            <span className="tnum ml-auto font-mono text-xs">
                               {fmtWhenManila(m.createdAt)}
                             </span>
                           </div>
                           {m.subject && (
-                            <p className="mt-1 text-[13px] font-bold text-ink">
+                            <p className="mt-1.5 text-base font-bold text-ink">
                               {m.subject}
                             </p>
                           )}
-                          <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">
+                          <p className="mt-1 whitespace-pre-wrap text-base leading-relaxed text-ink-soft">
                             {m.body ||
                               "No new text above the quoted history."}
                           </p>
@@ -775,7 +776,7 @@ export default function CasePage() {
                     </div>
                   )}
                 </div>
-              </div>
+              </Card>
             ) : (
               <Empty>No patients in this case.</Empty>
             )}
@@ -783,29 +784,20 @@ export default function CasePage() {
         </div>
       )}
 
-      {/* Case log — moved to page bottom, matching case-detail-ref.html */}
+      {/* Case-level activity — everything not attributable to one patient. */}
       {grouped.caseLevel.length > 0 && (
-        <div className="case-log rounded-card border border-line bg-white">
-          <button
-            type="button"
-            onClick={() => setCaseOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink"
-            aria-expanded={caseOpen}
-          >
-            Case log
-            <span className="ml-auto text-[12px] text-muted">
-              {grouped.caseLevel.length}
-            </span>
-            <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
-          </button>
-          {caseOpen && (
-            <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
-              {grouped.caseLevel.map((it) => (
-                <ActivityRow key={it.id} it={it} tech={tech} />
-              ))}
-            </ol>
-          )}
-        </div>
+        <Disclosure
+          open={caseOpen}
+          onToggle={() => setCaseOpen((v) => !v)}
+          label="Case log"
+          count={grouped.caseLevel.length}
+        >
+          <ol className="relative ml-1.5 border-l border-line px-3">
+            {grouped.caseLevel.map((it) => (
+              <ActivityRow key={it.id} it={it} tech={tech} />
+            ))}
+          </ol>
+        </Disclosure>
       )}
 
       {/* Approve all modal */}
@@ -886,90 +878,68 @@ export default function CasePage() {
         }
       >
         {followError && (
-          <p className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-[13px] font-semibold text-bad">
+          <p
+            role="alert"
+            className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-sm font-semibold text-bad"
+          >
             {followError}
           </p>
         )}
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
           {followUp?.activeHold && (
-            <button
-              className={cn(
-                "rounded-card border p-3 text-left",
-                followOutcome === "accept_current"
-                  ? "border-accent bg-accent-soft"
-                  : "border-line",
-              )}
+            <ChoiceCard
+              selected={followOutcome === "accept_current"}
               onClick={() => setFollowOutcome("accept_current")}
-            >
-              <b className="text-[13px] text-ink">Accepted current time</b>
-              <span className="mt-0.5 block text-[12px] text-muted">
-                Confirm the temporary hold.
-              </span>
-            </button>
+              title="Accepted current time"
+              detail="Confirm the temporary hold."
+            />
           )}
-          <button
-            className={cn(
-              "rounded-card border p-3 text-left",
-              followOutcome === "decline"
-                ? "border-accent bg-accent-soft"
-                : "border-line",
-            )}
+          <ChoiceCard
+            selected={followOutcome === "decline"}
             onClick={() => setFollowOutcome("decline")}
-          >
-            <b className="text-[13px] text-ink">Declined</b>
-            <span className="mt-0.5 block text-[12px] text-muted">
-              {followUp?.activeHold
+            title="Declined"
+            detail={
+              followUp?.activeHold
                 ? "Release the temporary hold."
-                : "Record as handled manually."}
-            </span>
-          </button>
+                : "Record as handled manually."
+            }
+          />
           {followUp?.currentAppointment && (
-            <button
-              className={cn(
-                "rounded-card border p-3 text-left",
-                followOutcome === "choose_another"
-                  ? "border-accent bg-accent-soft"
-                  : "border-line",
-              )}
+            <ChoiceCard
+              selected={followOutcome === "choose_another"}
               onClick={() => setFollowOutcome("choose_another")}
-            >
-              <b className="text-[13px] text-ink">Choose another time</b>
-              <span className="mt-0.5 block text-[12px] text-muted">
-                Book a valid confirmed time.
-              </span>
-            </button>
+              title="Choose another time"
+              detail="Book a valid confirmed time."
+            />
           )}
-          <button
-            className={cn(
-              "rounded-card border p-3 text-left",
-              followOutcome === "no_answer"
-                ? "border-accent bg-accent-soft"
-                : "border-line",
-            )}
+          <ChoiceCard
+            selected={followOutcome === "no_answer"}
             onClick={() => setFollowOutcome("no_answer")}
-          >
-            <b className="text-[13px] text-ink">No answer</b>
-            <span className="mt-0.5 block text-[12px] text-muted">
-              Keep this open for later.
-            </span>
-          </button>
+            title="No answer"
+            detail="Keep this open for later."
+          />
         </div>
         {followOutcome === "choose_another" && (
-          <label className="mt-3 block text-[12px] font-bold text-muted">
-            Valid date and time
-            <select
-              value={followSlot}
-              onChange={(event) => setFollowSlot(event.target.value)}
-              className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink"
-            >
-              <option value="">Select a time</option>
-              {followSlots.map((slot: any) => (
-                <option key={slot.startUtc} value={slot.startUtc}>
-                  {fmtWhenManila(slot.startUtc)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Field
+            label="Valid date and time"
+            className="mt-4"
+            hint="Only times the validator accepts are listed."
+          >
+            {(fieldId) => (
+              <Select
+                id={fieldId}
+                value={followSlot}
+                onChange={(event) => setFollowSlot(event.target.value)}
+              >
+                <option value="">Select a time</option>
+                {followSlots.map((slot: any) => (
+                  <option key={slot.startUtc} value={slot.startUtc}>
+                    {fmtWhenManila(slot.startUtc)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
         )}
       </Modal>
     </div>
