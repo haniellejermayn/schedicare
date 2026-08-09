@@ -681,6 +681,8 @@ async function executeReschedule(
         status: "failed",
         executedAt: demoNowIso(),
         outcome: "needs_human",
+        // Surface the veto on the DecisionCard, not just in the timeline.
+        payload: { ...payload, failedReason: check.reason },
       })
       .where(eq(schema.recommendations.id, rec.id))
       .run();

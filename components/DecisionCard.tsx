@@ -283,6 +283,12 @@ export function DecisionCard({
           ))}
         </ul>
       )}
+      {rec.status === "failed" && p.failedReason && (
+        <p className="mt-1.5 text-[13px] font-semibold text-bad">
+          Couldn&apos;t complete:{" "}
+          <span className="font-normal">{p.failedReason}</span>
+        </p>
+      )}
       {decided && rec.decisionReason && (
         <p className="mt-1.5 text-[13px] text-muted">
           <b className="text-ink/80">Note:</b> {rec.decisionReason}

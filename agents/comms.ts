@@ -10,7 +10,7 @@ import {
 } from "@/core/types";
 
 export const CLINIC_NAME = "Riverside Family Clinic";
-const SIGNOFF = `Warm regards,\n${CLINIC_NAME} Care Team\n(02) 8641 0117`;
+const SIGNOFF = `Warm regards,\n${CLINIC_NAME}\n(02) 8641 0117`;
 
 // ---------------------------------------------------------------------------
 // Drafting
@@ -90,6 +90,43 @@ export interface CommsDraftInput {
   items: DraftItem[];
 }
 
+const LONG_DAY: Record<string, string> = {
+  Mon: "Monday",
+  Tue: "Tuesday",
+  Wed: "Wednesday",
+  Thu: "Thursday",
+  Fri: "Friday",
+  Sat: "Saturday",
+  Sun: "Sunday",
+};
+const LONG_MONTH: Record<string, string> = {
+  Jan: "January",
+  Feb: "February",
+  Mar: "March",
+  Apr: "April",
+  May: "May",
+  Jun: "June",
+  Jul: "July",
+  Aug: "August",
+  Sep: "September",
+  Oct: "October",
+  Nov: "November",
+  Dec: "December",
+};
+
+/**
+ * Patient-facing long date: "Mon Aug 10 · 10:40 AM" → "August 10 (Monday),
+ * 10:40 AM". Bodies use this; subjects and the staff UI keep the short form
+ * (standardSubject's date extraction depends on it). Unrecognized input is
+ * returned unchanged.
+ */
+export function longWhen(when: string | undefined): string {
+  if (!when) return "";
+  const m = when.match(/^(\w{3}) (\w{3}) (\d{1,2})\s*[·,]\s*(.+)$/);
+  if (!m || !LONG_DAY[m[1]] || !LONG_MONTH[m[2]]) return when;
+  return `${LONG_MONTH[m[2]]} ${m[3]} (${LONG_DAY[m[1]]}), ${m[4]}`;
+}
+
 function template(
   purpose: DraftPurpose,
   item: DraftItem,
@@ -110,8 +147,8 @@ function template(
     case "reschedule_offer":
       if (c.reason === "counter") {
         const slotLine = crossDoctor
-          ? `${c.proposedWhen} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
-          : `${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
+          ? `${longWhen(c.proposedWhen)} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
+          : `${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
         return {
           subject: standardSubject("reschedule_offer", c),
           body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${slotLine}. Will that work for you?${waitOption}\n\n${SIGNOFF}`,
@@ -119,27 +156,27 @@ function template(
       }
       return {
         subject: standardSubject("reschedule_offer", c),
-        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${c.originalWhen}. We're very sorry for the short notice.\n\nThe earliest good match we found for you is ${c.proposedWhen}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${longWhen(c.originalWhen)}. We're very sorry for the inconvenience.\n\nThe earliest good match we found for you is on ${longWhen(c.proposedWhen)}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know if this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
       };
     case "confirm_nudge":
       return {
         subject: standardSubject("confirm_nudge", c),
-        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${c.originalWhen}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help — or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help — or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
       };
     case "preventive":
       return {
         subject: standardSubject("preventive", c),
-        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${c.originalWhen}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply saying so helps us hold your slot.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply saying so helps us hold your slot.\n\n${SIGNOFF}`,
       };
     case "waitlist_offer":
       return {
         subject: standardSubject("waitlist_offer", c),
-        body: `Hi ${first},\n\nGood news: a slot just opened on ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply within the day if you'd like to take it, or tell us you'd rather wait — you won't lose your place on the list.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nGood news: a slot just opened on ${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply within the day if you'd like to take it, or tell us you'd rather wait — you won't lose your place on the list.\n\n${SIGNOFF}`,
       };
     case "cancel_ack":
       return {
         subject: standardSubject("cancel_ack", c),
-        body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${c.originalWhen}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${longWhen(c.originalWhen)}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
       };
   }
 }
@@ -172,7 +209,7 @@ export function confirmationAckTemplate(i: {
   const first = i.patientName.split(" ")[0];
   return {
     subject: standardSubject("booking_ack", { when: i.when }),
-    body: `Hi ${first},\n\nAll set — we've reserved ${i.when} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
+    body: `Hi ${first},\n\nAll set — we've reserved ${longWhen(i.when)} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
   };
 }
 

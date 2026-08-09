@@ -15,6 +15,7 @@ import { db, schema } from "@/core/db/client";
 import { enqueueEvent } from "@/worker/queue";
 import { handlePatientReply } from "@/worker/replies";
 import { fmtWhen } from "@/core/clock";
+import { longWhen } from "@/agents/comms";
 import { getCase } from "@/core/cases";
 import { caseScoreboard } from "@/lib/metrics";
 import { POST as decidePOST } from "@/app/api/recommendations/[id]/decision/route";
@@ -148,6 +149,39 @@ describe("flagship cascade (end-to-end)", () => {
       (jose.payload as any).options.find(
         (o: any) => o.id !== (jose.payload as any).chosenOptionId,
       ) ?? (jose.payload as any).options[0];
+    // Sibling-conflict guard: staff can't offer one slot to two patients.
+    // Find any (rec, ranked option) whose option overlaps a SIBLING's chosen
+    // offer — modifying to it must be refused at decision time with the
+    // sibling's name, not left to fail at execution after the hold lands.
+    {
+      // The ranked lists can't produce this (cross-patient dedupe), so use
+      // the manual staff picker: two SAME-TYPE patients — the sibling's
+      // chosen slot is, to the engine, still an open slot for the other
+      // (no hold exists yet). The guard must refuse it by name.
+      const all = recsFor(c.id).filter((r) => r.kind === "reschedule");
+      const pair = all.flatMap((r) =>
+        all
+          .filter(
+            (s) =>
+              s.id !== r.id &&
+              (s.payload as any).type === (r.payload as any).type,
+          )
+          .map((s) => ({ r, s })),
+      )[0];
+      expect(pair).toBeDefined(); // the full seed has same-type patients
+      const sp = pair.s.payload as any;
+      const so = (sp.options ?? []).find(
+        (x: any) => x.id === sp.chosenOptionId,
+      );
+      const conflict = await decide(pair.r.id, {
+        action: "modify",
+        slot: { doctorId: so.doctorId, startUtc: so.startUtc },
+      });
+      expect(conflict.status).toBe(422);
+      expect(conflict.body.error).toContain(
+        `already being offered to ${sp.patientName}`,
+      );
+    }
     for (const name of ["Teresa", "Camille", "Miguel", "Andres"]) {
       const r = await decide(byName(name).id, { action: "approve" });
       expect(r.status).toBe(200);
@@ -167,7 +201,7 @@ describe("flagship cascade (end-to-end)", () => {
     expect(joseAfter.status).toBe("proposed");
     expect((joseAfter.payload as any).chosenOptionId).toBe(joseAlt.id);
     expect((joseAfter.payload as any).draft.body).toContain(
-      fmtWhen(joseAlt.startUtc),
+      longWhen(fmtWhen(joseAlt.startUtc)),
     );
     expect(
       (joseAfter.payload as any).options.find((o: any) => o.id === joseAlt.id)
