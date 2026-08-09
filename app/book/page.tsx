@@ -425,23 +425,24 @@ export default function BookPage() {
               const isSelected = cell.day === selectedDay;
               const isOutside = !cell.inMonth;
               const isPast = cell.day < today;
+              const isBlocked = isPast || (!hasSlots && !isOutside);
               return (
                 <button
                   key={`${cell.day}-${idx}`}
-                  onClick={!isPast ? () => setSelectedDay(cell.day) : undefined}
-                  disabled={isPast}
+                  onClick={!isBlocked ? () => setSelectedDay(cell.day) : undefined}
+                  disabled={isBlocked}
                   className={cn(
                     "flex h-8 items-center justify-center rounded border text-[12px] font-medium transition",
                     isOutside
                       ? "border-transparent text-muted/40"
                       : "border-transparent text-ink",
-                    isPast
+                    isBlocked
                       ? "cursor-not-allowed text-muted/30"
                       : "",
-                    hasSlots && !isOutside && !isSelected && !isPast
+                    hasSlots && !isOutside && !isSelected && !isBlocked
                       ? "font-bold text-accent hover:bg-accent-soft"
                       : "",
-                    isSelected && !isPast && "border-accent bg-accent text-white",
+                    isSelected && !isBlocked && "border-accent bg-accent text-white",
                   )}
                 >
                   {cell.date.getDate()}
