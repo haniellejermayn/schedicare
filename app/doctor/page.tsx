@@ -86,6 +86,58 @@ function fmtDayLabel(day: string): string {
   });
 }
 
+/** Circular progress ring used in the daily caps / rest buffer section. */
+function Ring({
+  percent,
+  color = "#3F6F52",
+  size = 80,
+  strokeWidth = 7,
+  children,
+}: {
+  percent: number;
+  color?: string;
+  size?: number;
+  strokeWidth?: number;
+  children?: React.ReactNode;
+}) {
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(100, Math.max(0, percent)) / 100);
+  return (
+    <div className="relative mx-auto" style={{ width: size, height: size }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#EAEEE3"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function NumField({
   label,
   value,
@@ -762,53 +814,76 @@ export default function DoctorPage() {
                     />
                   </div>
                 ) : (
-                  <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
-                    <div className="rounded-card border border-line bg-white p-4 text-center">
-                      <p className="font-display text-3xl font-bold text-ink">
-                        {r.maxPerDay ?? "—"}
-                      </p>
-                      <p className="mt-1 text-[12px] font-semibold text-ink-soft">
-                        Max Visits / Day
-                      </p>
-                    </div>
-                    <div className="rounded-card border border-line bg-white p-4 text-center">
-                      <p className="font-display text-3xl font-bold text-ink">
-                        {r.maxPerBlock?.am ?? "—"}
-                      </p>
-                      <p className="mt-1 text-[12px] font-semibold text-ink-soft">
-                        Max Morning
-                      </p>
-                      <p className="font-mono text-[10px] text-muted">
-                        08:00 – 12:00
-                      </p>
-                    </div>
-                    <div className="rounded-card border border-line bg-white p-4 text-center">
-                      <p className="font-display text-3xl font-bold text-ink">
-                        {r.maxPerBlock?.pm ?? "—"}
-                      </p>
-                      <p className="mt-1 text-[12px] font-semibold text-ink-soft">
-                        Max Afternoon
-                      </p>
-                      <p className="font-mono text-[10px] text-muted">
-                        13:00 – 17:00
-                      </p>
-                    </div>
-                    <div className="rounded-card border border-line bg-white p-4 text-center">
-                      <p className="font-display text-3xl font-bold text-ink">
-                        {r.bufferAfterMin ?? "—"}
-                        <span className="text-sm font-normal text-muted">
-                          {" "}
-                          min
-                        </span>
-                      </p>
-                      <p className="mt-1 text-[12px] font-semibold text-ink-soft">
-                        Break Buffer
-                      </p>
-                      <p className="font-mono text-[10px] text-muted">
-                        After each visit
-                      </p>
-                    </div>
-                  </div>
+                  (() => {
+                    const dailyMax = r.maxPerDay ?? 0;
+                    const morningMax = r.maxPerBlock?.am ?? 0;
+                    const afternoonMax = r.maxPerBlock?.pm ?? 0;
+                    const bufferMin = r.bufferAfterMin ?? 0;
+
+                    const dailyPct = dailyMax > 0 ? 100 : 0;
+                    const morningPct =
+                      dailyMax > 0 ? Math.min(100, (morningMax / dailyMax) * 100) : 0;
+                    const afternoonPct =
+                      dailyMax > 0 ? Math.min(100, (afternoonMax / dailyMax) * 100) : 0;
+                    const bufferPct = Math.min(100, (bufferMin / 60) * 100);
+
+                    return (
+                      <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                          <Ring percent={dailyPct} color="#3F6F52">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {dailyMax || "—"}
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Max Visits / Day
+                          </p>
+                        </div>
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                          <Ring percent={morningPct} color="#3B6478">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {morningMax || "—"}
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Max Morning
+                          </p>
+                          <p className="font-mono text-[10px] text-muted">
+                            08:00 – 12:00
+                          </p>
+                        </div>
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                          <Ring percent={afternoonPct} color="#3B6478">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {afternoonMax || "—"}
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Max Afternoon
+                          </p>
+                          <p className="font-mono text-[10px] text-muted">
+                            13:00 – 17:00
+                          </p>
+                        </div>
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                          <Ring percent={bufferPct} color="#A0791F">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {bufferMin || "—"}
+                              <span className="ml-1 text-xs font-normal text-muted">
+                                min
+                              </span>
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Break Buffer
+                          </p>
+                          <p className="font-mono text-[10px] text-muted">
+                            After each visit
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()
                 )}
               </div>
             </div>
