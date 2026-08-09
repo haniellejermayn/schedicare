@@ -5,7 +5,6 @@ import { usePoll } from "@/lib/usePoll";
 import { Logo, cn } from "@/components/ui";
 
 const ROLES = [
-  { href: "/book", label: "Patient" },
   { href: "/doctor", label: "Doctor" },
   { href: "/ops", label: "Front desk" },
 ];
