@@ -23,9 +23,16 @@ const DOCTORS = [
 ];
 
 function toDayKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, "0");
-  const d = `${date.getDate()}`.padStart(2, "0");
+  // Format as YYYY-MM-DD in Manila timezone
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  const d = parts.find((p) => p.type === "day")?.value ?? "";
   return `${y}-${m}-${d}`;
 }
 
@@ -84,7 +91,16 @@ export default function BookPage() {
       setSelectedDay(null);
       return;
     }
-    setSelectedDay((prev) => (prev && slotMap[prev] ? prev : keys[0]));
+    const today = toDayKey(new Date());
+    const available = keys.filter((k) => k >= today);
+    if (available.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    setSelectedDay((prev) => {
+      if (prev && available.includes(prev)) return prev;
+      return available[0];
+    });
   }, [slotMap]);
 
   useEffect(() => {
@@ -188,6 +204,7 @@ export default function BookPage() {
   ).split(" ")[0];
 
   const selectedSlots = selectedDay ? slotMap[selectedDay] ?? [] : [];
+  const today = toDayKey(new Date());
 
   return (
     <div className="mx-auto max-w-[430px] space-y-3">
@@ -407,19 +424,24 @@ export default function BookPage() {
               const hasSlots = Boolean(slotMap[cell.day]);
               const isSelected = cell.day === selectedDay;
               const isOutside = !cell.inMonth;
+              const isPast = cell.day < today;
               return (
                 <button
                   key={`${cell.day}-${idx}`}
-                  onClick={() => setSelectedDay(cell.day)}
+                  onClick={!isPast ? () => setSelectedDay(cell.day) : undefined}
+                  disabled={isPast}
                   className={cn(
                     "flex h-8 items-center justify-center rounded border text-[12px] font-medium transition",
                     isOutside
                       ? "border-transparent text-muted/40"
                       : "border-transparent text-ink",
-                    hasSlots && !isOutside && !isSelected
+                    isPast
+                      ? "cursor-not-allowed text-muted/30"
+                      : "",
+                    hasSlots && !isOutside && !isSelected && !isPast
                       ? "font-bold text-accent hover:bg-accent-soft"
                       : "",
-                    isSelected && "border-accent bg-accent text-white",
+                    isSelected && !isPast && "border-accent bg-accent text-white",
                   )}
                 >
                   {cell.date.getDate()}
