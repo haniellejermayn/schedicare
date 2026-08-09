@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { jfetch, fmtWhenManila } from "@/lib/format";
 import {
   Button,
@@ -12,18 +12,24 @@ import {
 } from "@/components/ui";
 import { kindLabel, outcomeLabel } from "@/components/copy";
 
-/** Turn ranking chips into one quiet sentence — no scores, no jargon. */
-function whyLine(option: any, payload: any): string {
-  const labels: string[] = (option?.chips ?? []).map((c: any) =>
-    String(c.label),
-  );
-  const parts = labels.slice(0, 4).join(" · ");
-  return (
-    parts ||
-    payload.rationale ||
-    "Best available match under the doctor's rules."
-  );
+/** Ranking chips as readable bullets — no scores, no jargon. */
+function whyBullets(option: any, payload: any): string[] {
+  const labels: string[] = (option?.chips ?? [])
+    .map((c: any) => String(c.label))
+    .slice(0, 5);
+  if (labels.length === 0 && payload.rationale) return [payload.rationale];
+  if (labels.length === 0)
+    return ["Best available match under the doctor's rules."];
+  return labels;
 }
+
+const REJECT_REASONS = [
+  "Patient prefers a phone call",
+  "The time won't work for this patient",
+  "Wrong doctor for this visit",
+  "Already handled another way",
+  "Other",
+] as const;
 
 export function DecisionCard({
   rec,
@@ -38,12 +44,30 @@ export function DecisionCard({
   const decided = rec.status !== "proposed";
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [changeOpen, setChangeOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const [optionId, setOptionId] = useState<string>(p.chosenOptionId ?? "");
-  const [reason, setReason] = useState("");
+  // Reject: structured reason + optional note + callback flag (default ON).
+  const [rejectPreset, setRejectPreset] = useState<
+    (typeof REJECT_REASONS)[number]
+  >(REJECT_REASONS[0]);
+  const [rejectNote, setRejectNote] = useState("");
+  const [flagCall, setFlagCall] = useState(true);
+  // Manual slot picker (any rule-valid time, validated server-side again).
+  const [doctors, setDoctors] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
+  const [manualDoctor, setManualDoctor] = useState<string>("");
+  const [manualDay, setManualDay] = useState<string>("");
+  const [manualSlots, setManualSlots] = useState<any[] | null>(null);
+  const [manualSel, setManualSel] = useState<any | null>(null);
+  const [manualBusy, setManualBusy] = useState(false);
+  // Draft editing.
+  const [editing, setEditing] = useState(false);
+  const [editBody, setEditBody] = useState("");
 
   const chosen = useMemo(
     () =>
@@ -59,20 +83,84 @@ export function DecisionCard({
       m.status === "draft_created",
   );
 
+  useEffect(() => {
+    if (!changeOpen) return;
+    setManualSel(null);
+    setManualSlots(null);
+    if (doctors.length === 0)
+      jfetch<any>("/api/doctors")
+        .then((d) => {
+          setDoctors(d.doctors ?? []);
+          if (!manualDoctor && chosen?.doctorId)
+            setManualDoctor(chosen.doctorId);
+        })
+        .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changeOpen]);
+
+  async function findManualSlots() {
+    if (!manualDoctor || !manualDay || !p.type) return;
+    setManualBusy(true);
+    setManualSel(null);
+    try {
+      const r = await jfetch<any>(
+        `/api/slots?doctorId=${manualDoctor}&type=${p.type}&fromDay=${manualDay}&toDay=${manualDay}${p.appointmentId ? `&ignoreAppointmentId=${p.appointmentId}` : ""}`,
+      );
+      setManualSlots(r.slots ?? []);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setManualBusy(false);
+    }
+  }
+
   async function decide(action: "approve" | "modify" | "reject") {
     setBusy(action);
     setErr(null);
+    setInfo(null);
     try {
+      const rejectReason =
+        rejectPreset === "Other"
+          ? rejectNote.trim()
+          : rejectNote.trim()
+            ? `${rejectPreset} — ${rejectNote.trim()}`
+            : rejectPreset;
       await jfetch(`/api/recommendations/${rec.id}/decision`, {
         method: "POST",
         body: JSON.stringify({
           action,
-          optionId: action === "modify" ? optionId : undefined,
-          reason: reason || undefined,
+          optionId: action === "modify" && !manualSel ? optionId : undefined,
+          slot:
+            action === "modify" && manualSel
+              ? { doctorId: manualSel.doctorId, startUtc: manualSel.startUtc }
+              : undefined,
+          reason: action === "reject" ? rejectReason : undefined,
+          flagCall: action === "reject" ? flagCall : undefined,
         }),
       });
       setChangeOpen(false);
       setRejectOpen(false);
+      if (action === "modify")
+        setInfo(
+          "Time updated and the message rewritten — review it, then Approve.",
+        );
+      onDone();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveDraftEdit() {
+    setBusy("edit");
+    setErr(null);
+    try {
+      await jfetch(`/api/recommendations/${rec.id}/draft`, {
+        method: "POST",
+        body: JSON.stringify({ body: editBody }),
+      });
+      setEditing(false);
       onDone();
     } catch (e) {
       setErr((e as Error).message);
@@ -97,6 +185,8 @@ export function DecisionCard({
   }
 
   const oc = outcomeLabel(rec);
+  const rejectComposed =
+    rejectPreset === "Other" ? rejectNote.trim() : rejectPreset;
 
   return (
     <RailRow tone={decided ? oc.tone : "warn"} className="p-4">
@@ -177,20 +267,28 @@ export function DecisionCard({
         {p.draft && (
           <button
             className="font-semibold text-accent hover:underline"
-            onClick={() => setDraftOpen(true)}
+            onClick={() => {
+              setEditing(false);
+              setDraftOpen(true);
+            }}
           >
             See the message
           </button>
         )}
       </div>
       {whyOpen && chosen && (
-        <p className="mt-1 text-[13px] text-muted">{whyLine(chosen, p)}</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px] text-muted">
+          {whyBullets(chosen, p).map((b, i) => (
+            <li key={i}>{b}</li>
+          ))}
+        </ul>
       )}
       {decided && rec.decisionReason && (
         <p className="mt-1.5 text-[13px] text-muted">
           <b className="text-ink/80">Note:</b> {rec.decisionReason}
         </p>
       )}
+      {info && <p className="mt-2 text-[13px] font-semibold text-ok">{info}</p>}
       {err && <p className="mt-2 text-[13px] font-semibold text-bad">{err}</p>}
 
       {!decided && (
@@ -203,7 +301,7 @@ export function DecisionCard({
           >
             {busy === "approve" ? <Spinner /> : "Approve"}
           </Button>
-          {rec.kind === "reschedule" && (p.options ?? []).length > 1 && (
+          {rec.kind === "reschedule" && (p.options ?? []).length > 0 && (
             <Button
               variant="secondary"
               small
@@ -253,7 +351,7 @@ export function DecisionCard({
               Back
             </Button>
             <Button
-              disabled={!!busy || !optionId}
+              disabled={!!busy || (!manualSel && !optionId)}
               onClick={() => decide("modify")}
             >
               {busy === "modify" ? <Spinner /> : "Use this time"}
@@ -262,9 +360,11 @@ export function DecisionCard({
         }
       >
         <p className="text-[13px] text-muted">
-          Every option below already fits the doctor&apos;s rules and calendar.
+          Every option here fits the doctor&apos;s rules and calendar. Changing
+          the time rewrites the message for the new slot.
         </p>
-        <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto thin-scroll pr-1">
+        <p className="eyebrow mt-3">Suggested times</p>
+        <div className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto thin-scroll pr-1">
           {(p.options ?? [])
             .filter((o: any) => o && o.startUtc)
             .map((o: any) => (
@@ -272,7 +372,7 @@ export function DecisionCard({
                 key={o.id}
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
-                  optionId === o.id
+                  !manualSel && optionId === o.id
                     ? "border-accent bg-accent-soft"
                     : "border-line bg-white hover:border-strong",
                 )}
@@ -280,8 +380,11 @@ export function DecisionCard({
                 <input
                   type="radio"
                   name={`opt-${rec.id}`}
-                  checked={optionId === o.id}
-                  onChange={() => setOptionId(o.id)}
+                  checked={!manualSel && optionId === o.id}
+                  onChange={() => {
+                    setManualSel(null);
+                    setOptionId(o.id);
+                  }}
                   className="accent-accent"
                 />
                 <span className="tnum text-[14px] font-semibold text-ink">
@@ -291,6 +394,70 @@ export function DecisionCard({
               </label>
             ))}
         </div>
+
+        <p className="eyebrow mt-4">Or pick any other valid time</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <select
+            value={manualDoctor}
+            onChange={(e) => setManualDoctor(e.target.value)}
+            aria-label="Doctor"
+            className="rounded-ctl border border-line bg-white px-2 py-1.5 text-[13px] font-semibold outline-none focus:border-accent"
+          >
+            {doctors.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={manualDay}
+            onChange={(e) => setManualDay(e.target.value)}
+            aria-label="Day"
+            className="tnum rounded-ctl border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
+          />
+          <Button
+            variant="secondary"
+            small
+            disabled={manualBusy || !manualDoctor || !manualDay}
+            onClick={findManualSlots}
+          >
+            {manualBusy ? <Spinner /> : "Find times"}
+          </Button>
+        </div>
+        {manualSlots && (
+          <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto thin-scroll pr-1">
+            {manualSlots.length === 0 && (
+              <p className="text-[13px] text-muted">
+                No open slots for that doctor on that day — the rules, calendar,
+                or caps are in the way.
+              </p>
+            )}
+            {manualSlots.map((s: any) => (
+              <label
+                key={s.startUtc}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
+                  manualSel?.startUtc === s.startUtc
+                    ? "border-accent bg-accent-soft"
+                    : "border-line bg-white hover:border-strong",
+                )}
+              >
+                <input
+                  type="radio"
+                  name={`manual-${rec.id}`}
+                  checked={manualSel?.startUtc === s.startUtc}
+                  onChange={() => setManualSel(s)}
+                  className="accent-accent"
+                />
+                <span className="tnum text-[14px] font-semibold text-ink">
+                  {fmtWhenManila(s.startUtc)}
+                </span>
+                <Chip tone="neutral">Staff picked</Chip>
+              </label>
+            ))}
+          </div>
+        )}
       </Modal>
 
       {/* Reject */}
@@ -305,7 +472,7 @@ export function DecisionCard({
             </Button>
             <Button
               variant="danger"
-              disabled={!!busy || reason.trim().length < 3}
+              disabled={!!busy || rejectComposed.length < 3}
               onClick={() => decide("reject")}
             >
               {busy === "reject" ? <Spinner /> : "Confirm"}
@@ -315,40 +482,112 @@ export function DecisionCard({
       >
         <p>
           {rec.kind === "reschedule"
-            ? "The original visit will be cancelled and the patient flagged for a phone call instead. Nothing is emailed."
+            ? "The original visit will be cancelled and nothing is emailed."
             : "No message will be sent."}
         </p>
         <label className="mt-3 block text-[12px] font-bold text-muted">
           Reason (kept in the record)
         </label>
+        <select
+          value={rejectPreset}
+          onChange={(e) =>
+            setRejectPreset(e.target.value as (typeof REJECT_REASONS)[number])
+          }
+          className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] outline-none focus:border-accent"
+        >
+          {REJECT_REASONS.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
         <input
-          autoFocus
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g. Patient prefers a call — I'll ring her"
-          className="mt-1 w-full rounded-ctl border border-line px-3 py-2 text-[14px] outline-none focus:border-accent"
+          value={rejectNote}
+          onChange={(e) => setRejectNote(e.target.value)}
+          placeholder={
+            rejectPreset === "Other"
+              ? "Tell the record what happened (required)"
+              : "Anything else for the record? (optional)"
+          }
+          className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-[14px] outline-none focus:border-accent"
         />
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-[13px] text-ink">
+          <input
+            type="checkbox"
+            checked={flagCall}
+            onChange={(e) => setFlagCall(e.target.checked)}
+            className="accent-accent"
+          />
+          Flag this patient for a phone call
+        </label>
       </Modal>
 
-      {/* Draft preview */}
+      {/* Draft preview + edit */}
       <Modal
         open={draftOpen}
         onClose={() => setDraftOpen(false)}
         title="Message to the patient"
         wide
         footer={
-          <Button variant="secondary" onClick={() => setDraftOpen(false)}>
-            Close
-          </Button>
+          editing ? (
+            <>
+              <Button variant="secondary" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={busy === "edit" || editBody.trim().length < 10}
+                onClick={saveDraftEdit}
+              >
+                {busy === "edit" ? <Spinner /> : "Save edit"}
+              </Button>
+            </>
+          ) : (
+            <>
+              {!decided && p.draft && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setEditBody(p.draft.body);
+                    setEditing(true);
+                  }}
+                >
+                  Edit message
+                </Button>
+              )}
+              <Button variant="secondary" onClick={() => setDraftOpen(false)}>
+                Close
+              </Button>
+            </>
+          )
         }
       >
-        {p.draft && (
-          <div className="rounded-ctl border border-line bg-paper p-3 z-100">
+        {p.draft && !editing && (
+          <div className="rounded-ctl border border-line bg-paper p-3">
             <p className="text-[13px] font-bold text-ink">{p.draft.subject}</p>
+            {p.draftEditedByStaff && (
+              <p className="mt-0.5 text-[11px] font-semibold text-accent">
+                Edited by staff
+              </p>
+            )}
             <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">
               {p.draft.body}
             </p>
           </div>
+        )}
+        {editing && (
+          <>
+            <p className="text-[12px] text-muted">
+              Your wording replaces the draft. The subject stays standardized,
+              and changing the time later rewrites the whole message for the new
+              slot.
+            </p>
+            <textarea
+              value={editBody}
+              onChange={(e) => setEditBody(e.target.value)}
+              rows={10}
+              className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-accent"
+            />
+          </>
         )}
       </Modal>
     </RailRow>

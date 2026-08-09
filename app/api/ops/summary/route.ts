@@ -100,7 +100,7 @@ export async function GET() {
           reason: "reply needs a person",
           caseId: c.id,
         });
-      else if (r.status === "rejected")
+      else if (r.status === "rejected" && payload?.flagForCall !== false)
         toCall.push({
           patientName: name,
           reason: "suggestion was rejected",

@@ -1,6 +1,7 @@
 import { google, type gmail_v1 } from "googleapis";
 import { authorizedClient } from "../oauth";
 import type { InboundMail, MailDraft, MailProvider } from "./types";
+import { normalizeMailBody } from "@/agents/comms";
 
 export class GmailNotConnectedError extends Error {
   constructor() {
@@ -20,7 +21,9 @@ function toRaw(d: MailDraft, replyToMessageId?: string): string {
       : []),
     'Content-Type: text/plain; charset="UTF-8"',
     "",
-    d.body,
+    // Normalize wrapping at the wire, and make body newlines RFC-2822 CRLF —
+    // bare LF inside the payload is what some receiving clients re-wrap.
+    normalizeMailBody(d.body).replace(/\r?\n/g, "\r\n"),
   ];
   return Buffer.from(lines.join("\r\n")).toString("base64url");
 }
