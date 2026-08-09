@@ -546,7 +546,7 @@ export default function DoctorPage() {
       )}
 
       {tab === "rules" && (
-        <Card className="p-4">
+        <Card className="p-4 bg-surface-strong">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-[15px] font-bold text-ink">
               Scheduling rules
@@ -700,9 +700,8 @@ export default function DoctorPage() {
                       return (
                         <div
                           key={t}
-                          className="rounded-card border p-4"
+                          className="rounded-card border p-4 bg-surface-strong"
                           style={{
-                            backgroundColor: TYPE_BG[t],
                             borderColor: TYPE_COLORS[t],
                           }}
                         >
@@ -829,7 +828,7 @@ export default function DoctorPage() {
 
                     return (
                       <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
-                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm border border-line">
                           <Ring percent={dailyPct} color="#3F6F52">
                             <span className="font-display text-2xl font-bold text-ink">
                               {dailyMax || "—"}
@@ -839,7 +838,7 @@ export default function DoctorPage() {
                             Max Visits / Day
                           </p>
                         </div>
-                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm border border-line">
                           <Ring percent={morningPct} color="#3B6478">
                             <span className="font-display text-2xl font-bold text-ink">
                               {morningMax || "—"}
@@ -852,7 +851,7 @@ export default function DoctorPage() {
                             08:00 – 12:00
                           </p>
                         </div>
-                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm border border-line">
                           <Ring percent={afternoonPct} color="#3B6478">
                             <span className="font-display text-2xl font-bold text-ink">
                               {afternoonMax || "—"}
@@ -865,7 +864,7 @@ export default function DoctorPage() {
                             13:00 – 17:00
                           </p>
                         </div>
-                        <div className="rounded-card bg-white p-4 text-center shadow-sm">
+                        <div className="rounded-card bg-white p-4 text-center shadow-sm border border-line">
                           <Ring percent={bufferPct} color="#A0791F">
                             <span className="font-display text-2xl font-bold text-ink">
                               {bufferMin || "—"}
