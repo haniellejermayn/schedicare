@@ -1,7 +1,7 @@
 import { google, type gmail_v1 } from "googleapis";
 import { authorizedClient } from "../oauth";
 import type { InboundMail, MailDraft, MailProvider } from "./types";
-import { normalizeMailBody } from "@/agents/comms";
+import { normalizeMailBody } from "@/lib/mailText";
 
 export class GmailNotConnectedError extends Error {
   constructor() {

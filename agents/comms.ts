@@ -50,47 +50,10 @@ export function standardSubject(
   return `[${CLINIC_NAME}]${date} Appointment - ${SUBJECT_KIND[purpose] ?? "Update"}`;
 }
 
-/**
- * Mail clients render plain text verbatim, so hard-wrapped model output shows
- * premature mid-paragraph line breaks. Collapse single newlines inside a
- * paragraph to spaces while preserving: blank-line paragraph breaks, list
- * lines, lines after a ":" label, greeting lines, and sign-off blocks.
- */
-export function normalizeMailBody(body: string): string {
-  // Keep a line break only around structure: list items, phone-shaped lines,
-  // FULL-line sign-offs ("Warm regards,"), clinic/team name lines, ":" labels,
-  // and the greeting. Everything else inside a paragraph joins with a space.
-  const LISTY = /^\s*([-*\u2022]|\d+[).:]\s)/;
-  const PHONEY = /^\(?\+?\d[\d\s().-]{5,}$/;
-  const FULL_SIGNOFF =
-    /^(warm regards|kind regards|regards|salamat( po)?|sincerely|best regards|best|thank you|thanks|see you( then)?)[,!. ]*$/i;
-  const NAMEY = /clinic|care team/i;
-  const keeps = (line: string) =>
-    LISTY.test(line) ||
-    PHONEY.test(line.trim()) ||
-    FULL_SIGNOFF.test(line.trim()) ||
-    NAMEY.test(line);
-  return body
-    .split(/\n{2,}/)
-    .map((para) => {
-      const lines = para.split("\n");
-      let out = lines[0]?.trimEnd() ?? "";
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        const prev = lines[i - 1] ?? "";
-        const keep =
-          keeps(line) ||
-          keeps(prev) ||
-          /:\s*$/.test(out) ||
-          /^(hi|hello|dear)\b.*,\s*$/i.test(prev) ||
-          line.trim() === "";
-        out += keep ? "\n" + line.trimEnd() : " " + line.trim();
-      }
-      return out;
-    })
-    .join("\n\n")
-    .replace(/[ \t]+\n/g, "\n");
-}
+// Re-exported from the dependency-free lib module so BOTH the agents layer
+// (executor) and the integrations layer (mail providers) can use it without
+// an import cycle. Implementation lives in lib/mailText.ts.
+export { normalizeMailBody } from "@/lib/mailText";
 
 export const DraftItemSchema = z.object({
   patientId: z.string(),
