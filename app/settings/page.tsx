@@ -202,7 +202,7 @@ function Connections() {
             className={cn(
               "rounded-ctl px-3 py-1.5 text-[13px] font-semibold",
               data.google.configured
-                ? "bg-accent text-white hover:bg-[#1a44bd]"
+                ? "bg-accent text-white hover:bg-accent-press"
                 : "pointer-events-none bg-paper text-muted",
             )}
           >

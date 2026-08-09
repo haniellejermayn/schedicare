@@ -1,39 +1,87 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Spline+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body {
-  background: #f7f8fa;
-  color: #101828;
+/* Atlas Console tokens (tokens.json is the source of truth — keep in sync). */
+:root {
+  --ink: #17212b;
+  --ink-soft: #2f3a45;
+  --muted: #62707c;
+  --surface: #ffffff;
+  --surface-alt: #f4f6f0;
+  --surface-strong: #ecf0e7;
+  --canvas: #f7f5ef;
+  --line: rgba(23, 33, 43, 0.12);
+  --line-strong: rgba(23, 33, 43, 0.2);
+  --teal: #1a7f79;
+  --moss: #5f8b5a;
+  --amber: #d8a357;
+  --clay: #c86b4b;
+  --navy: #1c3d5a;
+  --shadow-soft: 0 18px 36px rgba(23, 33, 43, 0.14);
+  --shadow-cut: 0 2px 0 rgba(23, 33, 43, 0.55);
+  --ease-snappy: cubic-bezier(0.3, 0.8, 0.2, 1);
+  --dur-fast: 140ms;
+  --dur-base: 300ms;
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--ink);
 }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    "Spline Sans",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 14px;
+  line-height: 1.55;
 }
-::selection { background: #dbe6ff; }
+::selection {
+  background: #d7e9e7;
+}
 
+/* Console eyebrow — mono, wide-tracked, quiet. */
 .eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #667085;
+  color: var(--muted);
 }
-.tnum { font-variant-numeric: tabular-nums; }
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
 
 :focus-visible {
-  outline: 2px solid #1d4ed8;
+  outline: 2px solid var(--teal);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.thin-scroll::-webkit-scrollbar-thumb { background: #d5d9e2; border-radius: 999px; }
-.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: #d9d6cb;
+  border-radius: 999px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

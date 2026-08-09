@@ -179,9 +179,7 @@ export default function CasePage() {
   const proposed = recs.filter((r: any) => r.status === "proposed");
   const decidedSubstantive = recs.filter(
     (r: any) =>
-      r.status !== "proposed" &&
-      r.outcome !== "superseded" &&
-      !r.supersededBy,
+      r.status !== "proposed" && r.outcome !== "superseded" && !r.supersededBy,
   );
   const showTabs = proposed.length > 0 && decidedSubstantive.length > 0;
   const showReview = proposed.length > 0 && (!showTabs || section === "review");
@@ -477,7 +475,7 @@ export default function CasePage() {
                   type="checkbox"
                   checked={tech}
                   onChange={(e) => setTech(e.target.checked)}
-                  className="accent-[#1D4ED8]"
+                  className="accent-accent"
                 />
                 Technical detail
               </label>

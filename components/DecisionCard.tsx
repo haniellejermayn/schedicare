@@ -274,7 +274,7 @@ export function DecisionCard({
                   "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
                   optionId === o.id
                     ? "border-accent bg-accent-soft"
-                    : "border-line bg-white hover:border-[#c8cdd8]",
+                    : "border-line bg-white hover:border-strong",
                 )}
               >
                 <input
@@ -282,7 +282,7 @@ export function DecisionCard({
                   name={`opt-${rec.id}`}
                   checked={optionId === o.id}
                   onChange={() => setOptionId(o.id)}
-                  className="accent-[#1D4ED8]"
+                  className="accent-accent"
                 />
                 <span className="tnum text-[14px] font-semibold text-ink">
                   {fmtWhenManila(o.startUtc)}

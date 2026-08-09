@@ -21,7 +21,7 @@ export function Logo({ size = 22 }: { size?: number }) {
   return (
     <span
       aria-hidden
-      className="inline-flex items-center justify-center rounded-[6px] bg-accent"
+      className="inline-flex items-center justify-center rounded-[6px] bg-accent-rail shadow-cut"
       style={{ width: size, height: size }}
     >
       <span
@@ -44,18 +44,22 @@ export function Button({
   variant?: Variant;
   small?: boolean;
 }) {
+  // The Atlas signature: a hard 2px ink "cut" under anything pressable,
+  // which compresses flat on :active. Quiet buttons opt out.
+  const cut =
+    "shadow-cut active:translate-y-[1px] active:shadow-none transition-[background-color,box-shadow,transform] duration-fast ease-snappy";
   const styles: Record<Variant, string> = {
-    primary:
-      "bg-accent text-white hover:bg-[#1a44bd] border border-transparent",
-    secondary: "bg-white text-ink border border-line hover:border-[#c8cdd8]",
-    quiet: "bg-transparent text-muted hover:text-ink border border-transparent",
-    danger: "bg-bad text-white hover:brightness-95 border border-transparent",
-    success: "bg-ok text-white hover:brightness-95 border border-transparent",
+    primary: `bg-accent text-white border border-accent-press hover:bg-accent-press ${cut}`,
+    secondary: `bg-white text-ink border border-strong hover:bg-surface-alt ${cut}`,
+    quiet:
+      "bg-transparent text-muted hover:text-ink border border-transparent transition-colors",
+    danger: `bg-bad text-white border border-transparent hover:brightness-95 ${cut}`,
+    success: `bg-ok text-white border border-transparent hover:brightness-95 ${cut}`,
   };
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-ctl font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none",
+        "inline-flex items-center justify-center gap-1.5 rounded-ctl font-semibold disabled:opacity-40 disabled:pointer-events-none disabled:shadow-none",
         small ? "px-3 py-1.5 text-[13px]" : "px-4 py-2 text-[14px]",
         styles[variant],
         className,
@@ -92,11 +96,13 @@ export function RailRow({
   interactive = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & { tone: Tone; interactive?: boolean }) {
+  // Rails carry the raw Atlas hues (graphical contrast is enough there);
+  // text inside rows uses the darker AA grades from the theme.
   const rail: Record<Tone, string> = {
-    warn: "border-l-warn",
-    accent: "border-l-accent",
-    ok: "border-l-ok",
-    bad: "border-l-bad",
+    warn: "border-l-warn-rail",
+    accent: "border-l-accent-rail",
+    ok: "border-l-ok-rail",
+    bad: "border-l-bad-rail",
     neutral: "border-l-line",
   };
   return (
@@ -105,7 +111,7 @@ export function RailRow({
         "animate-rise rounded-card border border-line border-l-[3px] bg-white",
         rail[tone],
         interactive &&
-          "cursor-pointer transition-colors hover:border-[#c8cdd8] hover:border-l-[3px]",
+          "cursor-pointer transition-colors duration-fast ease-snappy hover:border-strong hover:border-l-[3px]",
         interactive && `hover:${rail[tone]}`,
         className,
       )}
@@ -121,7 +127,7 @@ const chipTone: Record<Tone, string> = {
   accent: "bg-accent-soft text-accent border-accent-line",
   ok: "bg-ok-soft text-ok border-ok-line",
   bad: "bg-bad-soft text-bad border-bad-line",
-  neutral: "bg-paper text-muted border-line",
+  neutral: "bg-surface-alt text-muted border-line",
 };
 export function Chip({
   tone = "neutral",
@@ -188,9 +194,9 @@ export function Tabs<T extends string>({
             aria-selected={value === t.id}
             onClick={() => onChange(t.id)}
             className={cn(
-              "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[14px] font-semibold",
+              "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-[14px] font-semibold transition-colors duration-fast",
               value === t.id
-                ? "border-accent text-ink"
+                ? "border-accent-rail text-ink"
                 : "border-transparent text-muted hover:text-ink",
             )}
           >
@@ -201,7 +207,7 @@ export function Tabs<T extends string>({
                   "rounded-full px-1.5 text-[11px] font-bold",
                   value === t.id
                     ? "bg-accent-soft text-accent"
-                    : "bg-paper text-muted",
+                    : "bg-surface-alt text-muted",
                 )}
               >
                 {t.count}
@@ -283,11 +289,11 @@ export function Modal({
         className={cn(
           "relative z-10 max-h-[calc(100vh-2rem)] w-full overflow-y-auto",
           "animate-pop rounded-card border border-line bg-white p-5",
-          "shadow-[0_20px_50px_rgba(16,24,40,0.18)] outline-none",
+          "shadow-soft outline-none",
           wide ? "max-w-xl" : "max-w-md",
         )}
       >
-        <h3 className="text-[16px] font-bold text-ink">{title}</h3>
+        <h3 className="font-display text-[16px] font-bold text-ink">{title}</h3>
 
         <div className="mt-3 text-[14px] leading-relaxed text-ink/90">
           {children}
@@ -319,7 +325,7 @@ export function PageTitle({
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-[22px] font-bold tracking-tight text-ink">
+      <h1 className="font-display text-[22px] font-bold tracking-tight text-ink">
         {children}
       </h1>
       {right}

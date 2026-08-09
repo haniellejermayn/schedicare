@@ -30,7 +30,10 @@ const PX_PER_HOUR = 52;
 const HOUR_START = 7; // 7am
 const HOUR_END = 19; // 7pm
 const GRID_HEIGHT = (HOUR_END - HOUR_START) * PX_PER_HOUR;
-const HOURS = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => HOUR_START + i);
+const HOURS = Array.from(
+  { length: HOUR_END - HOUR_START + 1 },
+  (_, i) => HOUR_START + i,
+);
 
 interface RuleWindows {
   windows?: Record<string, string[]>;
@@ -54,11 +57,21 @@ function manilaHourFraction(iso: string): number {
 }
 
 function manilaDayKey(iso: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 function durationMin(a: any): number {
-  return Math.max(10, Math.round((new Date(a.endUtc).getTime() - new Date(a.startUtc).getTime()) / 60000));
+  return Math.max(
+    10,
+    Math.round(
+      (new Date(a.endUtc).getTime() - new Date(a.startUtc).getTime()) / 60000,
+    ),
+  );
 }
 
 function typeInitial(t: string): string {
@@ -66,9 +79,15 @@ function typeInitial(t: string): string {
 }
 
 /** Greedy lane packing so overlapping/buffer-adjacent visits sit side by side instead of stacking. */
-function packLanes(appts: any[]): Array<{ appt: any; lane: number; laneCount: number }> {
+function packLanes(
+  appts: any[],
+): Array<{ appt: any; lane: number; laneCount: number }> {
   const items = appts
-    .map((a) => ({ appt: a, start: manilaHourFraction(a.startUtc), end: manilaHourFraction(a.startUtc) + durationMin(a) / 60 }))
+    .map((a) => ({
+      appt: a,
+      start: manilaHourFraction(a.startUtc),
+      end: manilaHourFraction(a.startUtc) + durationMin(a) / 60,
+    }))
     .sort((x, y) => x.start - y.start);
   const laneEnds: number[] = [];
   const placed = items.map((it) => {
@@ -86,7 +105,9 @@ function packLanes(appts: any[]): Array<{ appt: any; lane: number; laneCount: nu
 }
 
 /** Group flat busy intervals by Manila-local day key, clipped to the visible hour band. */
-function groupBusyByDay(intervals: BusyInterval[]): Record<string, BusyInterval[]> {
+function groupBusyByDay(
+  intervals: BusyInterval[],
+): Record<string, BusyInterval[]> {
   const out: Record<string, BusyInterval[]> = {};
   for (const b of intervals) {
     const day = manilaDayKey(b.startUtc);
@@ -128,7 +149,9 @@ export function WeekCalendar({
 
   const days = useMemo(() => Object.keys(week).sort(), [week]);
   const busyByDay = useMemo(() => groupBusyByDay(externalBusy), [externalBusy]);
-  const nowFraction = status?.demoNow ? manilaHourFraction(status.demoNow) : null;
+  const nowFraction = status?.demoNow
+    ? manilaHourFraction(status.demoNow)
+    : null;
   const nowDay: string | null = status?.demoToday ?? null;
 
   return (
@@ -136,7 +159,12 @@ export function WeekCalendar({
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
         {(["confirmed", "booked"] as const).map((k) => (
           <span key={k} className="flex items-center gap-1.5">
-            <span className={cn("h-2 w-2 rounded-full", { confirmed: "bg-ok", booked: "bg-warn" }[k])} />
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                { confirmed: "bg-ok", booked: "bg-warn" }[k],
+              )}
+            />
             {APPT_STATUS[k].label}
           </span>
         ))}
@@ -152,23 +180,51 @@ export function WeekCalendar({
           <span className="h-2 w-2 rounded-[3px] bg-bad-soft ring-1 ring-bad-line" />
           Doctor unavailable
         </span>
-        <span className="text-muted/70">F/R/U = Follow-up / Routine / Urgent</span>
+        <span className="text-muted/70">
+          F/R/U = Follow-up / Routine / Urgent
+        </span>
       </div>
 
       <Card className="overflow-x-auto thin-scroll p-0">
-        <div className="grid min-w-[720px]" style={{ gridTemplateColumns: `44px repeat(${days.length}, 1fr)` }}>
+        <div
+          className="grid min-w-[720px]"
+          style={{ gridTemplateColumns: `44px repeat(${days.length}, 1fr)` }}
+        >
           {/* Header row */}
           <div />
           {days.map((day) => {
             const d = new Date(`${day}T00:00:00+08:00`);
             const isToday = day === today;
             return (
-              <div key={day} className={cn("border-b border-l border-line px-1.5 py-2 text-center", isToday && "bg-accent-soft/40")}>
-                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", isToday ? "text-accent" : "text-muted")}>
-                  {d.toLocaleDateString("en-PH", { weekday: "short", timeZone: "Asia/Manila" })}
+              <div
+                key={day}
+                className={cn(
+                  "border-b border-l border-line px-1.5 py-2 text-center",
+                  isToday && "bg-accent-soft/40",
+                )}
+              >
+                <p
+                  className={cn(
+                    "text-[11px] font-semibold uppercase tracking-wide",
+                    isToday ? "text-accent" : "text-muted",
+                  )}
+                >
+                  {d.toLocaleDateString("en-PH", {
+                    weekday: "short",
+                    timeZone: "Asia/Manila",
+                  })}
                 </p>
-                <p className={cn("tnum text-[13px] font-bold", isToday ? "text-accent" : "text-ink")}>
-                  {d.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: "Asia/Manila" })}
+                <p
+                  className={cn(
+                    "tnum text-[13px] font-bold",
+                    isToday ? "text-accent" : "text-ink",
+                  )}
+                >
+                  {d.toLocaleDateString("en-PH", {
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "Asia/Manila",
+                  })}
                 </p>
               </div>
             );
@@ -177,8 +233,13 @@ export function WeekCalendar({
           {/* Time gutter */}
           <div className="relative" style={{ height: GRID_HEIGHT }}>
             {HOURS.map((h) => (
-              <div key={h} className="tnum absolute right-1.5 -translate-y-1/2 text-[10px] text-muted" style={{ top: (h - HOUR_START) * PX_PER_HOUR }}>
-                {h % 12 === 0 ? 12 : h % 12}{h < 12 ? "am" : "pm"}
+              <div
+                key={h}
+                className="tnum absolute right-1.5 -translate-y-1/2 text-[10px] text-muted"
+                style={{ top: (h - HOUR_START) * PX_PER_HOUR }}
+              >
+                {h % 12 === 0 ? 12 : h % 12}
+                {h < 12 ? "am" : "pm"}
               </div>
             ))}
           </div>
@@ -192,10 +253,13 @@ export function WeekCalendar({
             return (
               <div
                 key={day}
-                className={cn("relative border-l border-line", isToday && "bg-accent-soft/10")}
+                className={cn(
+                  "relative border-l border-line",
+                  isToday && "bg-accent-soft/10",
+                )}
                 style={{
                   height: GRID_HEIGHT,
-                  backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PX_PER_HOUR - 1}px, #E4E7EC ${PX_PER_HOUR - 1}px, #E4E7EC ${PX_PER_HOUR}px)`,
+                  backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${PX_PER_HOUR - 1}px, rgba(23,33,43,0.10) ${PX_PER_HOUR - 1}px, rgba(23,33,43,0.10) ${PX_PER_HOUR}px)`,
                 }}
               >
                 {unavailable && (
@@ -207,31 +271,53 @@ export function WeekCalendar({
                 )}
                 {/* External calendar busy blocks — behind everything, non-interactive, no fabricated titles */}
                 {busy.map((b, i) => {
-                  const top = Math.max(0, (manilaHourFraction(b.startUtc) - HOUR_START) * PX_PER_HOUR);
-                  const rawEnd = (manilaHourFraction(b.endUtc) - HOUR_START) * PX_PER_HOUR;
-                  const height = Math.max(10, Math.min(GRID_HEIGHT, rawEnd) - top);
+                  const top = Math.max(
+                    0,
+                    (manilaHourFraction(b.startUtc) - HOUR_START) * PX_PER_HOUR,
+                  );
+                  const rawEnd =
+                    (manilaHourFraction(b.endUtc) - HOUR_START) * PX_PER_HOUR;
+                  const height = Math.max(
+                    10,
+                    Math.min(GRID_HEIGHT, rawEnd) - top,
+                  );
                   if (top >= GRID_HEIGHT || rawEnd <= 0) return null;
                   return (
                     <div
                       key={`busy-${day}-${i}`}
-                      className="pointer-events-none absolute inset-x-0 z-0 flex items-start justify-center overflow-hidden rounded-[6px] border border-dashed border-muted/60 bg-[repeating-linear-gradient(45deg,#F1EFF8,#F1EFF8_4px,#F7F8FA_4px,#F7F8FA_8px)] px-1 py-0.5"
+                      className="pointer-events-none absolute inset-x-0 z-0 flex items-start justify-center overflow-hidden rounded-[6px] border border-dashed border-muted/60 bg-[repeating-linear-gradient(45deg,#eef0e9,#eef0e9_4px,#f7f5ef_4px,#f7f5ef_8px)] px-1 py-0.5"
                       style={{ top, height }}
                       title="Busy on the doctor's external calendar"
                     >
-                      {height > 22 && <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">Busy</span>}
+                      {height > 22 && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">
+                          Busy
+                        </span>
+                      )}
                     </div>
                   );
                 })}
 
-                {isToday && nowFraction != null && nowDay === day && nowFraction >= HOUR_START && nowFraction <= HOUR_END && (
-                  <div className="absolute left-0 right-0 z-10 border-t-2 border-accent" style={{ top: (nowFraction - HOUR_START) * PX_PER_HOUR }}>
-                    <span className="absolute -left-[3px] -top-[4px] h-[7px] w-[7px] rounded-full bg-accent" />
-                  </div>
-                )}
+                {isToday &&
+                  nowFraction != null &&
+                  nowDay === day &&
+                  nowFraction >= HOUR_START &&
+                  nowFraction <= HOUR_END && (
+                    <div
+                      className="absolute left-0 right-0 z-10 border-t-2 border-accent"
+                      style={{ top: (nowFraction - HOUR_START) * PX_PER_HOUR }}
+                    >
+                      <span className="absolute -left-[3px] -top-[4px] h-[7px] w-[7px] rounded-full bg-accent" />
+                    </div>
+                  )}
                 {laned.map(({ appt: a, lane, laneCount }) => {
                   const st = appointmentStatus(a);
-                  const top = (manilaHourFraction(a.startUtc) - HOUR_START) * PX_PER_HOUR;
-                  const height = Math.max(18, (durationMin(a) / 60) * PX_PER_HOUR - 2);
+                  const top =
+                    (manilaHourFraction(a.startUtc) - HOUR_START) * PX_PER_HOUR;
+                  const height = Math.max(
+                    18,
+                    (durationMin(a) / 60) * PX_PER_HOUR - 2,
+                  );
                   const risky = riskById[a.id] && riskById[a.id].band !== "low";
                   return (
                     <button
@@ -239,7 +325,7 @@ export function WeekCalendar({
                       onClick={() => setSelected(a)}
                       className={cn(
                         "animate-rise absolute z-[5] overflow-hidden rounded-[6px] border px-1.5 py-1 text-left text-[10px] leading-tight shadow-sm transition-transform hover:z-20 hover:scale-[1.02]",
-                        TONE_BLOCK[st.tone]
+                        TONE_BLOCK[st.tone],
                       )}
                       style={{
                         top,
@@ -250,9 +336,15 @@ export function WeekCalendar({
                       title={`${a.patientName} · ${typeLabel(a.type)} · ${fmtTimeManila(a.startUtc)}–${fmtTimeManila(a.endUtc)}`}
                     >
                       <span className="flex items-center gap-1 font-bold">
-                        {risky && <span className="h-1.5 w-1.5 shrink-0 rounded-full border border-current" />}
-                        <span className="truncate">{a.patientName?.split(" ")[0] ?? "Patient"}</span>
-                        <span className="shrink-0 opacity-70">· {typeInitial(a.type)}</span>
+                        {risky && (
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full border border-current" />
+                        )}
+                        <span className="truncate">
+                          {a.patientName?.split(" ")[0] ?? "Patient"}
+                        </span>
+                        <span className="shrink-0 opacity-70">
+                          · {typeInitial(a.type)}
+                        </span>
                       </span>
                       {height > 30 && (
                         <span className="tnum block truncate opacity-80">
@@ -272,7 +364,14 @@ export function WeekCalendar({
         open={!!selected}
         onClose={() => setSelected(null)}
         title={selected?.patientName ?? "Visit"}
-        footer={<button className="text-[13px] font-semibold text-accent hover:underline" onClick={() => setSelected(null)}>Close</button>}
+        footer={
+          <button
+            className="text-[13px] font-semibold text-accent hover:underline"
+            onClick={() => setSelected(null)}
+          >
+            Close
+          </button>
+        }
       >
         {selected && (
           <div className="space-y-2">
@@ -282,9 +381,14 @@ export function WeekCalendar({
               <Chip tone={appointmentStatus(selected).tone}>
                 {appointmentStatus(selected).label}
               </Chip>
-              {riskById[selected.id] && riskById[selected.id].band !== "low" && <Chip tone="warn">May not show</Chip>}
+              {riskById[selected.id] &&
+                riskById[selected.id].band !== "low" && (
+                  <Chip tone="warn">May not show</Chip>
+                )}
             </div>
-            <p className="tnum text-[12px] text-muted">{durationMin(selected)} min</p>
+            <p className="tnum text-[12px] text-muted">
+              {durationMin(selected)} min
+            </p>
           </div>
         )}
       </Modal>
