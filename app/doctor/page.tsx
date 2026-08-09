@@ -30,12 +30,34 @@ const OUT_REASONS = [
   "Other",
 ] as const;
 
-/** 07:00–19:00 in 30-minute steps — the calendar's visible band. */
-const TIME_OPTIONS = Array.from({ length: 25 }, (_, i) => {
-  const h = 7 + Math.floor(i / 2);
+/** 08:00–17:00 in 30-minute steps — the calendar's visible band. */
+const TIME_OPTIONS = Array.from({ length: 19 }, (_, i) => {
+  const h = 8 + Math.floor(i / 2);
   const m = i % 2 === 0 ? "00" : "30";
   return `${String(h).padStart(2, "0")}:${m}`;
 });
+
+/** Day range for the visual time windows: 08:00 – 17:00 (540 min). */
+const DAY_START = 8 * 60;
+const DAY_END = 17 * 60;
+const DAY_LEN = DAY_END - DAY_START;
+
+const TYPE_COLORS = {
+  follow_up: "#5B8C6E",
+  routine: "#5C7D90",
+  urgent: "#B87050",
+} as const;
+
+const TYPE_BG = {
+  follow_up: "#E9F1EC",
+  routine: "#E7EEF1",
+  urgent: "#F7EEE8",
+} as const;
+
+function timeToMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
 
 function manilaDay(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -62,6 +84,58 @@ function fmtDayLabel(day: string): string {
     day: "numeric",
     timeZone: "Asia/Manila",
   });
+}
+
+/** Circular progress ring used in the daily caps / rest buffer section. */
+function Ring({
+  percent,
+  color = "#3F6F52",
+  size = 80,
+  strokeWidth = 7,
+  children,
+}: {
+  percent: number;
+  color?: string;
+  size?: number;
+  strokeWidth?: number;
+  children?: React.ReactNode;
+}) {
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.min(100, Math.max(0, percent)) / 100);
+  return (
+    <div className="relative mx-auto" style={{ width: size, height: size }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#dadada"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function NumField({
@@ -473,7 +547,7 @@ export default function DoctorPage() {
       )}
 
       {tab === "rules" && (
-        <Card className="p-4">
+        <Card className="p-4 bg-surface-strong">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-[15px] font-bold text-ink">
               Scheduling rules
@@ -513,9 +587,10 @@ export default function DoctorPage() {
               <Empty>Loading…</Empty>
             </div>
           ) : (
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 space-y-5">
+              {/* 01 · Active Work Days */}
               <div>
-                <p className="eyebrow">Work days</p>
+                <p className="eyebrow">01 · Active Work Days</p>
                 <div className="mt-1.5 flex gap-1.5">
                   {WEEKDAYS.map((w, i) => {
                     const dow = i + 1;
@@ -533,10 +608,10 @@ export default function DoctorPage() {
                           }))
                         }
                         className={cn(
-                          "rounded-full px-2.5 py-1 text-[12px] font-bold",
+                          "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "bg-accent text-white"
-                            : "bg-surface-alt text-muted",
+                            ? "border-line bg-surface-strong text-ink/60" 
+                            : "border-line bg-surface-alt text-muted",
                           rulesDraft && "cursor-pointer",
                         )}
                       >
@@ -546,30 +621,28 @@ export default function DoctorPage() {
                   })}
                 </div>
               </div>
+
+              {/* 02 · Visit Types & Allowed Hours */}
               <div>
-                <p className="eyebrow">Time windows per visit type</p>
-                <p className="mt-0.5 text-[12px] text-muted">
-                  When each kind of visit may be scheduled. A type with no
-                  windows can&apos;t be booked at all.
-                </p>
-                <div className="mt-2 space-y-2.5">
-                  {(["follow_up", "routine", "urgent"] as const).map((t) => {
-                    const windows: string[] = r.windows[t] ?? [];
-                    return (
-                      <div key={t} className="flex flex-wrap items-start gap-2">
-                        <Chip
-                          tone={
-                            t === "urgent"
-                              ? "bad"
-                              : t === "follow_up"
-                                ? "accent"
-                                : "neutral"
-                          }
-                          className="mt-0.5 w-24 justify-center"
-                        >
-                          {typeLabel(t)}
-                        </Chip>
-                        {rulesDraft ? (
+                <p className="eyebrow">02 · Visit Types &amp; Allowed Hours</p>
+                {rulesDraft ? (
+                  <div className="mt-2 space-y-2.5">
+                    {(["follow_up", "routine", "urgent"] as const).map((t) => {
+                      const windows: string[] = r.windows[t] ?? [];
+                      return (
+                        <div key={t} className="flex flex-wrap items-start gap-2">
+                          <Chip
+                            tone={
+                              t === "urgent"
+                                ? "bad"
+                                : t === "follow_up"
+                                  ? "accent"
+                                  : "neutral"
+                            }
+                            className="mt-0.5 w-24 justify-center"
+                          >
+                            {typeLabel(t)}
+                          </Chip>
                           <div className="flex flex-1 flex-col gap-1.5">
                             {windows.map((w, i) => (
                               <WindowRow
@@ -616,81 +689,203 @@ export default function DoctorPage() {
                               + Add window
                             </button>
                           </div>
-                        ) : (
-                          <span className="tnum mt-1 text-[13px] text-ink/85">
-                            {windows.join(", ") || "— not bookable"}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {(["follow_up", "routine", "urgent"] as const).map((t) => {
+                      const windows = r.windows[t] ?? [];
+                      const duration = r.durationMin?.[t] ?? 30;
+                      return (
+                        <div
+                          key={t}
+                          className="rounded-card border border-line bg-surface-alt p-4" // Removed inline borderColor style, added border-line
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className="font-mono text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                              style={{
+                                backgroundColor: TYPE_BG[t],
+                                color: TYPE_COLORS[t],
+                                border: `1px solid ${TYPE_COLORS[t]}55`,
+                              }}
+                            >
+                              {typeLabel(t)}
+                            </span>
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {duration}
+                              <span className="ml-1 text-xs font-normal text-muted">
+                                min
+                              </span>
+                            </span>
+                          </div>
+
+                          <div className="relative mt-4 h-5 rounded-lg bg-black/5 border border-line overflow-hidden">
+                            {windows.map((w, i) => {
+                              const [s0 = "08:00", s1 = "17:00"] = w.split("-");
+                              const startMin = timeToMin(s0);
+                              const endMin = timeToMin(s1);
+                              const left =
+                                ((Math.max(startMin, DAY_START) - DAY_START) /
+                                  DAY_LEN) *
+                                100;
+                              const width =
+                                ((Math.min(endMin, DAY_END) -
+                                  Math.max(startMin, DAY_START)) /
+                                  DAY_LEN) *
+                                100;
+                              return (
+                                <div
+                                  key={i}
+                                  className="absolute top-0 bottom-0 rounded"
+                                  style={{
+                                    left: `${left}%`,
+                                    width: `${Math.max(0, width)}%`,
+                                    backgroundColor: TYPE_COLORS[t],
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="mt-1 flex justify-between font-mono text-[10px] text-muted">
+                            <span>8am</span>
+                            <span>12pm</span>
+                            <span>5pm</span>
+                          </div>
+
+                          <p className="mt-2 text-[11px] text-muted">
+                            Allowed Window
+                          </p>
+                          <p className="text-sm font-bold text-ink">
+                            {windows.length > 0
+                              ? windows.join("  &  ")
+                              : "Not bookable"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+
+              {/* 03 · Daily Caps & Rest Buffer */}
               <div>
-                <p className="eyebrow">Visit length per type (minutes)</p>
-                <p className="mt-0.5 text-[12px] text-muted">
-                  How long each kind of visit takes. Suggestions and bookings
-                  use these lengths (10–120 min).
-                </p>
-                <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-2">
-                  {(["follow_up", "routine", "urgent"] as const).map((t) => (
+                <p className="eyebrow">03 · Daily Caps &amp; Rest Buffer</p>
+                {rulesDraft ? (
+                  <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
                     <NumField
-                      key={t}
-                      label={typeLabel(t)}
-                      value={r.durationMin?.[t]}
+                      label="Most visits per day"
+                      value={r.maxPerDay}
+                      editing={!!rulesDraft}
+                      onChange={(v) =>
+                        setRulesDraft((d: any) => ({ ...d, maxPerDay: v }))
+                      }
+                    />
+                    <NumField
+                      label="Most per morning"
+                      value={r.maxPerBlock?.am}
                       editing={!!rulesDraft}
                       onChange={(v) =>
                         setRulesDraft((d: any) => ({
                           ...d,
-                          durationMin: {
-                            ...d.durationMin,
-                            [t]: Math.max(10, Math.min(120, v)),
-                          },
+                          maxPerBlock: { ...d.maxPerBlock, am: v },
                         }))
                       }
                     />
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-2">
-                <NumField
-                  label="Most visits per day"
-                  value={r.maxPerDay}
-                  editing={!!rulesDraft}
-                  onChange={(v) =>
-                    setRulesDraft((d: any) => ({ ...d, maxPerDay: v }))
-                  }
-                />
-                <NumField
-                  label="Most per morning"
-                  value={r.maxPerBlock?.am}
-                  editing={!!rulesDraft}
-                  onChange={(v) =>
-                    setRulesDraft((d: any) => ({
-                      ...d,
-                      maxPerBlock: { ...d.maxPerBlock, am: v },
-                    }))
-                  }
-                />
-                <NumField
-                  label="Most per afternoon"
-                  value={r.maxPerBlock?.pm}
-                  editing={!!rulesDraft}
-                  onChange={(v) =>
-                    setRulesDraft((d: any) => ({
-                      ...d,
-                      maxPerBlock: { ...d.maxPerBlock, pm: v },
-                    }))
-                  }
-                />
-                <NumField
-                  label="Break after each visit (min)"
-                  value={r.bufferAfterMin}
-                  editing={!!rulesDraft}
-                  onChange={(v) =>
-                    setRulesDraft((d: any) => ({ ...d, bufferAfterMin: v }))
-                  }
-                />
+                    <NumField
+                      label="Most per afternoon"
+                      value={r.maxPerBlock?.pm}
+                      editing={!!rulesDraft}
+                      onChange={(v) =>
+                        setRulesDraft((d: any) => ({
+                          ...d,
+                          maxPerBlock: { ...d.maxPerBlock, pm: v },
+                        }))
+                      }
+                    />
+                    <NumField
+                      label="Break after each visit (min)"
+                      value={r.bufferAfterMin}
+                      editing={!!rulesDraft}
+                      onChange={(v) =>
+                        setRulesDraft((d: any) => ({ ...d, bufferAfterMin: v }))
+                      }
+                    />
+                  </div>
+                ) : (
+                  (() => {
+                    const dailyMax = r.maxPerDay ?? 0;
+                    const morningMax = r.maxPerBlock?.am ?? 0;
+                    const afternoonMax = r.maxPerBlock?.pm ?? 0;
+                    const bufferMin = r.bufferAfterMin ?? 0;
+
+                    const dailyPct = dailyMax > 0 ? 100 : 0;
+                    const morningPct =
+                      dailyMax > 0 ? Math.min(100, (morningMax / dailyMax) * 100) : 0;
+                    const afternoonPct =
+                      dailyMax > 0 ? Math.min(100, (afternoonMax / dailyMax) * 100) : 0;
+                    const bufferPct = Math.min(100, (bufferMin / 60) * 100);
+
+                    return (
+                      <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
+                          <Ring percent={dailyPct} color="#5B8C6E">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {dailyMax || "—"}
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Max Visits / Day
+                          </p>
+                        </div>
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
+                          <Ring percent={morningPct} color="#5C7D90">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {morningMax || "—"}
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Max Morning
+                          </p>
+                          <p className="font-mono text-[10px] text-muted">
+                            08:00 – 12:00
+                          </p>
+                        </div>
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
+                          <Ring percent={afternoonPct} color="#5C7D90">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {afternoonMax || "—"}
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Max Afternoon
+                          </p>
+                          <p className="font-mono text-[10px] text-muted">
+                            13:00 – 17:00
+                          </p>
+                        </div>
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
+                          <Ring percent={bufferPct} color="#A0791F">
+                            <span className="font-display text-2xl font-bold text-ink">
+                              {bufferMin || "—"}
+                              <span className="ml-1 text-xs font-normal text-muted">
+                                min
+                              </span>
+                            </span>
+                          </Ring>
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
+                            Break Buffer
+                          </p>
+                          <p className="font-mono text-[10px] text-muted">
+                            After each visit
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
               </div>
             </div>
           )}

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePoll } from "@/lib/usePoll";
 import {
   jfetch,
@@ -21,6 +21,28 @@ const DOCTORS = [
   { id: "doc_santos", name: "Dr. Elena Santos", initials: "ES" },
   { id: "doc_reyes", name: "Dr. Marco Reyes", initials: "MR" },
 ];
+
+function toDayKey(date: Date): string {
+  // Format as YYYY-MM-DD in Manila timezone
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  const d = parts.find((p) => p.type === "day")?.value ?? "";
+  return `${y}-${m}-${d}`;
+}
+
+function monthLabel(date: Date): string {
+  return date.toLocaleDateString("en-PH", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  });
+}
 
 export default function BookPage() {
   const { data: patientsData } = usePoll<any>("/api/patients", 30000);
@@ -46,16 +68,87 @@ export default function BookPage() {
     8000,
   );
   const slots = slotData?.slots ?? [];
-  const slotsByDay = useMemo(() => {
-    const g: Record<string, any[]> = {};
-    for (const s of slots) (g[s.day] ??= []).push(s);
-    return Object.entries(g).slice(0, 5);
+
+  const slotMap = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    for (const s of slots) (m[s.day] ??= []).push(s);
+    return m;
   }, [slots]);
 
   const [picked, setPicked] = useState<any | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [monthDate, setMonthDate] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
+
+  useEffect(() => {
+    const keys = Object.keys(slotMap);
+    if (keys.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    const today = toDayKey(new Date());
+    const available = keys.filter((k) => k >= today);
+    if (available.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    setSelectedDay((prev) => {
+      if (prev && available.includes(prev)) return prev;
+      return available[0];
+    });
+  }, [slotMap]);
+
+  useEffect(() => {
+    if (selectedDay) {
+      const d = new Date(`${selectedDay}T00:00:00+08:00`);
+      setMonthDate((prev) => {
+        if (
+          prev.getFullYear() === d.getFullYear() &&
+          prev.getMonth() === d.getMonth()
+        ) {
+          return prev;
+        }
+        return new Date(d.getFullYear(), d.getMonth(), 1);
+      });
+    }
+  }, [selectedDay]);
+
+  const monthCells = useMemo(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const cells: { date: Date; inMonth: boolean; day: string }[] = [];
+
+    // Previous month days
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      cells.push({ date: d, inMonth: false, day: toDayKey(d) });
+    }
+
+    // Current month days
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      cells.push({ date, inMonth: true, day: toDayKey(date) });
+    }
+
+    // Fill remaining cells to complete a 42-cell grid
+    const total = 42;
+    while (cells.length < total) {
+      const last = cells[cells.length - 1].date;
+      const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+      cells.push({ date: next, inMonth: false, day: toDayKey(next) });
+    }
+    return cells;
+  }, [monthDate]);
 
   async function book() {
     if (!picked) return;
@@ -109,6 +202,9 @@ export default function BookPage() {
   const firstName = (
     patients.find((p: any) => p.id === patientId)?.name ?? ""
   ).split(" ")[0];
+
+  const selectedSlots = selectedDay ? slotMap[selectedDay] ?? [] : [];
+  const today = toDayKey(new Date());
 
   return (
     <div className="mx-auto max-w-[430px] space-y-3">
@@ -276,36 +372,111 @@ export default function BookPage() {
         </div>
 
         <p className="mt-3 text-[12px] font-bold text-muted">Available times</p>
-        <p className="text-[11px] text-muted">
-          Only times that fit the doctor&apos;s rules are shown.
-        </p>
-        <div className="mt-1.5 space-y-2">
-          {slotsByDay.length === 0 && (
+
+        {/* Calendar + Time slots */}
+        <div className="mt-1.5">
+          <div className="flex items-center justify-between rounded-card border border-line bg-white p-3">
+            <span className="text-[13px] font-bold text-ink">
+              {monthLabel(monthDate)}
+            </span>
+            <div className="flex gap-2 text-[13px] text-muted">
+              <button
+                onClick={() =>
+                  setMonthDate(
+                    new Date(
+                      monthDate.getFullYear(),
+                      monthDate.getMonth() - 1,
+                      1,
+                    ),
+                  )
+                }
+                className="cursor-pointer hover:text-ink"
+                aria-label="Previous month"
+              >
+                &lt;
+              </button>
+              <button
+                onClick={() =>
+                  setMonthDate(
+                    new Date(
+                      monthDate.getFullYear(),
+                      monthDate.getMonth() + 1,
+                      1,
+                    ),
+                  )
+                }
+                className="cursor-pointer hover:text-ink"
+                aria-label="Next month"
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-muted">
+            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+              <div key={i}>{d}</div>
+            ))}
+          </div>
+
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {monthCells.map((cell, idx) => {
+              const hasSlots = Boolean(slotMap[cell.day]);
+              const isSelected = cell.day === selectedDay;
+              const isOutside = !cell.inMonth;
+              const isPast = cell.day < today;
+              const isBlocked = isPast || (!hasSlots && !isOutside);
+              return (
+                <button
+                  key={`${cell.day}-${idx}`}
+                  onClick={!isBlocked ? () => setSelectedDay(cell.day) : undefined}
+                  disabled={isBlocked}
+                  className={cn(
+                    "flex h-8 items-center justify-center rounded border text-[12px] font-medium transition",
+                    isOutside
+                      ? "border-transparent text-muted/40"
+                      : "border-transparent text-ink",
+                    isBlocked
+                      ? "cursor-not-allowed text-muted/30"
+                      : "",
+                    hasSlots && !isOutside && !isSelected && !isBlocked
+                      ? "font-bold text-accent hover:bg-accent-soft"
+                      : "",
+                    isSelected && !isBlocked && "border-accent bg-accent-soft text-accent",
+                  )}
+                >
+                  {cell.date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          {selectedDay ? (
+            <>
+              <p className="text-[12px] font-bold text-ink">
+                {fmtDayManila(`${selectedDay}T00:00:00+08:00`)}
+              </p>
+              {selectedSlots.length > 0 ? (
+                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                  {selectedSlots.slice(0, 8).map((s: any) => (
+                    <button
+                      key={s.startUtc}
+                      onClick={() => setPicked(s)}
+                      className="tnum rounded-full border border-line bg-white px-3 py-1.5 text-[12px] font-bold text-ink hover:border-accent hover:bg-accent-soft"
+                    >
+                      {fmtTimeManila(s.startUtc)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Empty>No open slots for this day.</Empty>
+              )}
+            </>
+          ) : (
             <Empty>No open slots match — try another doctor or type.</Empty>
           )}
-          {slotsByDay.map(([day, list]) => (
-            <div key={day}>
-              <p className="text-[12px] font-bold text-ink">
-                {new Date(`${day}T00:00:00+08:00`).toLocaleDateString("en-PH", {
-                  weekday: "long",
-                  month: "short",
-                  day: "numeric",
-                  timeZone: "Asia/Manila",
-                })}
-              </p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {(list as any[]).slice(0, 8).map((s) => (
-                  <button
-                    key={s.startUtc}
-                    onClick={() => setPicked(s)}
-                    className="tnum rounded-full border border-line bg-white px-3 py-1.5 text-[12px] font-bold text-ink hover:border-accent hover:bg-accent-soft"
-                  >
-                    {fmtTimeManila(s.startUtc)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
         </div>
       </Card>
 

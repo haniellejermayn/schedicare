@@ -1,19 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePoll } from "@/lib/usePoll";
-import { fmtTimeManila, fmtWhenManila, typeLabel } from "@/lib/format";
-import { APPT_STATUS } from "@/components/copy";
-import {
-  Button,
-  Card,
-  Chip,
-  Empty,
-  PageTitle,
-  RailRow,
-  Tabs,
-  cn,
-} from "@/components/ui";
 import { CASE_STATE } from "@/components/copy";
 import { ManualAppointmentModal } from "@/components/ManualAppointmentModal";
 import { WeekCalendar } from "@/components/WeekCalendar";
@@ -54,65 +42,38 @@ function rowMeta(c: any): string {
   return "Agents working on it";
 }
 
-function Stat({
-  label,
-  value,
-  sub,
-  tone,
-  open,
-  onToggle,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  tone?: "warn" | "bad";
-  open: boolean;
-  onToggle: () => void;
-}) {
-  // Uniform anatomy — every band is FIXED height (not min-height), so no
-  // card can grow past its neighbors no matter how label or sub wrap:
-  // 30px label band (2 lines max) · 28px number line · 30px sub band.
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      className={cn(
-        "rounded-card border bg-white px-3.5 py-2.5 text-left transition-colors duration-fast",
-        open
-          ? "border-accent-line bg-accent-soft/40"
-          : "border-line hover:border-strong",
-      )}
-    >
-      <span className="flex h-[30px] items-start justify-between gap-1 overflow-hidden">
-        <span className="eyebrow leading-[15px]">{label}</span>
-        <span
-          aria-hidden
-          className={cn(
-            "text-[10px] leading-[15px] text-muted transition-transform duration-fast",
-            open && "rotate-180",
-          )}
-        >
-          ▾
-        </span>
-      </span>
-      <span
-        className={cn(
-          "tnum block h-7 text-[22px] font-bold leading-7",
-          tone === "bad"
-            ? "text-bad"
-            : tone === "warn"
-              ? "text-warn"
-              : "text-ink",
-        )}
-      >
-        {value}
-      </span>
-      <span className="block h-[30px] overflow-hidden whitespace-pre-line text-[11px] leading-[15px] text-muted">
-        {sub ?? ""}
-      </span>
-    </button>
-  );
+function initials(name: string): string {
+  return name.trim().charAt(0).toUpperCase();
+}
+
+function toneClass(tone?: string): string {
+  switch (tone) {
+    case "warn":
+      return "tone-warn";
+    case "bad":
+      return "tone-bad";
+    case "accent":
+      return "tone-accent";
+    case "ok":
+      return "tone-ok";
+    default:
+      return "";
+  }
+}
+
+function chipToneClass(tone?: string): string {
+  switch (tone) {
+    case "warn":
+      return "chip-warn";
+    case "bad":
+      return "chip-bad";
+    case "ok":
+      return "chip-ok";
+    case "accent":
+      return "chip-accent";
+    default:
+      return "chip-neutral";
+  }
 }
 
 export default function FrontDeskPage() {
@@ -128,11 +89,15 @@ export default function FrontDeskPage() {
   const [appointmentMessage, setAppointmentMessage] = useState<string | null>(
     null,
   );
-  type StatKey = "visits" | "review" | "waiting" | "toCall" | "out";
-  const [expanded, setExpanded] = useState<StatKey | null>(null);
-  const toggle = (k: StatKey) => setExpanded((e) => (e === k ? null : k));
+  const [query, setQuery] = useState("");
 
   const doctors: Array<{ id: string; name: string }> = docList?.doctors ?? [];
+  useEffect(() => {
+    if (doctors.length && !doctors.find((d) => d.id === scheduleDoctor)) {
+      setScheduleDoctor(doctors[0].id);
+    }
+  }, [doctors, scheduleDoctor]);
+
   const cases = data?.cases ?? [];
   const buckets = useMemo(() => {
     const review = cases.filter(
@@ -160,6 +125,7 @@ export default function FrontDeskPage() {
     }
     return days;
   }, [docData]);
+
   const scheduleRisk = useMemo(() => {
     const m: Record<string, any> = {};
     for (const r of docData?.atRisk ?? []) m[r.appointmentId] = r;
@@ -173,200 +139,317 @@ export default function FrontDeskPage() {
         ? buckets.working
         : buckets.done;
 
+  const filteredList = query.trim()
+    ? list.filter((c: any) => {
+        const q = query.toLowerCase();
+        const title = (c.title ?? "").toLowerCase();
+        const meta = rowMeta(c).toLowerCase();
+        return title.includes(q) || meta.includes(q);
+      })
+    : list;
+
+  const dateStr = status?.demoNow
+    ? new Date(status.demoNow).toLocaleDateString("en-PH", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        timeZone: "Asia/Manila",
+      })
+    : "";
+
+  const shortDate = status?.demoNow
+    ? new Date(status.demoNow).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        timeZone: "Asia/Manila",
+      })
+    : "";
+
+  const visitsToday = summary?.visitsToday ?? "—";
+  const confirmedToday = summary?.confirmedToday ?? 0;
+  const unconfirmedToday = summary?.unconfirmedToday ?? 0;
+  const waitingCount = summary?.waiting?.length ?? 0;
+  const toCallCount = summary?.toCall?.length ?? 0;
+  const doctorsOut: string[] = summary?.doctorsOut ?? [];
+
   return (
     <div className="space-y-5">
-      <PageTitle
-        right={
-          <div className="flex items-center gap-3">
-            {status && (
-              <span className="tnum text-[13px] text-muted">
-                {new Date(status.demoNow).toLocaleDateString("en-PH", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                  timeZone: "Asia/Manila",
-                })}
-              </span>
-            )}
-            <Button onClick={() => setAppointmentOpen(true)}>
-              New appointment
-            </Button>
-          </div>
-        }
-      >
-        Front desk
-      </PageTitle>
-
-      {/* Mini-dashboard — read-only counts; the tabs below stay the workflow. */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-        <Stat
-          label="Visits today"
-          value={summary?.visitsToday ?? "—"}
-          sub={
-            summary
-              ? `${summary.confirmedToday} confirmed\n${summary.unconfirmedToday} unconfirmed`
-              : undefined
-          }
-          open={expanded === "visits"}
-          onToggle={() => toggle("visits")}
-        />
-        <Stat
-          label="Needs your review"
-          value={buckets.review.length}
-          tone={buckets.review.length > 0 ? "warn" : undefined}
-          open={expanded === "review"}
-          onToggle={() => toggle("review")}
-        />
-        <Stat
-          label="Waiting to hear back"
-          value={summary ? summary.waiting.length : "—"}
-          open={expanded === "waiting"}
-          onToggle={() => toggle("waiting")}
-        />
-        <Stat
-          label="To call"
-          value={summary ? summary.toCall.length : "—"}
-          tone={summary?.toCall.length ? "bad" : undefined}
-          open={expanded === "toCall"}
-          onToggle={() => toggle("toCall")}
-        />
-        <Stat
-          label="Doctors out today"
-          value={
-            summary
-              ? summary.doctorsOut.length === 0
-                ? "None"
-                : summary.doctorsOut.length
-              : "—"
-          }
-          sub={
-            summary?.doctorsOut.length
-              ? summary.doctorsOut.join(", ")
-              : undefined
-          }
-          tone={summary?.doctorsOut.length ? "bad" : undefined}
-          open={expanded === "out"}
-          onToggle={() => toggle("out")}
-        />
+      <div className="page-head">
+        <div>
+          <h1>Front desk</h1>
+          <p className="date tnum">{dateStr}</p>
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => setAppointmentOpen(true)}
+        >
+          + New appointment
+        </button>
       </div>
 
-      {expanded && (
-        <Card className="animate-rise divide-y divide-line">
-          {expanded === "visits" &&
-            ((summary?.visits ?? []).length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted">
-                No visits scheduled today.
-              </p>
-            ) : (
-              (summary?.visits ?? []).map((v: any) => {
-                const st = APPT_STATUS[v.status] ?? {
-                  label: v.status,
-                  tone: "neutral" as const,
-                };
-                return (
-                  <div key={v.id} className="flex items-center gap-3 px-4 py-2">
-                    <span className="tnum w-[72px] text-[13px] font-bold text-ink">
-                      {fmtTimeManila(v.startUtc)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
-                      {v.patientName}
-                    </span>
-                    <span className="hidden text-[12px] text-muted sm:block">
-                      {typeLabel(v.type)} · {v.doctorName}
-                    </span>
-                    <Chip tone={st.tone}>{st.label}</Chip>
-                  </div>
-                );
-              })
-            ))}
-          {expanded === "review" &&
-            (buckets.review.length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted">
-                Nothing needs you right now.
-              </p>
-            ) : (
-              buckets.review.map((c: any) => (
-                <button
-                  key={c.id}
-                  onClick={() => router.push(`/ops/cases/${c.id}`)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-alt"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
-                    {c.title}
+      <div className="command-bar">
+        <div className="search relative flex items-center">
+          <svg
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 shrink-0"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            style={{ color: "var(--muted)" }}
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search patient, doctor, or case…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-ctl border border-line bg-white py-2 pl-9 pr-8 text-[14px] text-ink placeholder:text-muted outline-none focus:border-accent"
+          />
+          {query && (
+            <button
+              className="clear-search absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full text-muted hover:text-ink focus:outline-none"
+              aria-label="Clear search"
+              onClick={() => setQuery("")}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="filter-chips" role="tablist">
+        <button
+          className={`fchip ${filter === "review" ? "active" : ""}`}
+          onClick={() => setFilter("review")}
+        >
+          Needs review <span className="n">{buckets.review.length}</span>
+        </button>
+        <button
+          className={`fchip ${filter === "working" ? "active" : ""}`}
+          onClick={() => setFilter("working")}
+        >
+          Agents working <span className="n">{buckets.working.length}</span>
+        </button>
+        <button
+          className={`fchip ${filter === "done" ? "active" : ""}`}
+          onClick={() => setFilter("done")}
+        >
+          Resolved <span className="n">{buckets.done.length}</span>
+        </button>
+        <button
+          className={`fchip ${filter === "schedule" ? "active" : ""}`}
+          onClick={() => setFilter("schedule")}
+        >
+          Schedule view
+        </button>
+      </div>
+
+      <div className="layout">
+        <div className="queue">
+          {filter === "schedule" ? (
+            <div className="filter-panel active" data-panel="schedule">
+              <div className="sched-card">
+                <div className="sched-top">
+                  <span className="eyebrow">This week</span>
+                  <select
+                    value={scheduleDoctor}
+                    onChange={(e) => setScheduleDoctor(e.target.value)}
+                    aria-label="Doctor"
+                    className="rounded-ctl border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-accent"
+                  >
+                    {(doctors.length
+                      ? doctors
+                      : [
+                          { id: "doc_santos", name: "Dr. Elena Santos" },
+                          { id: "doc_reyes", name: "Dr. Marco Reyes" },
+                        ]
+                    ).map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <WeekCalendar
+                  key={scheduleDoctor}
+                  week={scheduleWeek}
+                  riskById={scheduleRisk}
+                  today={docData?.demoToday}
+                  rules={docData?.rules}
+                  externalBusy={docData?.externalBusy ?? []}
+                  unavailableDates={docData?.doctor?.unavailableDates ?? []}
+                />
+                <div className="sched-legend">
+                  <span>
+                    <i style={{ background: "var(--teal)" }}></i>Routine
                   </span>
-                  <span className="text-[12px] text-muted">{rowMeta(c)}</span>
-                  <span aria-hidden className="text-muted">
-                    ›
+                  <span>
+                    <i style={{ background: "var(--moss)" }}></i>Follow-up
                   </span>
-                </button>
-              ))
-            ))}
-          {expanded === "waiting" &&
-            ((summary?.waiting ?? []).length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted">
-                No one is waiting to reply right now.
-              </p>
-            ) : (
-              (summary?.waiting ?? []).map((w: any, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => router.push(`/ops/cases/${w.caseId}`)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-alt"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
-                    {w.patientName}
+                  <span>
+                    <i style={{ background: "var(--clay)" }}></i>Urgent
                   </span>
-                  <span className="tnum text-[12px] text-muted">
-                    offered {fmtWhenManila(w.when)}
-                  </span>
-                  <span aria-hidden className="text-muted">
-                    ›
-                  </span>
-                </button>
-              ))
-            ))}
-          {expanded === "toCall" &&
-            ((summary?.toCall ?? []).length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted">
-                No calls needed right now.
-              </p>
-            ) : (
-              (summary?.toCall ?? []).map((t: any, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => router.push(`/ops/cases/${t.caseId}`)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-surface-alt"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
-                    {t.patientName}
-                  </span>
-                  <span className="text-[12px] text-muted">{t.reason}</span>
-                  <span aria-hidden className="text-muted">
-                    ›
-                  </span>
-                </button>
-              ))
-            ))}
-          {expanded === "out" &&
-            ((summary?.doctorsOut ?? []).length === 0 ? (
-              <p className="px-4 py-3 text-[13px] text-muted">
-                Everyone is in today.
-              </p>
-            ) : (
-              (summary?.doctorsOut ?? []).map((n: string) => (
-                <p
-                  key={n}
-                  className="px-4 py-2 text-[13px] font-semibold text-ink"
-                >
-                  {n}{" "}
-                  <span className="font-normal text-muted">
-                    — out today; affected visits are being rebooked
-                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="filter-panel active"
+              data-panel={filter === "done" ? "resolved" : filter}
+            >
+              <div className="queue-label">
+                <span className="eyebrow">
+                  {filter === "review"
+                    ? "For your review — sorted by urgency"
+                    : filter === "working"
+                      ? "Agents working — no action needed yet"
+                      : "Resolved — closed out"}
+                </span>
+                <span className="count">{filteredList.length} cases</span>
+              </div>
+
+              {filteredList.length === 0 ? (
+                <p className="px-4 py-3 text-[13px] text-muted">
+                  {query.trim()
+                    ? "No matching cases in this section."
+                    : filter === "review"
+                      ? "Nothing needs you right now. New suggestions will appear here."
+                      : filter === "working"
+                        ? "Nothing in progress."
+                        : "No finished cases yet."}
                 </p>
+              ) : (
+                filteredList.map((c: any) => {
+                  const st = CASE_STATE[c.state] ?? {
+                    label: c.state,
+                    tone: "neutral" as const,
+                  };
+                  return (
+                    <div
+                      key={c.id}
+                      className={`case ${toneClass(st.tone)}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => router.push(`/ops/cases/${c.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          router.push(`/ops/cases/${c.id}`);
+                      }}
+                    >
+                      <div className="avatars">
+                        <div className="av av-1">{initials(c.title)}</div>
+                      </div>
+                      <div className="case-body">
+                        <div className="case-top">
+                          {c.state === "awaiting_approval" ||
+                          c.state === "escalated" ? (
+                            <span className="pulse"></span>
+                          ) : null}
+                          <span className="case-title">{c.title}</span>
+                          <span className={`chip ${chipToneClass(st.tone)}`}>
+                            {st.label}
+                          </span>
+                        </div>
+                        <div className="case-meta">
+                          <span>{rowMeta(c)}</span>
+                          {c.updatedAt && (
+                            <>
+                              <span className="dot-sep">·</span>
+                              <span>
+                                updated{" "}
+                                {new Date(c.updatedAt).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="case-actions">
+                        <span className="updated">
+                          {c.updatedAt
+                            ? new Date(c.updatedAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "just now"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rail">
+          <div className="rail-card">
+            <h3>Today at a glance</h3>
+            <p className="rail-sub">{shortDate} · Riverside Family Clinic</p>
+            <div className="glance-row">
+              <span className="label">Visits today</span>
+              <span className="val">{visitsToday}</span>
+            </div>
+            <div className="glance-row">
+              <span className="label">Confirmed</span>
+              <span className="val" style={{ color: "var(--moss)" }}>
+                {confirmedToday}
+              </span>
+            </div>
+            <div className="glance-row">
+              <span className="label">Unconfirmed</span>
+              <span className="val" style={{ color: "var(--amber)" }}>
+                {unconfirmedToday}
+              </span>
+            </div>
+            <div className="glance-row">
+              <span className="label">Waiting to hear back</span>
+              <span className="val">{waitingCount}</span>
+            </div>
+            <div className="glance-row">
+              <span className="label">To call</span>
+              <span className="val" style={{ color: "var(--clay)" }}>
+                {toCallCount}
+              </span>
+            </div>
+          </div>
+
+          <div className="rail-card">
+            <h3>Doctors out today</h3>
+            <p className="rail-sub">Affected visits are being rebooked</p>
+            {doctorsOut.length === 0 ? (
+              <div className="empty-out">Everyone is in today.</div>
+            ) : (
+              doctorsOut.map((name: string) => (
+                <div className="out-doc" key={name}>
+                  <div className="av">
+                    {name
+                      .split(" ")
+                      .map((p: string) => p[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                  <div className="info">
+                    <b>{name}</b>
+                    <span>out today; affected visits are being rebooked</span>
+                  </div>
+                </div>
               ))
-            ))}
-        </Card>
-      )}
+            )}
+          </div>
+        </div>
+      </div>
+
+      <footer className="note">
+        Nothing is sent or booked without your approval.
+      </footer>
 
       {appointmentMessage && (
         <p className="rounded-ctl border border-ok-line bg-ok-soft px-3 py-2 text-[13px] font-semibold text-ok">
@@ -374,104 +457,6 @@ export default function FrontDeskPage() {
         </p>
       )}
 
-      <Tabs<Filter>
-        value={filter}
-        onChange={setFilter}
-        tabs={[
-          {
-            id: "review",
-            label: "Needs your review",
-            count: buckets.review.length,
-          },
-          {
-            id: "working",
-            label: "Agents working",
-            count: buckets.working.length,
-          },
-          { id: "done", label: "Resolved", count: buckets.done.length },
-          { id: "schedule", label: "Schedule" },
-        ]}
-      />
-
-      {filter === "schedule" ? (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-end">
-            <select
-              value={scheduleDoctor}
-              onChange={(e) => setScheduleDoctor(e.target.value)}
-              aria-label="Doctor"
-              className="rounded-ctl border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-accent"
-            >
-              {(doctors.length
-                ? doctors
-                : [
-                    { id: "doc_santos", name: "Dr. Elena Santos" },
-                    { id: "doc_reyes", name: "Dr. Marco Reyes" },
-                  ]
-              ).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <WeekCalendar
-            week={scheduleWeek}
-            riskById={scheduleRisk}
-            today={docData?.demoToday}
-            rules={docData?.rules}
-            externalBusy={docData?.externalBusy ?? []}
-            unavailableDates={docData?.doctor?.unavailableDates ?? []}
-          />
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {list.length === 0 && (
-            <Empty>
-              {filter === "review"
-                ? "Nothing needs you right now. New suggestions will appear here."
-                : filter === "working"
-                  ? "Nothing in progress."
-                  : "No finished cases yet."}
-            </Empty>
-          )}
-          {list.map((c: any) => {
-            const st = CASE_STATE[c.state] ?? {
-              label: c.state,
-              tone: "neutral" as const,
-            };
-            return (
-              <RailRow
-                key={c.id}
-                tone={st.tone}
-                interactive
-                role="link"
-                tabIndex={0}
-                onClick={() => router.push(`/ops/cases/${c.id}`)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && router.push(`/ops/cases/${c.id}`)
-                }
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[14px] font-semibold text-ink">
-                    {c.title}
-                  </p>
-                  <p className="mt-0.5 text-[13px] text-muted">{rowMeta(c)}</p>
-                </div>
-                <Chip tone={st.tone}>{st.label}</Chip>
-                <span aria-hidden className="text-muted">
-                  ›
-                </span>
-              </RailRow>
-            );
-          })}
-        </div>
-      )}
-
-      <p className="pt-2 text-center text-[12px] text-muted">
-        Nothing is sent or booked without your approval.
-      </p>
       <ManualAppointmentModal
         open={appointmentOpen}
         onClose={() => setAppointmentOpen(false)}

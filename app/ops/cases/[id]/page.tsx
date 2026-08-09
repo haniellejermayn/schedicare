@@ -150,16 +150,89 @@ function SummaryLine({ s, state }: { s: any; state: string }) {
   return <p className="text-[13px] text-muted">{bits.join(" · ")}</p>;
 }
 
+function buildPatients(recs: any[], convs: any[]) {
+  const map = new Map<
+    string,
+    { id: string; name: string; recs: any[]; conv?: any }
+  >();
+  for (const r of recs) {
+    const p = r.payload ?? {};
+    const pid = r.patientId;
+    if (!map.has(pid))
+      map.set(pid, {
+        id: pid,
+        name: p.patientName ?? "Patient",
+        recs: [],
+      });
+    map.get(pid)!.recs.push(r);
+  }
+  for (const cv of convs) {
+    const pid = cv.patientId;
+    if (!map.has(pid))
+      map.set(pid, {
+        id: pid,
+        name: cv.patientName ?? "Patient",
+        recs: [],
+      });
+    map.get(pid)!.conv = cv;
+  }
+  return [...map.values()].map((p) => {
+    let activeRec: any = null;
+    if (p.conv?.recommendations?.length) {
+      activeRec = p.conv.recommendations.at(-1);
+    }
+    if (!activeRec && p.conv?.currentRecommendationId) {
+      activeRec = p.recs.find((r) => r.id === p.conv.currentRecommendationId);
+    }
+    if (!activeRec) {
+      activeRec = p.recs.find((r) => r.status === "proposed") ?? p.recs[0] ?? null;
+    }
+    return { ...p, activeRec };
+  });
+}
+
+function needsDecision(rec: any): boolean {
+  return (
+    !!rec &&
+    (rec.status === "proposed" ||
+      rec.outcome === "superseded" ||
+      rec.outcome === "needs_human")
+  );
+}
+
+function statusTitle(rec: any): string {
+  if (rec.outcome === "superseded") return "Counter-offer — needs your review";
+  const oc = outcomeLabel(rec);
+  if (oc.label === "Confirmed") return "Confirmed";
+  if (oc.label.startsWith("Declined")) return "Declined — needs a call";
+  if (oc.label === "Message sent" || oc.label === "Waiting for reply")
+    return "Approved — sent, no reply yet";
+  return oc.label;
+}
+
+const dotToneClass: Record<string, string> = {
+  warn: "bg-warn",
+  accent: "bg-accent",
+  ok: "bg-ok",
+  bad: "bg-bad",
+  neutral: "bg-line",
+};
+
+const statusToneClass: Record<string, string> = {
+  warn: "border-warn-line bg-warn-soft",
+  accent: "border-accent-line bg-accent-soft",
+  ok: "border-ok-line bg-ok-soft",
+  bad: "border-bad-line bg-bad-soft",
+  neutral: "border-line bg-surface-alt",
+};
+
 export default function CasePage() {
   const { id } = useParams<{ id: string }>();
   const { data, refresh } = usePoll<any>(id ? `/api/cases/${id}` : null, 1800);
   const feed = useFeed(id);
   const [tab, setTab] = useState<Tab>("activity");
   const [tech, setTech] = useState(false);
-  const [section, setSection] = useState<"review" | "patients">("review");
-  const [expandedPatients, setExpandedPatients] = useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [caseOpen, setCaseOpen] = useState(false);
   const [busyAll, setBusyAll] = useState(false);
   const [busyPatient, setBusyPatient] = useState<string | null>(null);
@@ -182,10 +255,6 @@ export default function CasePage() {
     (r: any) =>
       r.status !== "proposed" && r.outcome !== "superseded" && !r.supersededBy,
   );
-  const showTabs = proposed.length > 0 && decidedSubstantive.length > 0;
-  const showReview = proposed.length > 0 && (!showTabs || section === "review");
-  const showPatients =
-    decidedSubstantive.length > 0 && (!showTabs || section === "patients");
   const activity = useMemo(
     () => (tech ? feed.items : feed.items.filter(isPlainEntry)),
     [feed.items, tech],
@@ -199,6 +268,42 @@ export default function CasePage() {
     () => groupActivity(activity, resolvePatient),
     [activity, resolvePatient],
   );
+
+  const patients = useMemo(
+    () => buildPatients(recs, conversations),
+    [recs, conversations],
+  );
+
+  const metrics = useMemo(() => {
+    if (patients.length === 0) return null;
+    const total = patients.length;
+    let confirmed = 0;
+    let waitingForYou = 0;
+    let waitingOnPatient = 0;
+    let toCall = 0;
+    for (const p of patients) {
+      const rec = p.activeRec;
+      if (!rec) continue;
+      if (needsDecision(rec)) {
+        waitingForYou++;
+        continue;
+      }
+      const oc = outcomeLabel(rec);
+      if (oc.label === "Confirmed") confirmed++;
+      else if (oc.label.startsWith("Declined")) toCall++;
+      else if (oc.label === "Message sent" || oc.label === "Waiting for reply")
+        waitingOnPatient++;
+    }
+    return { total, confirmed, waitingForYou, waitingOnPatient, toCall };
+  }, [patients]);
+
+  useEffect(() => {
+    if (!data || patients.length === 0) return;
+    if (!selectedId) {
+      const needsReview = patients.find((p) => needsDecision(p.activeRec));
+      setSelectedId((needsReview ?? patients[0]).id);
+    }
+  }, [data, patients, selectedId]);
 
   useEffect(() => {
     if (!followUp || followOutcome !== "choose_another") return;
@@ -219,33 +324,19 @@ export default function CasePage() {
       .then((result) => setFollowSlots(result.slots ?? []))
       .catch((error) => setFollowError((error as Error).message));
   }, [followUp, followOutcome]);
-  /*
-  useEffect(() => {
-  if (!data) return;
-  setExpandedPatients((prev) => {
-    if (prev.size > 0) return prev; // don't override manual toggles on refetch
-    const needsAttention = conversations
-      .filter((c: any) => {
-        const rec = recs.find((r: any) => r.id === c.currentRecommendationId);
-        return rec?.status === "proposed" || rec?.outcome === "needs_human";
-      })
-      .map((c: any) => c.patientId);
-    return new Set(needsAttention);
-  });
-}, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-*/
+
   if (!c) return <Empty>Loading…</Empty>;
   const st = CASE_STATE[c.state] ?? {
     label: c.state,
     tone: "neutral" as const,
   };
 
+  const selectedPatient =
+    patients.find((p) => p.id === selectedId) ?? patients[0] ?? null;
+
   function togglePatient(id: string) {
-    setExpandedPatients((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelectedId(id);
+    setTab("activity");
   }
 
   async function approveAll() {
@@ -305,11 +396,67 @@ export default function CasePage() {
             {c.title}
           </h1>
           <Chip tone={st.tone}>{st.label}</Chip>
+          {proposed.length > 1 && (
+            <Button
+              small
+              disabled={busyAll}
+              onClick={() => setApproveAllOpen(true)}
+              className="ml-auto"
+            >
+              {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
+            </Button>
+          )}
         </div>
         <div className="mt-1">
           <SummaryLine s={data?.scoreboard} state={c.state} />
         </div>
       </div>
+
+      {/* Metric tiles */}
+      {metrics && (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div className="rounded-[10px] border border-line bg-white px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-ink">
+              {metrics.total}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Patients affected
+            </span>
+          </div>
+          <div className="rounded-[10px] border border-ok-line bg-ok-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-ok">
+              {metrics.confirmed}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Confirmed
+            </span>
+          </div>
+          <div className="rounded-[10px] border border-warn-line bg-warn-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-warn">
+              {metrics.waitingForYou}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Waiting for you
+            </span>
+          </div>
+          <div className="rounded-[10px] border border-accent-line bg-accent-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-accent">
+              {metrics.waitingOnPatient}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Waiting on patient
+            </span>
+          </div>
+          <div className="rounded-[10px] border border-bad-line bg-bad-soft px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-bad">
+              {metrics.toCall}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
+              To call
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Escalated banner */}
       {c.state === "escalated" && (
@@ -330,284 +477,253 @@ export default function CasePage() {
         </RailRow>
       )}
 
-      {/* Decisions + Patients — tabbed when both have content, plain when only one does */}
-      {(proposed.length > 0 || decidedSubstantive.length > 0) && (
-        <section className="space-y-2.5">
-          {proposed.length > 0 && decidedSubstantive.length > 0 ? (
-            <Tabs<"review" | "patients">
-              value={section}
-              onChange={setSection}
-              tabs={[
-                {
-                  id: "review",
-                  label: "For your review",
-                  count: proposed.length,
-                },
-                {
-                  id: "patients",
-                  label: "Patients",
-                  count: decidedSubstantive.length,
-                },
-              ]}
-              right={
-                proposed.length > 1 ? (
-                  <Button
-                    small
-                    disabled={busyAll}
-                    onClick={() => setApproveAllOpen(true)}
-                  >
-                    {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
+      {/* Constraint reviews */}
+      {Object.values(data?.case?.meta?.constraintsByAppt ?? {})
+        .filter((e: any) => e.disposition === "constraint_review")
+        .map((entry: any) => (
+          <ConstraintEditor
+            key={`${entry.appointmentId}:${entry.extractedAt ?? ""}`}
+            caseId={id as string}
+            latest={entry}
+            conversations={conversations}
+            onDone={refresh}
+          />
+        ))}
+
+      {/* Patient list + panel */}
+      {patients.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-[250px_1fr]">
+          <aside className="space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="eyebrow">
-                {proposed.length > 0 ? "For your review" : "Patients"}
-              </h2>
-              {proposed.length > 1 && (
-                <Button
-                  small
-                  disabled={busyAll}
-                  onClick={() => setApproveAllOpen(true)}
-                >
-                  {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
-                </Button>
-              )}
+              <span className="eyebrow">Patients in this case</span>
             </div>
-          )}
-
-          {Object.values(data?.case?.meta?.constraintsByAppt ?? {})
-            .filter((e: any) => e.disposition === "constraint_review")
-            .map((entry: any) => (
-              <ConstraintEditor
-                key={`${entry.appointmentId}:${entry.extractedAt ?? ""}`}
-                caseId={id as string}
-                latest={entry}
-                conversations={conversations}
-                onDone={refresh}
-              />
-            ))}
-
-          {(proposed.length === 0 ||
-            (proposed.length > 0 && decidedSubstantive.length > 0
-              ? section === "review"
-              : true)) &&
-            proposed.length > 0 &&
-            proposed.map((r: any) => (
-              <DecisionCard
-                key={r.id}
-                rec={r}
-                messages={messages}
-                onDone={refresh}
-              />
-            ))}
-
-          {decidedSubstantive.length > 0 &&
-            (proposed.length === 0 || section === "patients") &&
-            decidedSubstantive.map((r: any) => {
-              const p = r.payload ?? {};
-              const oc = outcomeLabel(r);
-              const to = (p.options ?? []).find(
-                (o: any) =>
-                  o.id ===
-                  (p.executedOptionId ??
-                    p.modifiedOptionId ??
-                    p.chosenOptionId),
-              );
-              const conversation = conversations.find(
-                (x: any) => x.patientId === r.patientId,
-              );
-              const actions =
-                conversation?.currentRecommendationId === r.id
-                  ? conversation.actions
-                  : null;
+            {patients.map((p) => {
+              const oc = p.activeRec
+                ? outcomeLabel(p.activeRec)
+                : { label: "No action", tone: "neutral" as const };
+              const isActive = selectedId === p.id;
+              const sub =
+                needsDecision(p.activeRec)
+                  ? "Needs your decision"
+                  : oc.label;
               return (
-                <RailRow key={r.id} tone={oc.tone} className="px-4 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-semibold text-ink">
-                        {p.patientName}
-                      </p>
-                      {r.kind === "reschedule" && to ? (
-                        <RescheduleLine
-                          fromLabel={p.from?.when}
-                          toUtc={to.startUtc}
-                          doctorName={to.doctorName}
-                        />
-                      ) : (
-                        <p className="tnum text-[13px] text-muted">
-                          {p.when ?? p.from?.when ?? ""}
-                        </p>
-                      )}
-                    </div>
-                    <Chip tone={oc.tone}>{oc.label}</Chip>
-                  </div>
-                  {actions?.followUp && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        small
-                        disabled={!!busyPatient}
-                        onClick={() => {
-                          setFollowUp(conversation);
-                          setFollowOutcome(null);
-                          setFollowError(null);
-                        }}
-                      >
-                        {busyPatient === r.patientId ? (
-                          <Spinner />
-                        ) : (
-                          "Follow up"
-                        )}
-                      </Button>
-                    </div>
+                <button
+                  key={p.id}
+                  onClick={() => togglePatient(p.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-card border bg-white px-[11px] py-[9px] text-left transition-colors",
+                    isActive
+                      ? "border-accent bg-accent-soft"
+                      : "border-line hover:border-strong",
                   )}
-                </RailRow>
+                >
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white"
+                    style={{
+                      backgroundColor:
+                        p.activeRec?.payload?.doctorName
+                          ? undefined
+                          : undefined,
+                    }}
+                  >
+                    {p.name
+                      .split(" ")
+                      .map((w: string) => w[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[13px] text-ink">
+                      {p.name}
+                    </b>
+                    <span className="block truncate text-[11px] text-muted">
+                      {sub}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      dotToneClass[oc.tone] ?? "bg-line",
+                    )}
+                  />
+                </button>
               );
             })}
-        </section>
-      )}
-      {/* Tabs: Activity | Messages */}
-      <section>
-        <Tabs<Tab>
-          value={tab}
-          onChange={setTab}
-          tabs={[
-            { id: "activity", label: "Activity" },
-            { id: "messages", label: "Messages", count: messages.length },
-          ]}
-          right={
-            tab === "activity" ? (
-              <label className="flex cursor-pointer items-center gap-1.5 pb-2 text-[12px] font-semibold text-muted">
-                <input
-                  type="checkbox"
-                  checked={tech}
-                  onChange={(e) => setTech(e.target.checked)}
-                  className="accent-accent"
-                />
-                Technical detail
-              </label>
-            ) : undefined
-          }
-        />
+          </aside>
 
-        {tab === "activity" && (
-          <div className="mt-3 space-y-4">
-            {grouped.caseLevel.length === 0 && grouped.byPatient.size === 0 && (
-              <Empty>Activity will appear here as the case moves.</Empty>
-            )}
-
-            {grouped.caseLevel.length > 0 && (
-              <div className="rounded-card border border-line bg-paper">
-                <button
-                  onClick={() => setCaseOpen((v) => !v)}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
-                >
-                  <span className="text-[13px] font-bold text-ink">Case</span>
-                  <span className="text-[12px] text-muted">
-                    {grouped.caseLevel.length} update
-                    {grouped.caseLevel.length === 1 ? "" : "s"}
+          <div>
+            {selectedPatient ? (
+              <div className="overflow-hidden rounded-card border border-line bg-white">
+                {/* Panel head */}
+                <div className="flex items-center gap-3 border-b border-line px-[18px] py-[14px]">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-[12px] font-bold text-white">
+                    {selectedPatient.name
+                      .split(" ")
+                      .map((w: string) => w[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
                   </span>
-                  {!caseOpen && grouped.caseLevel.at(-1) && (
-                    <span className="ml-auto truncate text-[11px] text-muted">
-                      {plainTitle(grouped.caseLevel.at(-1))}
-                    </span>
-                  )}
-                  <span className="ml-auto shrink-0 text-muted">
-                    {caseOpen ? "▾" : "▸"}
-                  </span>
-                </button>
-                {caseOpen && (
-                  <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
-                    {grouped.caseLevel.map((it) => (
-                      <ActivityRow key={it.id} it={it} tech={tech} />
-                    ))}
-                  </ol>
-                )}
-              </div>
-            )}
-
-            {[...grouped.byPatient.entries()].map(([patientId, group]) => {
-              const isOpen = expandedPatients.has(patientId);
-              const last = group.items.at(-1);
-              return (
-                <div
-                  key={patientId}
-                  className="rounded-card border border-line bg-paper"
-                >
-                  <button
-                    onClick={() => togglePatient(patientId)}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
-                  >
-                    <span className="text-[13px] font-bold text-ink">
-                      {group.patientName}
-                    </span>
+                  <div>
+                    <h2 className="text-[15px] font-bold text-ink">
+                      {selectedPatient.name}
+                    </h2>
                     <span className="text-[12px] text-muted">
-                      {group.items.length} update
-                      {group.items.length === 1 ? "" : "s"}
+                      {selectedPatient.activeRec?.payload?.from?.when
+                        ? `Originally ${selectedPatient.activeRec.payload.from.when}`
+                        : "Patient"}
                     </span>
-                    {last && (
-                      <span className="ml-auto truncate text-[11px] text-muted">
-                        {plainTitle(last)}
-                      </span>
-                    )}
-                    <span className="shrink-0 text-muted">
-                      {isOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
-                      {group.items.map((it) => (
-                        <ActivityRow key={it.id} it={it} tech={tech} />
-                      ))}
-                    </ol>
+                  </div>
+                  {selectedPatient.activeRec && (
+                    <Chip
+                      tone={outcomeLabel(selectedPatient.activeRec).tone}
+                      className="ml-auto"
+                    >
+                      {statusTitle(selectedPatient.activeRec)}
+                    </Chip>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
 
-        {tab === "messages" && (
-          <div className="mt-3 space-y-4">
-            {conversations.length === 0 && (
-              <Empty>No patient conversations yet.</Empty>
-            )}
-            {conversations.map((conversation: any) => {
-              const latestRec = conversation.recommendations.at(-1);
-              const oc = latestRec ? outcomeLabel(latestRec) : null;
-              const isOpen = expandedPatients.has(conversation.patientId);
-              return (
-                <section
-                  key={conversation.patientId}
-                  className="rounded-card border border-line bg-paper"
-                >
-                  <button
-                    onClick={() => togglePatient(conversation.patientId)}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
-                  >
-                    <h3 className="text-[14px] font-bold text-ink">
-                      {conversation.patientName}
-                    </h3>
-                    {oc && <Chip tone={oc.tone}>{oc.label}</Chip>}
-                    <span className="ml-auto text-[12px] text-muted">
-                      {conversation.messages.length} message
-                      {conversation.messages.length === 1 ? "" : "s"}
-                    </span>
-                    <span className="shrink-0 text-muted">
-                      {isOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div className="space-y-2 px-3 pb-3">
-                      {conversation.messages.length === 0 && (
-                        <p className="text-[13px] text-muted">
-                          No email sent for this patient.
-                        </p>
+                {/* Decision / Status box */}
+                <div className="px-[15px] py-[13px]">
+                  {needsDecision(selectedPatient.activeRec) ? (
+                    <DecisionCard
+                      rec={selectedPatient.activeRec}
+                      messages={messages}
+                      onDone={refresh}
+                    />
+                  ) : selectedPatient.activeRec ? (
+                    (() => {
+                      const rec = selectedPatient.activeRec;
+                      const oc = outcomeLabel(rec);
+                      const p = rec.payload ?? {};
+                      const to = (p.options ?? []).find(
+                        (o: any) =>
+                          o.id ===
+                          (p.executedOptionId ??
+                            p.modifiedOptionId ??
+                            p.chosenOptionId),
+                      );
+                      const theme = statusToneClass[oc.tone];
+                      const wantsFollowUp =
+                        selectedPatient.conv?.currentRecommendationId ===
+                          rec.id &&
+                        (oc.label === "Waiting for reply" ||
+                          oc.label === "Message sent");
+                      return (
+                        <div
+                          className={cn(
+                            "rounded-xl border px-[15px] py-[13px]",
+                            theme,
+                          )}
+                        >
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-muted">
+                            {statusTitle(rec)}
+                          </div>
+                          {rec.kind === "reschedule" && to && (
+                            <RescheduleLine
+                              fromLabel={p.from?.when}
+                              toUtc={to.startUtc}
+                              doctorName={to.doctorName}
+                            />
+                          )}
+                          {rec.kind !== "reschedule" && (
+                            <p className="tnum text-[15px] font-bold text-ink">
+                              {p.when ?? p.from?.when ?? "—"}
+                            </p>
+                          )}
+                          {wantsFollowUp && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                variant="secondary"
+                                small
+                                disabled={!!busyPatient}
+                                onClick={() => {
+                                  setFollowUp(selectedPatient.conv);
+                                  setFollowOutcome(null);
+                                  setFollowError(null);
+                                }}
+                              >
+                                {busyPatient === rec.patientId ? (
+                                  <Spinner />
+                                ) : (
+                                  "Follow up"
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="rounded-xl border border-line bg-surface-alt px-4 py-3 text-[13px] text-muted">
+                      No active recommendation for this patient.
+                    </div>
+                  )}
+                </div>
+
+                {/* Thread tabs */}
+                <div className="flex items-center justify-between border-t border-b border-line bg-surface-alt px-[18px]">
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setTab("messages")}
+                      className={cn(
+                        "border-b-2 px-2 py-2 text-[13px] font-semibold",
+                        tab === "messages"
+                          ? "border-accent text-ink"
+                          : "border-transparent text-muted hover:text-ink",
                       )}
-                      {conversation.messages.map((m: any) => (
+                    >
+                      Messages
+                      {selectedPatient.conv?.messages?.length ? (
+                        <span className="ml-1 text-[11px] text-muted">
+                          {selectedPatient.conv.messages.length}
+                        </span>
+                      ) : null}
+                    </button>
+                    <button
+                      onClick={() => setTab("activity")}
+                      className={cn(
+                        "border-b-2 px-2 py-2 text-[13px] font-semibold",
+                        tab === "activity"
+                          ? "border-accent text-ink"
+                          : "border-transparent text-muted hover:text-ink",
+                      )}
+                    >
+                      Agent activity
+                      {grouped.byPatient.get(selectedPatient.id)?.items
+                        .length ? (
+                        <span className="ml-1 text-[11px] text-muted">
+                          {
+                            grouped.byPatient.get(selectedPatient.id)!.items
+                              .length
+                          }
+                        </span>
+                      ) : null}
+                    </button>
+                  </div>
+                  {tab === "activity" && (
+                    <label className="flex cursor-pointer items-center gap-1.5 pb-2 text-[12px] font-semibold text-muted">
+                      <input
+                        type="checkbox"
+                        checked={tech}
+                        onChange={(e) => setTech(e.target.checked)}
+                        className="accent-accent"
+                      />
+                      Technical detail
+                    </label>
+                  )}
+                </div>
+
+                {/* Panel content */}
+                <div className="px-[18px] py-4">
+                  {tab === "messages" && (
+                    <div className="space-y-3">
+                      {!selectedPatient.conv?.messages?.length && (
+                        <Empty>No email sent for this patient.</Empty>
+                      )}
+                      {selectedPatient.conv?.messages?.map((m: any) => (
                         <div
                           key={m.id}
                           className={cn(
@@ -634,19 +750,108 @@ export default function CasePage() {
                             </p>
                           )}
                           <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">
-                            {m.body || "No new text above the quoted history."}
+                            {m.body ||
+                              "No new text above the quoted history."}
                           </p>
                         </div>
                       ))}
                     </div>
                   )}
-                </section>
-              );
-            })}
-          </div>
-        )}
-      </section>
 
+                  {tab === "activity" && (
+                    <div className="space-y-1">
+                      {grouped.byPatient.get(selectedPatient.id)?.items
+                        ?.length ? (
+                        <ol className="relative ml-1.5 space-y-0 border-l border-line px-3">
+                          {grouped.byPatient
+                            .get(selectedPatient.id)!
+                            .items.map((it) => (
+                              <ActivityRow key={it.id} it={it} tech={tech} />
+                            ))}
+                        </ol>
+                      ) : (
+                        <Empty>Activity will appear here as the case moves.</Empty>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <Empty>No patients in this case.</Empty>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Case log — moved to page bottom, matching case-detail-ref.html */}
+      {grouped.caseLevel.length > 0 && (
+        <div className="case-log rounded-card border border-line bg-white">
+          <button
+            type="button"
+            onClick={() => setCaseOpen((v) => !v)}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink"
+            aria-expanded={caseOpen}
+          >
+            Case log
+            <span className="ml-auto text-[12px] text-muted">
+              {grouped.caseLevel.length}
+            </span>
+            <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
+          </button>
+          {caseOpen && (
+            <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
+              {grouped.caseLevel.map((it) => (
+                <ActivityRow key={it.id} it={it} tech={tech} />
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+
+      {/* Approve all modal */}
+      <Modal
+        open={approveAllOpen}
+        onClose={() => setApproveAllOpen(false)}
+        title={`Approve all ${proposed.length} suggestion${proposed.length === 1 ? "" : "s"}?`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setApproveAllOpen(false)}>
+              Back
+            </Button>
+            <Button variant="success" disabled={busyAll} onClick={approveAll}>
+              {busyAll ? <Spinner /> : "Yes — approve all"}
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Every pending suggestion on this case will be executed: calendar holds
+          booked and patient emails sent for each one. You can still handle each
+          patient&apos;s reply individually afterwards.
+        </p>
+      </Modal>
+
+      {/* Resolve modal */}
+      <Modal
+        open={resolveOpen}
+        onClose={() => setResolveOpen(false)}
+        title="Resolve this case manually?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setResolveOpen(false)}>
+              Back
+            </Button>
+            <Button onClick={resolveCase}>Yes, resolve it</Button>
+          </>
+        }
+      >
+        <p>
+          Use this after you&apos;ve sorted it out by phone or in person. The
+          record stays in Done.
+        </p>
+      </Modal>
+
+      {/* Follow-up modal */}
       <Modal
         open={!!followUp}
         onClose={() => {
@@ -766,50 +971,6 @@ export default function CasePage() {
             </select>
           </label>
         )}
-      </Modal>
-
-      <Modal
-        open={approveAllOpen}
-        onClose={() => setApproveAllOpen(false)}
-        title={`Approve all ${proposed.length} suggestion${proposed.length === 1 ? "" : "s"}?`}
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setApproveAllOpen(false)}
-            >
-              Back
-            </Button>
-            <Button variant="success" disabled={busyAll} onClick={approveAll}>
-              {busyAll ? <Spinner /> : "Yes — approve all"}
-            </Button>
-          </>
-        }
-      >
-        <p>
-          Every pending suggestion on this case will be executed: calendar holds
-          booked and patient emails sent for each one. You can still handle each
-          patient&apos;s reply individually afterwards.
-        </p>
-      </Modal>
-
-      <Modal
-        open={resolveOpen}
-        onClose={() => setResolveOpen(false)}
-        title="Resolve this case manually?"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setResolveOpen(false)}>
-              Back
-            </Button>
-            <Button onClick={resolveCase}>Yes, resolve it</Button>
-          </>
-        }
-      >
-        <p>
-          Use this after you&apos;ve sorted it out by phone or in person. The
-          record stays in Done.
-        </p>
       </Modal>
     </div>
   );
