@@ -15,7 +15,7 @@ export const CASE_STATE: Record<string, { label: string; tone: Tone }> = {
   awaiting_approval: { label: "Needs your review", tone: "warn" },
   executing: { label: "Booking & notifying", tone: "accent" },
   resolving: { label: "Waiting on patients", tone: "accent" },
-  resolved: { label: "Done", tone: "ok" },
+  resolved: { label: "Resolved", tone: "ok" },
   escalated: { label: "Needs a person", tone: "bad" },
 };
 
@@ -118,7 +118,7 @@ export function plainTitle(it: FeedItem): string {
     const m = it.title.match(/(\w+) → (\w+)/);
     if (m) {
       const to = CASE_STATE[m[2]]?.label ?? m[2];
-      return to === "Done" ? "All settled" : to;
+      return to === "Resolved" ? "All settled" : to;
     }
   }
   return it.title;
