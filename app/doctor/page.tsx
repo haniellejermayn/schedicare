@@ -37,9 +37,9 @@ const TIME_OPTIONS = Array.from({ length: 25 }, (_, i) => {
   return `${String(h).padStart(2, "0")}:${m}`;
 });
 
-/** Day range for the visual time windows: 08:00 – 17:00 (540 min). */
-const DAY_START = 8 * 60;
-const DAY_END = 17 * 60;
+/** Day range for the visual time windows: 07:00 – 19:00 (720 min). */
+const DAY_START = 7 * 60;
+const DAY_END = 19 * 60;
 const DAY_LEN = DAY_END - DAY_START;
 
 const TYPE_COLORS = {
@@ -749,9 +749,9 @@ export default function DoctorPage() {
                             })}
                           </div>
                           <div className="mt-1 flex justify-between font-mono text-[10px] text-muted">
-                            <span>8am</span>
-                            <span>12pm</span>
-                            <span>5pm</span>
+                            <span>7am</span>
+                            <span>1pm</span>
+                            <span>7pm</span>
                           </div>
 
                           <p className="mt-2 text-[11px] text-muted">
