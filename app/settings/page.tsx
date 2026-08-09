@@ -162,6 +162,18 @@ function Connections() {
   }
 
   if (!data) return <Empty>Loading…</Empty>;
+  const serviceRows = [
+    ["AI", data.mode.services.ai],
+    ["Calendar", data.mode.services.calendar],
+    ["Gmail", data.mode.services.mail],
+  ] as const;
+  const liveServices = serviceRows.filter(([, service]) => service.live).length;
+  const modeLabel =
+    liveServices === serviceRows.length
+      ? "Fully live"
+      : liveServices === 0
+        ? "Fallback"
+        : "Mixed";
   return (
     <div className="space-y-3">
       {oauthToast && (
@@ -169,6 +181,39 @@ function Connections() {
           {oauthToast}
         </p>
       )}
+
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-[15px] font-bold text-ink">Runtime services</h3>
+          <Chip
+            tone={
+              modeLabel === "Fully live"
+                ? "ok"
+                : modeLabel === "Mixed"
+                  ? "warn"
+                  : "neutral"
+            }
+          >
+            {modeLabel}
+          </Chip>
+          {data.forcedFallback && <Chip tone="warn">Fallback forced</Chip>}
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {serviceRows.map(([label, service]) => (
+            <div key={label} className="rounded-ctl border border-line px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-bold text-ink">{label}</span>
+                <Chip tone={service.live ? "ok" : "neutral"} className="ml-auto">
+                  {service.live ? "Live" : "Fallback"}
+                </Chip>
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-muted">
+                {service.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <ServiceCard
         title={`AI (${data.ai?.provider === "bedrock" ? "Claude on Bedrock" : data.ai?.provider === "gemini" ? "Gemini" : "Fallback"})`}

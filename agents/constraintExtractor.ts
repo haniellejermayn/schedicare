@@ -79,6 +79,7 @@ Extraction conventions — follow these EXACTLY:
 
 MERGING (applies only when PRIOR CONSTRAINTS are provided in the prompt):
 - Output the FULL UPDATED constraint set for the whole conversation, not just this message: carry forward every prior constraint still in effect unchanged.
+- TERMINAL OFFER ACCEPTANCE TAKES PRECEDENCE: when the outbound context contains a concrete offered time and doctor, and the patient clearly accepts it without adding a condition, set intent accept and return no carried-forward hard or soft constraints. The accepted offer ends this negotiation; it must not create another review.
 - REMOVE a prior constraint when the patient lifts it ("okay na pala ang umaga", "any day works now", "kahit sino na pala"). Removing means the field is absent from your output.
 - REPLACE a prior constraint when the new message changes it ("make that after 3 instead").
 - evidence entries are required for every field you ADD or CHANGE from THIS message; carried-forward fields keep their standing and need no new evidence.
@@ -87,7 +88,7 @@ MERGING (applies only when PRIOR CONSTRAINTS are provided in the prompt):
 - ANSWERING OUR QUESTION: when the outbound context shows we ASKED the patient about relaxing a constraint, their reply is an answer to that question. An affirmative ("sige po", "okay po", "yes, weekdays work") AGREES TO THE RELAXATION — remove or widen that constraint in the merged set and set intent counter_proposal (their constraints changed; there is no slot on the table to accept). A refusal ("Sunday talaga po") keeps the constraint; intent counter_proposal with the set unchanged. Use intent accept ONLY when a concrete offered time exists to accept — never for agreeing to a question.
 
 Learned conventions (each of these has been wrong before — follow exactly):
-- intent accept: do NOT restate the accepted slot as constraints; an accept carries constraints only if the patient adds NEW conditions.
+- intent accept: do NOT restate the accepted slot as constraints. If the patient adds a new scheduling condition, use counter_proposal instead and merge it with still-applicable prior constraints.
 - Weeks run Monday-Sunday. "next week" → earliestDate=next Monday AND latestDate=next Sunday. "N weeks from now" → earliestDate only (today + 7*N days), never a single pinned date. "this week" → latestDate=this Sunday.
 - Availability REMARKS ("the following week is wide open", "anytime works after that") are soft (earliestPreferredDate / preferredDates), never hard bounds. Only inability/refusal statements create hard constraints.
 - Never emit earliestDate equal to today — it restricts nothing.

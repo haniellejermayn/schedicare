@@ -105,6 +105,12 @@ kind `clarification` with a drafted message behind the same DecisionCard
 approval; accepts/cancels terminate the negotiation via the existing
 confirm/cancel paths and mark the row resolved.
 
+A clear acceptance of a concrete offered time is terminal and takes
+precedence over accumulated working constraints. It goes directly to the
+confirmation path without merging those constraints into another review;
+replies that add a new condition remain counter-proposals and continue the
+conversation-local merge.
+
 ## Engagement rules (phased, to protect the working demo)
 
 Phase A (this build):

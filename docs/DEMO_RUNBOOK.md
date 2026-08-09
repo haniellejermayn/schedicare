@@ -72,17 +72,21 @@ From the separate patient inbox, reply on each conversation:
 
 - **Camille — accept:** `Yes, that works for me. Thank you.`
 - **Grace — decline:** `No, I can't make that time. Please cancel it.`
-- **Miguel — negotiate:** `I'm at work then. Anything after 4 PM?`
+- **Miguel — required review:** `Hindi ako available that time. Wednesday or Thursday after 4 PM sana, pero not August 14 po.`
 
 The worker polls about every three seconds. Show the activity feed changing to
-accepted, declined/callback, and counter-proposal. For Miguel, point to the
-extracted `after 16:00` constraint and the new validated options.
+accepted, declined/callback, and required constraint review. For Miguel, point
+to the evidence-backed day/date/time constraints, the separate clinic default
+to keep Dr. Santos, and the patient-scoped action gate.
 
 ### 2:20–3:00 — One short negotiation and live proof
 
-Approve Miguel's new option. Reply `Yes, 4:30 PM works.` when the second email
-arrives. End in Google Calendar: Camille and Miguel are confirmed; Grace's hold
-is gone. Return briefly to the case Activity tab for the audit trail.
+Search the constraints. If only another doctor can satisfy the timing, choose
+**Ask about another doctor**, approve the natural Taglish clarification, then
+reply `Okay lang po, please check another doctor.` Approve the resulting offer
+and confirm it from the patient inbox. End in Google Calendar: Camille and
+Miguel are confirmed; Grace's hold is gone. Return briefly to the case Activity
+tab for the audit trail.
 
 Close with:
 

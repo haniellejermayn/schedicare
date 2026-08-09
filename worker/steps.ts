@@ -403,6 +403,11 @@ export async function commsStep(
       patientId: it.patientId,
       patientName: it.patientName,
       appointmentId: plan.appointmentId,
+      replyRegister: (Object.values(m.constraintsByAppt ?? {}) as any[])
+        .filter((entry: any) => entry.patientId === it.patientId)
+        .sort((a: any, b: any) =>
+          String(b.extractedAt ?? "").localeCompare(String(a.extractedAt ?? "")),
+        )[0]?.replyRegister,
       context: {
         doctorName: origDoctor.name,
         originalWhen: fmtWhen(it.startUtc),
@@ -848,6 +853,7 @@ export async function replanWithConstraintSet(
     originalDoctorId,
     horizonDays: 14,
   });
+  const totalCount = scored.length;
   let candidates = scored.map((s) => s.slot);
   if (args.chosenSlot) {
     candidates = candidates.filter(
@@ -874,20 +880,27 @@ export async function replanWithConstraintSet(
     if (v.ok) keep.push(slot);
     if (keep.length >= 6) break;
   }
+  if (args.chosenSlot && keep.length === 0)
+    throw new Error(
+      "replanWithConstraintSet: the chosen slot is no longer available",
+    );
+  const selectedDetail = args.chosenSlot
+    ? ` Staff selected ${fmtWhen(args.chosenSlot.startUtc)}.`
+    : "";
 
   updateCaseMeta(caseId, {
     slotOptions: { ...(m.slotOptions ?? {}), [appointmentId]: keep },
-    searchSummary: `Constraint search: ${keep.length} valid option${keep.length === 1 ? "" : "s"} (${describeConstraintSet(args.set)})`,
+    searchSummary: `Constraint search: ${totalCount} valid option${totalCount === 1 ? "" : "s"} (${describeConstraintSet(args.set)}).${selectedDetail}`,
     searchConstraints: { constraintSet: args.set },
   });
   timeline(
     caseId,
     "scheduling",
-    keep.length === 0 ? "error" : "status",
-    keep.length === 0
+    totalCount === 0 ? "error" : "status",
+    totalCount === 0
       ? "No slots satisfy the approved constraints — staff follow-up needed"
-      : `Constraint search found ${keep.length} valid option${keep.length === 1 ? "" : "s"}`,
-    args.set.summary,
+      : `Constraint search found ${totalCount} valid option${totalCount === 1 ? "" : "s"}`,
+    `${args.set.summary}${selectedDetail}`,
     { appointmentId },
   );
 

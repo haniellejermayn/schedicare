@@ -94,11 +94,11 @@ arc only (per the runbook):
 
 1. (~40s) Walk the existing timeline: detected → assessed → 3 validated
    offers → staff approved → sent. Point at the gates.
-2. Paste Camille's Taglish counter → extraction + constraint editor appear;
+2. Paste Miguel's compound Taglish counter — `Hindi ako available that time. Wednesday or Thursday after 4 PM sana, pero not August 14 po.` → the required-review panel and constraint editor appear;
    narrate evidence quotes and hard/soft while inference runs.
-3. Zero slots → relaxation hints with computed yields → "Keep everything —
-   ask the patient" → clarification card → Approve → the email lands **in
-   the same Gmail thread**.
+3. Zero same-doctor slots → computed relaxation hint → **Ask about another
+   doctor** → natural Taglish clarification card → Approve → the email lands
+   **in the same Gmail thread**.
 4. Paste her concession → merge diff on the timeline → offer card →
    Approve → paste "Okay po, noted!" → deterministic confirmation ack →
    case resolves on its own.
@@ -116,8 +116,8 @@ it is one).
 **Slide:** Measured: **34% → 100%** reply-understanding vs a rules baseline
 on a 66-case Taglish dev corpus (_dev-set figure; frozen held-out set is
 the next step_) · 79 automated tests · every action gated. Projected:
-recovery latency, staff minutes per disruption, after-hours coverage,
-waitlist backfill. Future: SMS + call-log intake — **integrations, not
+recovery latency, staff minutes per disruption, after-hours coverage.
+Future: SMS, call-log, and appointment-email intake — **integrations, not
 redesigns**; the extractor consumes text, the gates consume
 recommendations; none of it knows the channel.
 
@@ -175,6 +175,13 @@ Fields for the provided template:
   fairness decision: like cases must rank alike, weights must be auditable
   and contestable factor by factor, and staff Modify is the override. Model
   variance there is a bug, not intelligence.
+- **How do urgent, routine, and follow-up affect appointment times?** The
+  appointment type selects each doctor's allowed windows and visit duration;
+  every result still enforces workdays, buffers, daily caps, calendar
+  conflicts, and patient constraints. Urgent cases get higher operational
+  recovery priority and favor speed, follow-ups strongly favor continuity
+  with the same doctor, and routine visits use the normal weighted ranking.
+  This is scheduling policy, not clinical triage.
 - **Are the extraction numbers real?** Dev-set figures, stated as such:
   prompt and labels were iterated on those 66 cases; a frozen held-out set
   is the next evaluation step. The honest comparison is same-scorer,

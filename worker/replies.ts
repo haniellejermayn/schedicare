@@ -16,7 +16,13 @@ import {
   maybeResolveCase,
   updateCaseMeta,
 } from "@/core/cases";
-import { guardReply, runCommsInterpret } from "@/agents/comms";
+import {
+  detectReplyRegister,
+  guardReply,
+  isClearOfferAcceptance,
+  runCommsInterpret,
+  type ReplyRegister,
+} from "@/agents/comms";
 import { extractConstraints } from "@/agents/constraintExtractor";
 import { aiLiveWanted } from "@/agents/runtime";
 import {
@@ -65,6 +71,19 @@ export async function handlePatientReply(
     : undefined;
   const patient = getPatient(msg.patientId);
   const replyBody = latestReplyOnly(msg.body);
+  const replyRegister = detectReplyRegister(replyBody);
+  const payload = (rec?.payload as any) ?? {};
+  const offeredOptionId =
+    payload.executedOptionId ??
+    payload.modifiedOptionId ??
+    payload.chosenOptionId;
+  const offeredOption = (payload.options ?? []).find(
+    (option: any) => option.id === offeredOptionId,
+  );
+  const hasConcreteOffer =
+    (rec?.kind === "reschedule" || rec?.kind === "waitlist_fill") &&
+    rec.status === "executed" &&
+    !!offeredOption?.startUtc;
 
   if (caseId) {
     timeline(
@@ -91,29 +110,34 @@ export async function handlePatientReply(
         "Reply quarantined for human review",
         guard.reason,
       );
+  } else if (hasConcreteOffer && isClearOfferAcceptance(replyBody)) {
+    interp = {
+      intent: "accept_offer",
+      confidence: 1,
+      summary: "Patient clearly accepted the offered time.",
+    };
   } else if (aiLiveWanted()) {
     // Live path: rich constraint extraction. The model proposes a
     // SchedulingConstraintSet; deterministic triage decides the lane. In
     // fallback/resilience mode this branch is skipped entirely and the
     // legacy deterministic path below runs unchanged.
-    const payload = (rec?.payload as any) ?? {};
     // Per-appointment memory: the merge prior belongs to THIS thread only.
     const constraintKey: string | null =
       payload.appointmentId ?? msg.appointmentId ?? null;
-    const prior =
+    const priorEntry =
       caseId && constraintKey
         ? ((((getCase(caseId).meta as any) ?? {}).constraintsByAppt ?? {})[
             constraintKey
-          ]?.set ?? null)
+          ] ?? null)
         : null;
+    const prior = priorEntry?.set ?? null;
     const run = await extractConstraints(
       {
         caseId,
         replyBody,
         patientName: patient.name,
-        // A reply to a CLARIFICATION can only be interpreted against the
-        // question we asked — "sige po" means nothing without it. For offer
-        // threads, the subject line suffices.
+        // A reply to a clarification needs the exact question. Offer replies
+        // receive the exact slot and doctor so acceptance has concrete context.
         outboundContext:
           rec?.kind === "clarification"
             ? `We asked the patient: "${payload.question}"${
@@ -121,14 +145,45 @@ export async function handlePatientReply(
                   ? ` (suggested answers: ${payload.choices.join(" / ")})`
                   : ""
               }`
-            : (payload.draft?.subject ?? msg.subject ?? undefined),
+            : hasConcreteOffer
+              ? `We offered ${fmtWhen(offeredOption.startUtc)} with ${offeredOption.doctorName ?? offeredOption.doctorId}.`
+              : (payload.draft?.subject ?? msg.subject ?? undefined),
         priorConstraints: prior ?? undefined,
       },
       { caseId },
     );
     const v = validateConstraintSet(run.output);
-    const set = v.ok ? v.normalized : run.output;
+    let set = v.ok ? v.normalized : run.output;
     const triage = triageConstraintSet(set, v);
+    const systemDefaultFields = new Set<string>();
+    const originalDoctorId = caseId
+      ? ((getCase(caseId).meta as any)?.doctorId ??
+        (constraintKey
+          ? db
+              .select()
+              .from(schema.appointments)
+              .where(eq(schema.appointments.id, constraintKey))
+              .get()?.doctorId
+          : undefined))
+      : undefined;
+    if (
+      triage.disposition === "constraint_review" &&
+      !set.hard.requiredDoctorId &&
+      (!set.soft.preferredDoctorId ||
+        set.soft.preferredDoctorId === originalDoctorId) &&
+      !set.hard.requireSameDoctor
+    ) {
+      set = {
+        ...set,
+        hard: { ...set.hard, requireSameDoctor: true },
+      };
+      systemDefaultFields.add("hard.requireSameDoctor");
+    } else if (
+      set.hard.requireSameDoctor &&
+      priorEntry?.systemDefaultFields?.includes("hard.requireSameDoctor")
+    ) {
+      systemDefaultFields.add("hard.requireSameDoctor");
+    }
     if (v.ok && !set.clinicalContentDetected) richSet = set;
     // Multi-turn audit: the diff WE compute between the prior accumulated set
     // and the merged output — never the model's own account of what changed.
@@ -153,6 +208,11 @@ export async function handlePatientReply(
             messageId,
             extractedAt: demoNowIso(),
             mode: run.mode,
+            replyRegister,
+            systemDefaultFields:
+              systemDefaultFields.size > 0
+                ? [...systemDefaultFields]
+                : undefined,
             validation: { ok: v.ok, errors: v.errors, warnings: v.warnings },
             disposition: triage.disposition,
             reviewedAt:
@@ -198,7 +258,6 @@ export async function handlePatientReply(
       };
     }
   } else {
-    const payload = (rec?.payload as any) ?? {};
     const res = await runCommsInterpret(
       {
         caseId,
@@ -246,7 +305,15 @@ export async function handlePatientReply(
     );
 
   if (!caseId || !rec) return caseId;
-  await route(caseId, rec, msg, patient.name, interp, richSet);
+  await route(
+    caseId,
+    rec,
+    msg,
+    patient.name,
+    interp,
+    richSet,
+    replyRegister,
+  );
   return caseId;
 }
 
@@ -257,6 +324,7 @@ async function route(
   patientName: string,
   interp: ReplyInterpretation,
   richSet: SchedulingConstraintSet | null = null,
+  replyRegister: ReplyRegister = "english",
 ) {
   const payload = rec.payload as any;
   const targetApptId: string | undefined =
@@ -292,6 +360,7 @@ async function route(
         patientName,
         supersededRecId: rec.id,
         set: richSet,
+        replyRegister,
       });
     } else {
       db.update(schema.recommendations)
@@ -585,6 +654,7 @@ async function route(
             patientName,
             supersededRecId: rec.id,
             set: richSet,
+            replyRegister,
           });
           break;
         }

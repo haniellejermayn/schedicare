@@ -36,9 +36,7 @@ header.topnav{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--lin
 .roles{margin-left:6px;display:flex;align-items:center;border:1px solid var(--line);background:#fff;border-radius:999px;padding:2px;}
 .roles a{padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;}
 .roles a.active{background:var(--ink);color:#fff;}
-.mode-dot{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
-.mode-dot i{width:8px;height:8px;border-radius:99px;background:var(--amber);display:inline-block;}
-.gear{width:32px;height:32px;border:1px solid var(--line);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:var(--muted);font-size:14px;}
+.gear{margin-left:auto;width:32px;height:32px;border:1px solid var(--line);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#fff;color:var(--muted);font-size:14px;}
 
 .page-main{max-width:1180px;margin:0 auto;padding:22px 20px 60px;}
 

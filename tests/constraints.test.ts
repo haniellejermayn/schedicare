@@ -33,6 +33,8 @@ import {
   updateNegotiation,
 } from "@/core/negotiations";
 import type { Slot } from "@/core/types";
+import { db, schema } from "@/core/db/client";
+import { eq } from "drizzle-orm";
 
 const TZ = "Asia/Manila";
 const TODAY = "2026-08-10"; // vitest DEMO_NOW anchor (a Monday)
@@ -322,6 +324,155 @@ describe("constraint search against the seeded engine", () => {
     expect(results.length).toBeGreaterThan(0);
     for (const { slot: s } of results) expect(s.doctorId).toBe("doc_reyes");
   });
+
+  it("same-doctor defaults pin search and expose the doctor relaxation", async () => {
+    const set = emptyConstraintSet("counter_proposal");
+    set.hard.requireSameDoctor = true;
+    set.confidence = 0.9;
+    set.summary = "Keep the current doctor";
+    const results = await findSlotsForConstraints({
+      set,
+      type: "routine",
+      originalDoctorId: "doc_santos",
+      horizonDays: 4,
+    });
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((item) => item.slot.doctorId === "doc_santos")).toBe(
+      true,
+    );
+    const analysis = await relaxationAnalysis({
+      set,
+      type: "routine",
+      originalDoctorId: "doc_santos",
+      horizonDays: 4,
+    });
+    expect(
+      analysis.relaxations.find((item) => item.field === "requireSameDoctor")
+        ?.slotsIfDropped,
+    ).toBeGreaterThan(results.length);
+  });
+
+  it("intersects doctor and day scopes with hard time and same-doctor constraints", async () => {
+    const set = emptyConstraintSet("counter_proposal");
+    set.hard = {
+      requireSameDoctor: true,
+      allowedDaysOfWeek: [3],
+      timeWindows: [{ start: "16:00" }],
+    };
+    set.confidence = 0.9;
+    set.summary = "Wednesday after 4 PM with the same doctor.";
+    const matching = await findSlotsForConstraints({
+      set,
+      type: "routine",
+      doctorIds: ["doc_santos"],
+      originalDoctorId: "doc_santos",
+      fromDay: "2026-08-12",
+      horizonDays: 0,
+    });
+    expect(matching.length).toBeGreaterThan(0);
+    expect(
+      matching.every(
+        ({ slot: candidate }) =>
+          candidate.doctorId === "doc_santos" &&
+          candidate.day === "2026-08-12" &&
+          hhmm(candidate.startUtc) >= "16:00",
+      ),
+    ).toBe(true);
+    expect(
+      await findSlotsForConstraints({
+        set,
+        type: "routine",
+        doctorIds: ["doc_reyes"],
+        originalDoctorId: "doc_santos",
+        fromDay: "2026-08-12",
+        horizonDays: 0,
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("logs every valid match while a staff-picked slot remains the only offer", async () => {
+    const { openCase, getCase } = await import("@/core/cases");
+    const { replanWithConstraintSet } = await import("@/worker/steps");
+    const appt = db
+      .select()
+      .from(schema.appointments)
+      .where(eq(schema.appointments.id, "appt_miguel"))
+      .get()!;
+    const set = emptyConstraintSet("counter_proposal");
+    set.hard = {
+      requireSameDoctor: true,
+      allowedDaysOfWeek: [3],
+      timeWindows: [{ start: "16:00" }],
+    };
+    set.confidence = 0.9;
+    set.summary = "Wednesday after 4 PM with the same doctor.";
+    const matches = await findSlotsForConstraints({
+      set,
+      type: appt.type as any,
+      originalDoctorId: appt.doctorId,
+      ignoreAppointmentId: appt.id,
+      horizonDays: 14,
+    });
+    expect(matches.length).toBeGreaterThan(1);
+    const chosen = matches.at(-1)!.slot;
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "medium",
+      title: "constraint count regression",
+      meta: {
+        doctorId: appt.doctorId,
+        assessment: {
+          severity: "medium",
+          summary: "one patient",
+          items: [
+            {
+              appointmentId: appt.id,
+              patientId: appt.patientId,
+              patientName: "Miguel Torres",
+              type: appt.type,
+              startUtc: appt.startUtc,
+              priorityRank: 1,
+              priorityReason: "Patient counter-proposal",
+              tags: ["counter-proposal"],
+            },
+          ],
+        },
+      },
+    });
+    db.update(schema.cases)
+      .set({ state: "planning" })
+      .where(eq(schema.cases.id, c.id))
+      .run();
+
+    await replanWithConstraintSet(c.id, {
+      appointmentId: appt.id,
+      supersededRecId: "rec_previous",
+      set,
+      note: "Staff selected a reviewed time",
+      chosenSlot: { doctorId: chosen.doctorId, startUtc: chosen.startUtc },
+    });
+
+    expect((getCase(c.id).meta as any).searchSummary).toContain(
+      `${matches.length} valid options`,
+    );
+    const timelineEntry = db
+      .select()
+      .from(schema.caseTimeline)
+      .where(eq(schema.caseTimeline.caseId, c.id))
+      .all()
+      .find((entry) => entry.title.startsWith("Constraint search found"));
+    expect(timelineEntry?.title).toContain(`${matches.length} valid options`);
+    const recommendation = db
+      .select()
+      .from(schema.recommendations)
+      .where(eq(schema.recommendations.caseId, c.id))
+      .get()!;
+    expect((recommendation.payload as any).options).toHaveLength(1);
+    expect((recommendation.payload as any).options[0].startUtc).toBe(
+      chosen.startUtc,
+    );
+  });
 });
 
 describe("constraint extractor (fallback mode)", () => {
@@ -416,6 +567,91 @@ describe("constraint review lifecycle", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+
+  it("blocks only the affected patient and always blocks bulk approval", async () => {
+    const { openCase } = await import("@/core/cases");
+    const { POST: decide } = await import(
+      "@/app/api/recommendations/[id]/decision/route"
+    );
+    const { POST: approveAll } = await import(
+      "@/app/api/cases/[id]/approve-all/route"
+    );
+    const { POST: patientAction } = await import(
+      "@/app/api/cases/[id]/patients/[patientId]/actions/route"
+    );
+    const { POST: resolveCase } = await import(
+      "@/app/api/cases/[id]/resolve/route"
+    );
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "high",
+      title: "scoped review gate",
+      meta: {
+        constraintsByAppt: {
+          appt_camille: {
+            appointmentId: "appt_camille",
+            patientId: "pat_camille",
+            disposition: "constraint_review",
+            reviewedAt: null,
+            set: compoundSet(),
+          },
+        },
+      },
+    });
+    db.update(schema.cases)
+      .set({ state: "awaiting_approval" })
+      .where(eq(schema.cases.id, c.id))
+      .run();
+    for (const [id, appointmentId, patientId] of [
+      ["rec_review_camille", "appt_camille", "pat_camille"],
+      ["rec_review_miguel", "appt_miguel", "pat_miguel"],
+    ]) {
+      db.insert(schema.recommendations)
+        .values({
+          id,
+          caseId: c.id,
+          appointmentId,
+          patientId,
+          kind: "confirm_nudge",
+          payload: { appointmentId, patientId, patientName: patientId },
+          status: "proposed",
+        })
+        .run();
+    }
+
+    expect(
+      (
+        await decide(request({ action: "approve" }), {
+          params: { id: "rec_review_camille" },
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await decide(request({ action: "approve" }), {
+          params: { id: "rec_review_miguel" },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await approveAll(request({}), { params: { id: c.id } })).status,
+    ).toBe(409);
+    expect(
+      (
+        await patientAction(request({ action: "no_answer" }), {
+          params: { id: c.id, patientId: "pat_camille" },
+        })
+      ).status,
+    ).toBe(409);
+    db.update(schema.cases)
+      .set({ state: "escalated" })
+      .where(eq(schema.cases.id, c.id))
+      .run();
+    expect((await resolveCase(request({}), { params: { id: c.id } })).status).toBe(
+      409,
+    );
+  });
 
   it("keeps staff edits pending and marks a successful offer reviewed", async () => {
     const { openCase, getCase } = await import("@/core/cases");

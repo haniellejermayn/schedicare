@@ -71,6 +71,8 @@ export async function dispatchEvent(
         patientName: payload.patientName,
         supersededRecId: payload.supersededRecId,
         set: payload.set,
+        targetField: payload.targetField,
+        replyRegister: payload.replyRegister,
       });
       await resumeCase(payload.caseId);
       return;

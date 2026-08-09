@@ -35,6 +35,7 @@ import {
 } from "@/agents/negotiationPolicy";
 import { replanWithConstraintSet } from "./steps";
 import { id as newId } from "@/core/ids";
+import { SIGNOFF, type ReplyRegister } from "@/agents/comms";
 
 /** Patient-facing text the policy wrote must stay inside scheduling. */
 function clarificationLintIssues(text: string): string[] {
@@ -61,6 +62,9 @@ export interface NegotiationTurnArgs {
   supersededRecId: string;
   /** The MERGED, validated constraint set from upstream. */
   set: SchedulingConstraintSet;
+  /** Optional staff-selected relaxation; validated before this turn starts. */
+  targetField?: string;
+  replyRegister?: ReplyRegister;
 }
 
 export async function negotiationTurn(
@@ -164,11 +168,15 @@ export async function negotiationTurn(
     pts: s.pts,
     chips: s.chips,
   }));
+  const relaxations = args.targetField
+    ? analysis.relaxations.filter((r) => r.field === args.targetField)
+    : analysis.relaxations;
 
   const run = await decideNegotiationMove(
     {
       caseId,
       patientName: args.patientName,
+      originalDoctorName: doctors.get(meta.doctorId ?? appt.doctorId),
       turn: nego.turn,
       turnBudget: NEGOTIATION_TURN_BUDGET,
       set: {
@@ -179,13 +187,15 @@ export async function negotiationTurn(
       analysis: {
         asStated: analysis.asStated,
         candidates,
-        relaxations: analysis.relaxations,
+        relaxations,
       },
       offerHistory: ((nego.offeredSlots as any[]) ?? []).map((o) => ({
         label: o.label,
         outcome: o.outcome,
         note: o.note,
       })),
+      replyRegister: args.replyRegister ?? "english",
+      requestedTargetField: args.targetField,
     },
     { caseId },
   );
@@ -206,7 +216,7 @@ export async function negotiationTurn(
     turn: nego.turn,
     budget: NEGOTIATION_TURN_BUDGET,
     candidateKeys: candidates.map((x) => x.key),
-    relaxFields: analysis.relaxations.map((r) => r.field),
+    relaxFields: relaxations.map((r) => r.field),
     askedFields,
   });
   timeline(
@@ -290,7 +300,7 @@ export async function negotiationTurn(
     // patient can answer in their own words — no multiple-choice bullets, no
     // reply instructions. The policy's `choices` still appear on the staff
     // DecisionCard as a preview of likely answers.
-    const body = `Hi ${firstName},\n\n${question}\n\nRiverside Family Clinic`;
+    const body = `Hi ${firstName},\n\n${question}\n\n${SIGNOFF}`;
     const recId = newId();
     db.insert(schema.recommendations)
       .values({

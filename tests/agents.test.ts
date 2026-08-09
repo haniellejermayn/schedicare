@@ -5,6 +5,8 @@ import { z } from "zod";
 import {
   ruleClassifyReply,
   guardReply,
+  detectReplyRegister,
+  isClearOfferAcceptance,
   bannedContentLint,
   type CommsDraftResult,
 } from "@/agents/comms";
@@ -77,6 +79,29 @@ describe("staff-facing agent copy", () => {
 });
 
 describe("reply classification (deterministic)", () => {
+  it("short-circuits only unqualified acceptances of a concrete offer", () => {
+    for (const reply of ["Yes, thank you!", "Okay po.", "That works for me."])
+      expect(isClearOfferAcceptance(reply), reply).toBe(true);
+    for (const reply of [
+      "Yes, but after 5 PM?",
+      "Okay po, ibang doctor ba?",
+      "That works if it is Wednesday.",
+    ])
+      expect(isClearOfferAcceptance(reply), reply).toBe(false);
+  });
+
+  it("detects English, natural Taglish, and conversational Tagalog registers", () => {
+    expect(detectReplyRegister("Could we move the appointment after 4 PM?")).toBe(
+      "english",
+    );
+    expect(
+      detectReplyRegister("Hindi available that time, pwede after 4 po?"),
+    ).toBe("taglish");
+    expect(detectReplyRegister("Hindi po ako pwede noon, sana bukas na lang.")).toBe(
+      "tagalog",
+    );
+  });
+
   it("accepts plain confirmations", () => {
     for (const t of [
       "Yes, that works. Thank you!",

@@ -31,6 +31,11 @@ type FollowUpOutcome =
   | "decline"
   | "choose_another"
   | "no_answer";
+type DraftingState = {
+  patientId: string;
+  previousRecommendationId: string;
+  operation: "replan" | "negotiate";
+};
 
 function buildPatientIndex(recs: any[], messages: any[]) {
   const recToPatient = new Map(
@@ -127,7 +132,7 @@ function ActivityRow({ it, tech }: { it: any; tech: boolean }) {
         </span>
       </div>
       {(tech ? it.detail : plainDetail(it)) && (
-        <p className="mt-0.5 text-[12px] leading-snug text-muted">
+        <p className="mt-0.5 break-words text-[12px] leading-snug text-muted">
           {tech ? it.detail : plainDetail(it)}
         </p>
       )}
@@ -239,6 +244,8 @@ export default function CasePage() {
   const [resolveOpen, setResolveOpen] = useState(false);
   const [approveAllOpen, setApproveAllOpen] = useState(false);
   const [constraintOpen, setConstraintOpen] = useState<any | null>(null);
+  const [drafting, setDrafting] = useState<DraftingState | null>(null);
+  const [draftingSlow, setDraftingSlow] = useState(false);
   const [followUp, setFollowUp] = useState<any | null>(null);
   const [followOutcome, setFollowOutcome] = useState<FollowUpOutcome | null>(
     null,
@@ -278,12 +285,28 @@ export default function CasePage() {
   );
   const selectedPatient =
     patients.find((p) => p.id === selectedId) ?? patients[0] ?? null;
-  const pendingConstraints = Object.values(
-    data?.case?.meta?.constraintsByAppt ?? {},
-  ).filter(
-    (entry: any) =>
-      entry.disposition === "constraint_review" && !entry.reviewedAt,
-  ) as any[];
+  const pendingConstraints = useMemo(
+    () =>
+      Object.values(data?.case?.meta?.constraintsByAppt ?? {}).filter(
+        (entry: any) =>
+          entry.disposition === "constraint_review" && !entry.reviewedAt,
+      ) as any[],
+    [data?.case?.meta?.constraintsByAppt],
+  );
+
+  useEffect(() => {
+    if (!drafting) return;
+    const current = conversations.find(
+      (conversation: any) => conversation.patientId === drafting.patientId,
+    )?.currentRecommendationId;
+    if (current && current !== drafting.previousRecommendationId) {
+      setDrafting(null);
+      setDraftingSlow(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setDraftingSlow(true), 10000);
+    return () => window.clearTimeout(timer);
+  }, [conversations, drafting]);
 
   const metrics = useMemo(() => {
     if (patients.length === 0) return null;
@@ -295,6 +318,10 @@ export default function CasePage() {
     for (const p of patients) {
       const rec = p.activeRec;
       if (!rec) continue;
+      if (pendingConstraints.some((entry) => entry.patientId === p.id)) {
+        waitingForYou++;
+        continue;
+      }
       if (needsDecision(rec)) {
         waitingForYou++;
         continue;
@@ -306,15 +333,18 @@ export default function CasePage() {
         waitingOnPatient++;
     }
     return { total, confirmed, waitingForYou, waitingOnPatient, toCall };
-  }, [patients]);
+  }, [patients, pendingConstraints]);
 
   useEffect(() => {
     if (!data || patients.length === 0) return;
     if (!selectedId) {
-      const needsReview = patients.find((p) => needsDecision(p.activeRec));
-      setSelectedId((needsReview ?? patients[0]).id);
+      const needsReview = patients.find((p) =>
+        pendingConstraints.some((entry) => entry.patientId === p.id),
+      );
+      const needsAction = patients.find((p) => needsDecision(p.activeRec));
+      setSelectedId((needsReview ?? needsAction ?? patients[0]).id);
     }
-  }, [data, patients, selectedId]);
+  }, [data, patients, pendingConstraints, selectedId]);
 
   useEffect(() => {
     if (tab !== "messages") return;
@@ -422,7 +452,12 @@ export default function CasePage() {
             {proposed.length > 1 && (
               <Button
                 small
-                disabled={busyAll}
+                disabled={busyAll || pendingConstraints.length > 0}
+                title={
+                  pendingConstraints.length > 0
+                    ? "Complete required reviews before approving all"
+                    : undefined
+                }
                 onClick={() => setApproveAllOpen(true)}
               >
                 {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
@@ -434,6 +469,33 @@ export default function CasePage() {
           <SummaryLine s={data?.scoreboard} state={c.state} />
         </div>
       </div>
+
+      {pendingConstraints.length > 0 && (
+        <div className="rounded-card border border-warn-line bg-warn-soft px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-ink">
+                Required review · {pendingConstraints.length} patient
+                {pendingConstraints.length === 1 ? "" : "s"}
+              </p>
+              <p className="mt-0.5 text-[12px] text-muted">
+                Review the extracted constraints before taking action for the
+                affected patient. Other patients remain available.
+              </p>
+            </div>
+            <Button
+              small
+              onClick={() => {
+                const review = pendingConstraints[0];
+                if (review.patientId) setSelectedId(review.patientId);
+                setConstraintOpen(review);
+              }}
+            >
+              Review now
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Metric tiles */}
       {metrics && (
@@ -597,7 +659,30 @@ export default function CasePage() {
 
                 {/* Decision / Status box */}
                 <div className="px-[15px] py-[13px]">
-                  {needsDecision(selectedPatient.activeRec) ? (
+                  {drafting?.patientId === selectedPatient.id ? (
+                    <div className="rounded-xl border border-accent-line bg-accent-soft px-[15px] py-[13px]">
+                      <div className="flex items-start gap-3">
+                        <Spinner />
+                        <div>
+                          <p className="text-[13px] font-semibold text-ink">
+                            {drafting.operation === "replan"
+                              ? "Preparing the next offer — rechecking the selected time and drafting the message."
+                              : "Drafting a question — it will return here for approval."}
+                          </p>
+                          {draftingSlow && (
+                            <button
+                              className="mt-1 text-[12px] font-semibold text-accent hover:underline"
+                              onClick={() => setTab("activity")}
+                            >
+                              Still working—check Agent activity
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : pendingConstraints.some(
+                    (entry) => entry.patientId === selectedPatient.id,
+                  ) || needsDecision(selectedPatient.activeRec) ? (
                     (() => {
                       const constraintReview = pendingConstraints.find(
                         (entry) =>
@@ -837,7 +922,9 @@ export default function CasePage() {
             conversations={conversations}
             embedded
             onRefresh={refresh}
-            onComplete={() => {
+            onComplete={(completion) => {
+              setDrafting(completion);
+              setDraftingSlow(false);
               setConstraintOpen(null);
               refresh();
             }}

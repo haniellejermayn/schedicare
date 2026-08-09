@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { jfetch, fmtWhenManila } from "@/lib/format";
 import {
   Button,
@@ -15,6 +15,7 @@ import {
   outcomeLabel,
   plainPriorityReason,
 } from "@/components/copy";
+import { ManualSlotPicker } from "@/components/ManualSlotPicker";
 
 /** Ranking chips as readable bullets — no scores, no jargon. */
 function whyBullets(option: any, payload: any): string[] {
@@ -65,14 +66,7 @@ export function DecisionCard({
   const [rejectNote, setRejectNote] = useState("");
   const [flagCall, setFlagCall] = useState(true);
   // Manual slot picker (any rule-valid time, validated server-side again).
-  const [doctors, setDoctors] = useState<Array<{ id: string; name: string }>>(
-    [],
-  );
-  const [manualDoctor, setManualDoctor] = useState<string>("");
-  const [manualDay, setManualDay] = useState<string>("");
-  const [manualSlots, setManualSlots] = useState<any[] | null>(null);
   const [manualSel, setManualSel] = useState<any | null>(null);
-  const [manualBusy, setManualBusy] = useState(false);
   // Draft editing.
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState("");
@@ -90,37 +84,6 @@ export function DecisionCard({
       m.direction === "outbound" &&
       m.status === "draft_created",
   );
-
-  useEffect(() => {
-    if (!changeOpen) return;
-    setManualSel(null);
-    setManualSlots(null);
-    if (doctors.length === 0)
-      jfetch<any>("/api/doctors")
-        .then((d) => {
-          setDoctors(d.doctors ?? []);
-          if (!manualDoctor && chosen?.doctorId)
-            setManualDoctor(chosen.doctorId);
-        })
-        .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [changeOpen]);
-
-  async function findManualSlots() {
-    if (!manualDoctor || !manualDay || !p.type) return;
-    setManualBusy(true);
-    setManualSel(null);
-    try {
-      const r = await jfetch<any>(
-        `/api/slots?doctorId=${manualDoctor}&type=${p.type}&fromDay=${manualDay}&toDay=${manualDay}${p.appointmentId ? `&ignoreAppointmentId=${p.appointmentId}` : ""}`,
-      );
-      setManualSlots(r.slots ?? []);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setManualBusy(false);
-    }
-  }
 
   async function decide(action: "approve" | "modify" | "reject") {
     setBusy(action);
@@ -195,6 +158,31 @@ export function DecisionCard({
   const oc = outcomeLabel(rec);
   const rejectComposed =
     rejectPreset === "Other" ? rejectNote.trim() : rejectPreset;
+
+  if (constraintReview) {
+    return (
+      <div className="rounded-card border border-warn-line bg-warn-soft p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip tone="warn">Required review</Chip>
+          <span className="text-[15px] font-bold text-ink">
+            {p.patientName ?? "Patient"}
+          </span>
+        </div>
+        <p className="mt-2 text-[13px] text-ink">
+          {constraintReview.set?.summary ??
+            constraintReview.reason ??
+            "Review the patient’s scheduling constraints before choosing the next action."}
+        </p>
+        <p className="mt-1 text-[12px] text-muted">
+          Actions for this patient stay unavailable until a validated replan
+          or negotiation starts.
+        </p>
+        <Button small className="mt-3" onClick={onReviewConstraints}>
+          Review constraints
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <RailRow tone={decided ? oc.tone : "warn"} className="p-4">
@@ -283,14 +271,6 @@ export function DecisionCard({
             }}
           >
             See the message
-          </button>
-        )}
-        {constraintReview && onReviewConstraints && (
-          <button
-            className="font-semibold text-accent hover:underline"
-            onClick={onReviewConstraints}
-          >
-            Review constraints
           </button>
         )}
       </div>
@@ -420,68 +400,21 @@ export function DecisionCard({
         </div>
 
         <p className="eyebrow mt-4">Or pick any other valid time</p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <select
-            value={manualDoctor}
-            onChange={(e) => setManualDoctor(e.target.value)}
-            aria-label="Doctor"
-            className="rounded-ctl border border-line bg-white px-2 py-1.5 text-[13px] font-semibold outline-none focus:border-accent"
-          >
-            {doctors.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={manualDay}
-            onChange={(e) => setManualDay(e.target.value)}
-            aria-label="Day"
-            className="tnum rounded-ctl border border-line px-2 py-1.5 text-[13px] outline-none focus:border-accent"
+        <div className="mt-1.5">
+          <ManualSlotPicker
+            initialDoctorId={chosen?.doctorId}
+            name={`manual-${rec.id}`}
+            selected={manualSel}
+            onSelect={setManualSel}
+            searchSlots={async (doctorId, day) => {
+              const r = await jfetch<any>(
+                `/api/slots?doctorId=${doctorId}&type=${p.type}&fromDay=${day}&toDay=${day}${p.appointmentId ? `&ignoreAppointmentId=${p.appointmentId}` : ""}`,
+              );
+              return { slots: r.slots ?? [] };
+            }}
+            emptyMessage="No open slots for that doctor on that day — the rules, calendar, or caps are in the way."
           />
-          <Button
-            variant="secondary"
-            small
-            disabled={manualBusy || !manualDoctor || !manualDay}
-            onClick={findManualSlots}
-          >
-            {manualBusy ? <Spinner /> : "Find times"}
-          </Button>
         </div>
-        {manualSlots && (
-          <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto thin-scroll pr-1">
-            {manualSlots.length === 0 && (
-              <p className="text-[13px] text-muted">
-                No open slots for that doctor on that day — the rules, calendar,
-                or caps are in the way.
-              </p>
-            )}
-            {manualSlots.map((s: any) => (
-              <label
-                key={s.startUtc}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-ctl border px-3 py-2",
-                  manualSel?.startUtc === s.startUtc
-                    ? "border-accent bg-accent-soft"
-                    : "border-line bg-white hover:border-strong",
-                )}
-              >
-                <input
-                  type="radio"
-                  name={`manual-${rec.id}`}
-                  checked={manualSel?.startUtc === s.startUtc}
-                  onChange={() => setManualSel(s)}
-                  className="accent-accent"
-                />
-                <span className="tnum text-[14px] font-semibold text-ink">
-                  {fmtWhenManila(s.startUtc)}
-                </span>
-                <Chip tone="neutral">Staff picked</Chip>
-              </label>
-            ))}
-          </div>
-        )}
       </Modal>
 
       {/* Reject */}

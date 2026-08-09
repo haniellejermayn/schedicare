@@ -179,6 +179,35 @@ export function updateCaseMeta(
     .run();
 }
 
+export type PendingConstraintReview = {
+  appointmentId: string;
+  patientId?: string;
+  summary?: string;
+  [key: string]: unknown;
+};
+
+/** Pending staff reviews, optionally limited to one patient or appointment. */
+export function pendingConstraintReviews(
+  caseId: string,
+  scope: { patientId?: string; appointmentId?: string } = {},
+): PendingConstraintReview[] {
+  const meta = (getCase(caseId).meta as Record<string, any> | null) ?? {};
+  return Object.entries(meta.constraintsByAppt ?? {})
+    .filter(([appointmentId, entry]) => {
+      const review = entry as Record<string, any>;
+      return (
+        review.disposition === "constraint_review" &&
+        !review.reviewedAt &&
+        (!scope.patientId || review.patientId === scope.patientId) &&
+        (!scope.appointmentId || appointmentId === scope.appointmentId)
+      );
+    })
+    .map(([appointmentId, entry]) => ({
+      ...(entry as Record<string, unknown>),
+      appointmentId,
+    }));
+}
+
 /** Any recommendation still needing staff or executor attention? */
 export function pendingRecommendationCounts(caseId: string) {
   const recs = db

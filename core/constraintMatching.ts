@@ -163,7 +163,9 @@ export async function findSlotsForConstraints(
     hard.requiredDoctorId ??
     (hard.requireSameDoctor ? input.originalDoctorId : undefined);
   const doctorIds = pinnedDoctor
-    ? [pinnedDoctor]
+    ? input.doctorIds && !input.doctorIds.includes(pinnedDoctor)
+      ? []
+      : [pinnedDoctor]
     : hard.requireSameDoctor
       ? [] // unenforceable hard constraint (no original known) — fail closed
       : (input.doctorIds ??

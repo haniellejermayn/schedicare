@@ -6,6 +6,7 @@ import { audit } from "@/core/audit";
 import { timeline } from "@/core/timeline";
 import {
   getCase,
+  pendingConstraintReviews,
   pendingRecommendationCounts,
   transitionCase,
 } from "@/core/cases";
@@ -21,6 +22,11 @@ export async function POST(
 ) {
   boot();
   const c = getCase(params.id);
+  if (pendingConstraintReviews(c.id).length > 0)
+    return err(
+      "Required constraint reviews must be completed before approving all recommendations.",
+      409,
+    );
   // Same rule as the single-decision endpoint: escalation never removes the
   // approval gate, so proposals on an escalated case stay decidable.
   if (c.state !== "awaiting_approval" && c.state !== "escalated")
