@@ -25,6 +25,73 @@ export const DRAFT_PURPOSES = [
 ] as const;
 export type DraftPurpose = (typeof DRAFT_PURPOSES)[number];
 
+const SUBJECT_KIND: Record<string, string> = {
+  reschedule_offer: "Reschedule Request",
+  confirm_nudge: "Confirmation Request",
+  preventive: "Checking In",
+  waitlist_offer: "Earlier Slot Offer",
+  cancel_ack: "Cancellation Confirmed",
+  booking_ack: "Booking Confirmed",
+};
+
+/**
+ * Every outbound subject follows one standard shape:
+ *   "[Riverside Family Clinic] Aug 10 Appointment - Reschedule Request"
+ * Subjects are deterministic — the model's subject is always overridden —
+ * and the base stays stable per thread so RFC threading keeps working.
+ */
+export function standardSubject(
+  purpose: string,
+  ctx?: { originalWhen?: string; proposedWhen?: string; when?: string },
+): string {
+  const src = ctx?.originalWhen ?? ctx?.proposedWhen ?? ctx?.when ?? "";
+  const m = String(src).match(/\b([A-Z][a-z]{2} \d{1,2})\b/);
+  const date = m ? ` ${m[1]}` : "";
+  return `[${CLINIC_NAME}]${date} Appointment - ${SUBJECT_KIND[purpose] ?? "Update"}`;
+}
+
+/**
+ * Mail clients render plain text verbatim, so hard-wrapped model output shows
+ * premature mid-paragraph line breaks. Collapse single newlines inside a
+ * paragraph to spaces while preserving: blank-line paragraph breaks, list
+ * lines, lines after a ":" label, greeting lines, and sign-off blocks.
+ */
+export function normalizeMailBody(body: string): string {
+  // Keep a line break only around structure: list items, phone-shaped lines,
+  // FULL-line sign-offs ("Warm regards,"), clinic/team name lines, ":" labels,
+  // and the greeting. Everything else inside a paragraph joins with a space.
+  const LISTY = /^\s*([-*\u2022]|\d+[).:]\s)/;
+  const PHONEY = /^\(?\+?\d[\d\s().-]{5,}$/;
+  const FULL_SIGNOFF =
+    /^(warm regards|kind regards|regards|salamat( po)?|sincerely|best regards|best|thank you|thanks|see you( then)?)[,!. ]*$/i;
+  const NAMEY = /clinic|care team/i;
+  const keeps = (line: string) =>
+    LISTY.test(line) ||
+    PHONEY.test(line.trim()) ||
+    FULL_SIGNOFF.test(line.trim()) ||
+    NAMEY.test(line);
+  return body
+    .split(/\n{2,}/)
+    .map((para) => {
+      const lines = para.split("\n");
+      let out = lines[0]?.trimEnd() ?? "";
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        const prev = lines[i - 1] ?? "";
+        const keep =
+          keeps(line) ||
+          keeps(prev) ||
+          /:\s*$/.test(out) ||
+          /^(hi|hello|dear)\b.*,\s*$/i.test(prev) ||
+          line.trim() === "";
+        out += keep ? "\n" + line.trimEnd() : " " + line.trim();
+      }
+      return out;
+    })
+    .join("\n\n")
+    .replace(/[ \t]+\n/g, "\n");
+}
+
 export const DraftItemSchema = z.object({
   patientId: z.string(),
   patientName: z.string(),
@@ -83,35 +150,48 @@ function template(
           ? `${c.proposedWhen} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
           : `${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
         return {
-          subject: `${CLINIC_NAME} - a time that matches your request`,
+          subject: standardSubject("reschedule_offer", c),
           body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${slotLine}. Will that work for you?${waitOption}\n\n${SIGNOFF}`,
         };
       }
       return {
-        subject: `${CLINIC_NAME} - a new time for your appointment`,
-        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${c.originalWhen}. We're very sorry for the short notice.\n\nThe earliest good match we found for you is ${c.proposedWhen}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nReply YES to confirm this new time, or tell us what works better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
+        subject: standardSubject("reschedule_offer", c),
+        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${c.originalWhen}. We're very sorry for the short notice.\n\nThe earliest good match we found for you is ${c.proposedWhen}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
       };
     case "confirm_nudge":
       return {
-        subject: `Please confirm your appointment - ${c.originalWhen}`,
-        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${c.originalWhen}, and we haven't received your confirmation yet.\n\nReply YES to confirm, or let us know if you need a different time — happy to rearrange.\n\n${SIGNOFF}`,
+        subject: standardSubject("confirm_nudge", c),
+        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${c.originalWhen}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help — or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
       };
     case "preventive":
       return {
-        subject: `About your appointment on ${c.originalWhen}`,
-        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${c.originalWhen}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick YES helps us hold your slot.\n\n${SIGNOFF}`,
+        subject: standardSubject("preventive", c),
+        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${c.originalWhen}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply saying so helps us hold your slot.\n\n${SIGNOFF}`,
       };
     case "waitlist_offer":
       return {
-        subject: `${CLINIC_NAME} - an earlier slot just opened`,
-        body: `Hi ${first},\n\nGood news: a slot just opened on ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply YES within the day to take it, or NO to stay on the waitlist — you won't lose your place.\n\n${SIGNOFF}`,
+        subject: standardSubject("waitlist_offer", c),
+        body: `Hi ${first},\n\nGood news: a slot just opened on ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply within the day if you'd like to take it, or tell us you'd rather wait — you won't lose your place on the list.\n\n${SIGNOFF}`,
       };
     case "cancel_ack":
       return {
-        subject: `Your appointment on ${c.originalWhen} is cancelled`,
+        subject: standardSubject("cancel_ack", c),
         body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${c.originalWhen}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
       };
   }
+}
+
+/**
+ * Deterministic re-render of a reschedule offer for a staff-modified slot.
+ * The message is RE-TEMPLATED for the slot actually being booked — never
+ * re-drafted by a model — so the preview and the sent mail can't drift from
+ * the calendar.
+ */
+export function rebuiltOfferDraft(item: DraftItem): {
+  subject: string;
+  body: string;
+} {
+  return template("reschedule_offer", item);
 }
 
 /**
@@ -128,7 +208,7 @@ export function confirmationAckTemplate(i: {
 }): { subject: string; body: string } {
   const first = i.patientName.split(" ")[0];
   return {
-    subject: `${CLINIC_NAME} - you're booked for ${i.when}`,
+    subject: standardSubject("booking_ack", { when: i.when }),
     body: `Hi ${first},\n\nAll set — we've reserved ${i.when} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
   };
 }
@@ -148,17 +228,18 @@ export function bannedContentLint(
 ): { result: CommsDraftResult; warnings: string[] } {
   const warnings: string[] = [];
   const drafts = result.drafts.map((d) => {
+    const item = items.find((i) => i.patientId === d.patientId);
+    // Subjects are never model-authored: standardize every draft's subject
+    // deterministically (one shape, stable thread base).
+    const subject = standardSubject(purpose, item?.context ?? {});
     if (BANNED.test(d.subject) || BANNED.test(d.body)) {
-      const item = items.find((i) => i.patientId === d.patientId);
       warnings.push(
         `Draft for ${item?.patientName ?? d.patientId} contained clinical language and was replaced with the standard template.`,
       );
-      const safe = item
-        ? template(purpose, item)
-        : { subject: d.subject, body: "" };
-      return { ...d, subject: safe.subject, body: safe.body };
+      const safe = item ? template(purpose, item) : { subject, body: "" };
+      return { ...d, subject, body: safe.body };
     }
-    return d;
+    return { ...d, subject };
   });
   return { result: { drafts }, warnings };
 }
@@ -174,7 +255,7 @@ Hard rules:
 - Never invent times, doctors, or promises — use exactly the times given in the context.
 - Availability wording: state an exact number of open slots only when it is 5 or fewer (where the number helps the patient decide); otherwise use qualitative phrasing ("we have several openings on weekday afternoons"). Large exact counts are internal and never reach the patient.
 - Cross-doctor offers must SAY SO: when the proposed doctor differs from the patient's usual doctor (context.doctorName), name the arrangement plainly — "with Dr. Reyes, who is covering for Dr. Santos" — and offer the alternative of waiting for their usual doctor (an invitation to reply; NEVER name a date for it that wasn't provided).
-- FIRST CONTACT (context.reason is anything except "counter"): state the single clear action — reply YES to confirm, or reply with a preferred time.
+- FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally — invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.
 - CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,
   tools: [toolToday],

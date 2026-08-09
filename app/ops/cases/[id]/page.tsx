@@ -164,6 +164,7 @@ export default function CasePage() {
   const [busyAll, setBusyAll] = useState(false);
   const [busyPatient, setBusyPatient] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
+  const [approveAllOpen, setApproveAllOpen] = useState(false);
   const [followUp, setFollowUp] = useState<any | null>(null);
   const [followOutcome, setFollowOutcome] = useState<FollowUpOutcome | null>(
     null,
@@ -249,6 +250,7 @@ export default function CasePage() {
 
   async function approveAll() {
     setBusyAll(true);
+    setApproveAllOpen(false);
     try {
       await jfetch(`/api/cases/${c.id}/approve-all`, { method: "POST" });
       refresh();
@@ -349,7 +351,11 @@ export default function CasePage() {
               ]}
               right={
                 proposed.length > 1 ? (
-                  <Button small disabled={busyAll} onClick={approveAll}>
+                  <Button
+                    small
+                    disabled={busyAll}
+                    onClick={() => setApproveAllOpen(true)}
+                  >
                     {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
                   </Button>
                 ) : undefined
@@ -361,7 +367,11 @@ export default function CasePage() {
                 {proposed.length > 0 ? "For your review" : "Patients"}
               </h2>
               {proposed.length > 1 && (
-                <Button small disabled={busyAll} onClick={approveAll}>
+                <Button
+                  small
+                  disabled={busyAll}
+                  onClick={() => setApproveAllOpen(true)}
+                >
                   {busyAll ? <Spinner /> : `Approve all ${proposed.length}`}
                 </Button>
               )}
@@ -756,6 +766,31 @@ export default function CasePage() {
             </select>
           </label>
         )}
+      </Modal>
+
+      <Modal
+        open={approveAllOpen}
+        onClose={() => setApproveAllOpen(false)}
+        title={`Approve all ${proposed.length} suggestion${proposed.length === 1 ? "" : "s"}?`}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setApproveAllOpen(false)}
+            >
+              Back
+            </Button>
+            <Button variant="success" disabled={busyAll} onClick={approveAll}>
+              {busyAll ? <Spinner /> : "Yes — approve all"}
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Every pending suggestion on this case will be executed: calendar holds
+          booked and patient emails sent for each one. You can still handle each
+          patient&apos;s reply individually afterwards.
+        </p>
       </Modal>
 
       <Modal

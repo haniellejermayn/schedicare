@@ -1,7 +1,9 @@
 import { boot, body, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
 import { and, eq } from "drizzle-orm";
-import { demoNowIso } from "@/core/clock";
+import { demoNowIso, fmtWhen, manilaDate } from "@/core/clock";
+import { findOpenSlots } from "@/core/scheduling";
+import { rebuiltOfferDraft } from "@/agents/comms";
 import { audit } from "@/core/audit";
 import { timeline } from "@/core/timeline";
 import {
@@ -28,6 +30,8 @@ export async function POST(
     action: "approve" | "modify" | "reject";
     optionId?: string;
     reason?: string;
+    slot?: { doctorId: string; startUtc: string };
+    flagCall?: boolean;
   }>(req);
   const rec = db
     .select()
@@ -63,29 +67,100 @@ export async function POST(
       { recommendationId: rec.id },
     );
   } else if (b.action === "modify") {
-    if (!b.optionId) return err("modify requires optionId");
-    const valid = (payload.options ?? []).some((o: any) => o.id === b.optionId);
+    let optionId = b.optionId;
+    let options: any[] = payload.options ?? [];
+    if (!optionId && b.slot?.doctorId && b.slot?.startUtc) {
+      // Staff-picked slot outside the ranked list: accepted ONLY if the slot
+      // engine itself offers that exact start right now (rules, windows,
+      // caps, buffers, calendars all enforced). Staff can override the
+      // RANKING — never the validator.
+      const day = manilaDate(b.slot.startUtc);
+      const open = await findOpenSlots({
+        doctorId: b.slot.doctorId,
+        type: payload.type,
+        fromDay: day,
+        toDay: day,
+        ignoreAppointmentId: payload.appointmentId,
+        limit: 200,
+      });
+      const hit = (open as any[]).find(
+        (s) =>
+          s.startUtc === b.slot!.startUtc && s.doctorId === b.slot!.doctorId,
+      );
+      if (!hit)
+        return err(
+          "that time isn't an open, rule-valid slot for this doctor right now",
+          422,
+        );
+      const doc = db
+        .select()
+        .from(schema.doctors)
+        .where(eq(schema.doctors.id, b.slot.doctorId))
+        .get();
+      const manual = {
+        ...hit,
+        doctorName: (hit as any).doctorName ?? doc?.name ?? b.slot.doctorId,
+        id: `opt_staff_${Date.now().toString(36)}`,
+        chips: [{ label: "Staff picked" }],
+      };
+      options = [...options, manual];
+      optionId = manual.id;
+    }
+    if (!optionId) return err("modify requires optionId or slot");
+    const valid = options.some((o: any) => o.id === optionId);
     if (!valid)
       return err(
         "optionId must be one of the validator-approved options on this recommendation",
         422,
       );
+    const opt = options.find((o: any) => o.id === optionId);
+    // Re-render the patient message deterministically for the slot actually
+    // chosen (template substitution, never a model redraft) so the preview
+    // and the sent mail always match the calendar. This intentionally
+    // replaces any staff wording edit — the modal says so.
+    const rebuiltDraft =
+      payload.draft && rec.kind === "reschedule"
+        ? {
+            ...payload.draft,
+            ...rebuiltOfferDraft({
+              patientId: payload.patientId,
+              patientName: payload.patientName ?? "Patient",
+              appointmentId: payload.appointmentId,
+              context: {
+                reason: payload.replanOf ? "counter" : undefined,
+                doctorName: payload.from?.doctorName,
+                originalWhen: payload.from?.when,
+                proposedWhen: fmtWhen(opt.startUtc),
+                proposedDoctorName: opt.doctorName,
+              },
+            } as any),
+          }
+        : payload.draft;
+    // A time change is a REVISION, not a decision: the recommendation stays
+    // `proposed`, pointed at the new slot with its message re-templated, so
+    // the thing staff eventually Approve is exactly the thing that gets
+    // sent. Ranking provenance is replaced — the pick is now staff's.
+    const revised = options.map((o: any) =>
+      o.id === optionId ? { ...o, chips: [{ label: "Staff picked" }] } : o,
+    );
     db.update(schema.recommendations)
       .set({
-        status: "modified",
-        decidedBy: "staff",
-        decidedAt: demoNowIso(),
-        decisionReason: b.reason ?? "Staff chose a different validated option",
-        payload: { ...payload, modifiedOptionId: b.optionId },
+        payload: {
+          ...payload,
+          options: revised,
+          chosenOptionId: optionId,
+          staffPickedOptionId: optionId,
+          draft: rebuiltDraft,
+          draftEditedByStaff: false,
+        },
       })
       .where(eq(schema.recommendations.id, rec.id))
       .run();
-    const opt = (payload.options ?? []).find((o: any) => o.id === b.optionId);
     timeline(
       rec.caseId,
       "staff",
       "decision",
-      `Modified: ${payload.patientName ?? rec.kind} → ${opt?.day ?? ""} option`,
+      `Time changed: ${payload.patientName ?? rec.kind} → ${fmtWhen(opt.startUtc)} — awaiting approval`,
       b.reason,
       { recommendationId: rec.id },
     );
@@ -98,6 +173,9 @@ export async function POST(
         decidedBy: "staff",
         decidedAt: demoNowIso(),
         decisionReason: b.reason.trim(),
+        // flagCall defaults ON: an undelivered suggestion means someone
+        // should ring the patient unless staff explicitly say otherwise.
+        payload: { ...payload, flagForCall: b.flagCall !== false },
       })
       .where(eq(schema.recommendations.id, rec.id))
       .run();

@@ -24,7 +24,7 @@ import {
 import { SimulatedCalendarProvider } from "@/integrations/calendar/simulated";
 import { SimulatedMailProvider } from "@/integrations/mail/simulated";
 import { getDoctor, getPatient } from "@/agents/tools";
-import { confirmationAckTemplate } from "@/agents/comms";
+import { confirmationAckTemplate, normalizeMailBody } from "@/agents/comms";
 import { personaReply } from "@/sim/personas";
 import { enqueueEvent } from "./queue";
 
@@ -212,6 +212,9 @@ async function createMailDraft(
   draft: { subject: string; body: string; threadId?: string },
   appointmentId: string | null,
 ): Promise<string> {
+  // Single choke point for outbound formatting: collapse hard-wrapped model
+  // output so mail clients don't render premature mid-paragraph breaks.
+  const bodyText = normalizeMailBody(draft.body);
   const pick = pickMailProvider();
   let provider = pick.provider;
   let live = pick.live;
@@ -220,7 +223,7 @@ async function createMailDraft(
     created = await provider.createDraft({
       to: to.email,
       subject: draft.subject,
-      body: draft.body,
+      body: bodyText,
       ...(draft.threadId ? { threadId: draft.threadId } : {}),
     });
     if (live) markMailHealthy();
@@ -239,7 +242,7 @@ async function createMailDraft(
       created = await provider.createDraft({
         to: to.email,
         subject: draft.subject,
-        body: draft.body,
+        body: bodyText,
       }); // simulated fallback ignores threads
     } else {
       throw e;
@@ -255,7 +258,7 @@ async function createMailDraft(
       patientId: to.patientId,
       direction: "outbound",
       subject: draft.subject,
-      body: draft.body,
+      body: bodyText,
       status: "draft_created",
       provider: live ? "gmail" : "simulated",
       providerDraftId: created.draftId,
