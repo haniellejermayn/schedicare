@@ -9,6 +9,25 @@ export class GmailNotConnectedError extends Error {
   }
 }
 
+/**
+ * Plain-text email gets soft-folded around 78 columns by mail infrastructure
+ * (RFC 2822 convention) regardless of the bytes we send — which shows up as
+ * premature mid-paragraph line breaks. So the wire format is HTML: each
+ * blank-line-separated paragraph becomes a <p>, remaining single newlines
+ * (sign-off block, lists) become <br>. Paragraphs can never fold.
+ */
+function bodyToHtml(body: string): string {
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const paras = normalizeMailBody(body)
+    .split(/\n{2,}/)
+    .map(
+      (p) => `<p style="margin:0 0 1em 0">${esc(p).replace(/\n/g, "<br>")}</p>`,
+    )
+    .join("");
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#17212b">${paras}</div>`;
+}
+
 function toRaw(d: MailDraft, replyToMessageId?: string): string {
   const lines = [
     `To: ${d.to}`,
@@ -19,11 +38,10 @@ function toRaw(d: MailDraft, replyToMessageId?: string): string {
     ...(replyToMessageId
       ? [`In-Reply-To: ${replyToMessageId}`, `References: ${replyToMessageId}`]
       : []),
-    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Type: text/html; charset="UTF-8"',
+    "MIME-Version: 1.0",
     "",
-    // Normalize wrapping at the wire, and make body newlines RFC-2822 CRLF —
-    // bare LF inside the payload is what some receiving clients re-wrap.
-    normalizeMailBody(d.body).replace(/\r?\n/g, "\r\n"),
+    bodyToHtml(d.body).replace(/\r?\n/g, "\r\n"),
   ];
   return Buffer.from(lines.join("\r\n")).toString("base64url");
 }

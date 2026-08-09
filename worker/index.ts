@@ -22,7 +22,7 @@ import { runDailySweep } from "./sweep";
 import { pickMailProvider } from "@/integrations/factory";
 
 const POLL_MS = 800;
-const GMAIL_POLL_MS = 20_000;
+const GMAIL_POLL_MS = env().GMAIL_POLL_MS;
 let stopping = false;
 
 async function loop() {

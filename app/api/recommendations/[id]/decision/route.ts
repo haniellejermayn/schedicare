@@ -114,6 +114,34 @@ export async function POST(
         422,
       );
     const opt = options.find((o: any) => o.id === optionId);
+    // Sibling-conflict guard: recovery ranking dedupes slots ACROSS patients,
+    // but a staff pick bypasses that — without this check the conflict only
+    // surfaces as an execution-time veto ("Couldn't complete") after the
+    // sibling's hold lands. Refuse it here, with a name, while it's fixable.
+    const siblings = db
+      .select()
+      .from(schema.recommendations)
+      .where(eq(schema.recommendations.caseId, rec.caseId))
+      .all()
+      .filter(
+        (r) =>
+          r.id !== rec.id &&
+          (r.kind === "reschedule" || r.kind === "waitlist_fill") &&
+          ["proposed", "approved", "modified"].includes(r.status),
+      );
+    for (const s of siblings) {
+      const sp = s.payload as any;
+      const so = (sp.options ?? []).find(
+        (o: any) => o.id === (sp.modifiedOptionId ?? sp.chosenOptionId),
+      );
+      if (!so || so.doctorId !== opt.doctorId) continue;
+      const overlap = so.startUtc < opt.endUtc && opt.startUtc < so.endUtc;
+      if (overlap)
+        return err(
+          `that time overlaps the slot already being offered to ${sp.patientName ?? "another patient"} on this case — pick another time, or change theirs first`,
+          422,
+        );
+    }
     // Re-render the patient message deterministically for the slot actually
     // chosen (template substitution, never a model redraft) so the preview
     // and the sent mail always match the calendar. This intentionally

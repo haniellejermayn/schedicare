@@ -10,7 +10,7 @@ import {
 } from "@/core/types";
 
 export const CLINIC_NAME = "Riverside Family Clinic";
-const SIGNOFF = `Warm regards,\n${CLINIC_NAME} Care Team\n(02) 8641 0117`;
+const SIGNOFF = `Warm regards,\n${CLINIC_NAME}\n(02) 8641 0117`;
 
 // ---------------------------------------------------------------------------
 // Drafting
@@ -65,6 +65,8 @@ export const DraftItemSchema = z.object({
     proposedWhen: z.string().optional(),
     proposedDoctorName: z.string().optional(),
     reason: z.string().optional(),
+    /** Closest same-doctor option (short fmtWhen) when the top offer is cross-doctor. */
+    sameDoctorAlt: z.string().optional(),
     extraNote: z.string().optional(),
   }),
 });
@@ -90,6 +92,43 @@ export interface CommsDraftInput {
   items: DraftItem[];
 }
 
+const LONG_DAY: Record<string, string> = {
+  Mon: "Monday",
+  Tue: "Tuesday",
+  Wed: "Wednesday",
+  Thu: "Thursday",
+  Fri: "Friday",
+  Sat: "Saturday",
+  Sun: "Sunday",
+};
+const LONG_MONTH: Record<string, string> = {
+  Jan: "January",
+  Feb: "February",
+  Mar: "March",
+  Apr: "April",
+  May: "May",
+  Jun: "June",
+  Jul: "July",
+  Aug: "August",
+  Sep: "September",
+  Oct: "October",
+  Nov: "November",
+  Dec: "December",
+};
+
+/**
+ * Patient-facing long date: "Mon Aug 10 · 10:40 AM" → "August 10 (Monday),
+ * 10:40 AM". Bodies use this; subjects and the staff UI keep the short form
+ * (standardSubject's date extraction depends on it). Unrecognized input is
+ * returned unchanged.
+ */
+export function longWhen(when: string | undefined): string {
+  if (!when) return "";
+  const m = when.match(/^(\w{3}) (\w{3}) (\d{1,2})\s*[·,]\s*(.+)$/);
+  if (!m || !LONG_DAY[m[1]] || !LONG_MONTH[m[2]]) return when;
+  return `${LONG_MONTH[m[2]]} ${m[3]} (${LONG_DAY[m[1]]}), ${m[4]}`;
+}
+
 function template(
   purpose: DraftPurpose,
   item: DraftItem,
@@ -104,14 +143,16 @@ function template(
     !!c.doctorName &&
     c.proposedDoctorName !== c.doctorName;
   const waitOption = crossDoctor
-    ? ` If you'd rather wait for ${c.doctorName}'s next opening instead, just tell us and we'll arrange it.`
+    ? c.sameDoctorAlt
+      ? ` If you'd rather stay with ${c.doctorName}, their closest opening is ${longWhen(c.sameDoctorAlt)} — just reply and tell us which you prefer.`
+      : ` If you'd rather wait for ${c.doctorName}'s next opening instead, just tell us and we'll arrange it.`
     : "";
   switch (purpose) {
     case "reschedule_offer":
       if (c.reason === "counter") {
         const slotLine = crossDoctor
-          ? `${c.proposedWhen} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
-          : `${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
+          ? `${longWhen(c.proposedWhen)} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
+          : `${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
         return {
           subject: standardSubject("reschedule_offer", c),
           body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${slotLine}. Will that work for you?${waitOption}\n\n${SIGNOFF}`,
@@ -119,27 +160,27 @@ function template(
       }
       return {
         subject: standardSubject("reschedule_offer", c),
-        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${c.originalWhen}. We're very sorry for the short notice.\n\nThe earliest good match we found for you is ${c.proposedWhen}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${longWhen(c.originalWhen)}. We're very sorry for the inconvenience.\n\nThe earliest good match we found for you is on ${longWhen(c.proposedWhen)}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know if this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
       };
     case "confirm_nudge":
       return {
         subject: standardSubject("confirm_nudge", c),
-        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${c.originalWhen}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help — or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help — or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
       };
     case "preventive":
       return {
         subject: standardSubject("preventive", c),
-        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${c.originalWhen}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply saying so helps us hold your slot.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply saying so helps us hold your slot.\n\n${SIGNOFF}`,
       };
     case "waitlist_offer":
       return {
         subject: standardSubject("waitlist_offer", c),
-        body: `Hi ${first},\n\nGood news: a slot just opened on ${c.proposedWhen}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply within the day if you'd like to take it, or tell us you'd rather wait — you won't lose your place on the list.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nGood news: a slot just opened on ${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply within the day if you'd like to take it, or tell us you'd rather wait — you won't lose your place on the list.\n\n${SIGNOFF}`,
       };
     case "cancel_ack":
       return {
         subject: standardSubject("cancel_ack", c),
-        body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${c.originalWhen}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${longWhen(c.originalWhen)}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
       };
   }
 }
@@ -172,7 +213,7 @@ export function confirmationAckTemplate(i: {
   const first = i.patientName.split(" ")[0];
   return {
     subject: standardSubject("booking_ack", { when: i.when }),
-    body: `Hi ${first},\n\nAll set — we've reserved ${i.when} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
+    body: `Hi ${first},\n\nAll set — we've reserved ${longWhen(i.when)} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
   };
 }
 
@@ -216,8 +257,13 @@ Voice: warm, plain, brief (under 140 words), apologetic when the clinic caused t
 Hard rules:
 - Scheduling logistics ONLY. Never any medical advice, symptom talk, diagnoses, medication or dosage language.
 - Never invent times, doctors, or promises — use exactly the times given in the context.
+- The doctor's specific reason (family emergency, illness, etc.) is PRIVATE to the clinic: patients are told only "an unexpected emergency" or "is unexpectedly unavailable" — never the detail, even when the context includes it.
+- Always end with exactly this sign-off block, on its own lines: "Warm regards," then "Riverside Family Clinic Care Team" then "(02) 8641 0117". No other closing.
 - Availability wording: state an exact number of open slots only when it is 5 or fewer (where the number helps the patient decide); otherwise use qualitative phrasing ("we have several openings on weekday afternoons"). Large exact counts are internal and never reach the patient.
 - Cross-doctor offers must SAY SO: when the proposed doctor differs from the patient's usual doctor (context.doctorName), name the arrangement plainly — "with Dr. Reyes, who is covering for Dr. Santos" — and offer the alternative of waiting for their usual doctor (an invitation to reply; NEVER name a date for it that wasn't provided).
+- PRIVACY: the doctor's personal reason is never shared with patients. Say only "an unexpected emergency" or "is unexpectedly unavailable" — even if a specific reason appears anywhere in the context or conversation.
+- End every email with EXACTLY this sign-off block, nothing else after it:
+${SIGNOFF}
 - FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally — invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.
 - CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,

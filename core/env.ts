@@ -18,6 +18,11 @@ const EnvSchema = z.object({
   AWS_BEARER_TOKEN_BEDROCK: z.string().optional().default(""),
   CALENDAR_PROVIDER: z.enum(["google", "simulated"]).default("google"),
   MAIL_PROVIDER: z.enum(["gmail", "simulated"]).default("gmail"),
+  GMAIL_POLL_MS: z
+    .string()
+    .optional()
+    .default("20000")
+    .transform((v) => Math.max(1_000, Number(v) || 20_000)),
   GOOGLE_CLIENT_ID: z.string().optional().default(""),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(""),
   GOOGLE_REDIRECT_URI: z

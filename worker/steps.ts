@@ -11,6 +11,7 @@ import { demoToday, fmtWhen, sleep } from "@/core/clock";
 import { env } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { findSlotsForConstraints } from "@/core/constraintMatching";
+import { rebuiltOfferDraft } from "@/agents/comms";
 import {
   getOrCreateNegotiation,
   recordOfferedSlot,
@@ -301,6 +302,36 @@ export async function recoverStep(
   if (items.length === 0) throw new Error("recoverStep: nothing to plan");
   const res = await runRecovery({ caseId, items }, { caseId });
   const r: RecoveryResult = res.output;
+  // Deterministic policy: ranking is a repeated FAIRNESS decision — like
+  // cases must rank alike, and the auditable scorer decides. The model's
+  // reorder permission is retired: chosen is ALWAYS the highest-scored
+  // option (earliest start on ties); staff Modify is the only override.
+  const itemMeta = new Map(items.map((it) => [it.appointmentId, it]));
+  for (const plan of r.plans) {
+    if (plan.chosenOptionId === "none" || plan.options.length === 0) continue;
+    const meta = itemMeta.get(plan.appointmentId);
+    const byScore = (a: any, b: any) =>
+      (b.score ?? 0) - (a.score ?? 0) || a.startUtc.localeCompare(b.startUtc);
+    const sorted = [...plan.options].sort(byScore);
+    // Mirror the ranker's type-conditional continuity: for a follow-up, the
+    // best option is the best SAME-doctor option whenever one exists.
+    const best =
+      meta?.type === "follow_up"
+        ? (sorted.find((o: any) => o.doctorId === meta.originalDoctorId) ??
+          sorted[0])
+        : sorted[0];
+    if (best && plan.chosenOptionId !== best.id) {
+      timeline(
+        caseId,
+        "recovery",
+        "status",
+        `Deterministic ranking kept the top option (model suggested another)`,
+        plan.reorderReason ?? undefined,
+      );
+      plan.chosenOptionId = best.id;
+      plan.reorderReason = undefined;
+    }
+  }
   dedupeChosenAcrossPatients(r, items, caseId);
   updateCaseMeta(caseId, { plans: r.plans, planSummary: r.summary });
   timeline(
@@ -344,6 +375,19 @@ export async function commsStep(
     const origDoctor = getDoctor(
       m.doctorId ?? getAppt(plan.appointmentId).doctorId,
     );
+    // Cross-doctor offer: also surface the patient's closest SAME-doctor
+    // option so the email can name the concrete alternative, not just an
+    // open-ended invitation to wait.
+    const sameDoctorAlt =
+      chosen.doctorId !== origDoctor.id
+        ? plan.options
+            .filter((o: any) => o.doctorId === origDoctor.id)
+            .sort(
+              (a: any, b: any) =>
+                (b.score ?? 0) - (a.score ?? 0) ||
+                a.startUtc.localeCompare(b.startUtc),
+            )[0]
+        : undefined;
     items.push({
       patientId: it.patientId,
       patientName: it.patientName,
@@ -353,22 +397,54 @@ export async function commsStep(
         originalWhen: fmtWhen(it.startUtc),
         proposedWhen: fmtWhen(chosen.startUtc),
         proposedDoctorName: chosen.doctorName,
-        reason: opts?.replanOf ? "counter" : m.reason,
+        // Privacy: the doctor's stated reason (e.g. "Family emergency") is
+        // for the FRONT DESK — patients only ever hear a generic
+        // "unexpected emergency". The model can't repeat what it never sees.
+        reason: opts?.replanOf ? "counter" : "unexpected_unavailability",
+        sameDoctorAlt: sameDoctorAlt
+          ? fmtWhen(sameDoctorAlt.startUtc)
+          : undefined,
         extraNote: opts?.replanNote ?? undefined,
       },
     });
   }
-  const res = await runCommsDraft(
-    { caseId, purpose: "reschedule_offer", items },
-    { caseId },
-  );
-  const linted = bannedContentLint(
-    "reschedule_offer",
-    items,
-    res.output as CommsDraftResult,
-  );
-  for (const w of linted.warnings)
-    timeline(caseId, "comms", "error", "Draft replaced by safe template", w);
+  // First contact is ENUMERABLE (we extended the template until it covered
+  // cross-doctor phrasing, the wait-option, and the reply coaching), so it
+  // renders deterministically — no model call, no variance, no latency.
+  // Counters (a reply to what the patient just said) stay model-drafted:
+  // acknowledging a person is the genuinely open-ended half.
+  let linted: { result: CommsDraftResult; warnings: string[] };
+  if (!opts?.replanOf) {
+    linted = {
+      result: {
+        drafts: items.map((it) => ({
+          patientId: it.patientId,
+          appointmentId: it.appointmentId,
+          ...rebuiltOfferDraft(it),
+        })),
+      },
+      warnings: [],
+    };
+    timeline(
+      caseId,
+      "comms",
+      "status",
+      `${items.length} patient message${items.length === 1 ? "" : "s"} rendered from the standard template`,
+      "First-contact offers are deterministic — no model content, same safe copy every time.",
+    );
+  } else {
+    const res = await runCommsDraft(
+      { caseId, purpose: "reschedule_offer", items },
+      { caseId },
+    );
+    linted = bannedContentLint(
+      "reschedule_offer",
+      items,
+      res.output as CommsDraftResult,
+    );
+    for (const w of linted.warnings)
+      timeline(caseId, "comms", "error", "Draft replaced by safe template", w);
+  }
 
   let created = 0;
   for (const plan of plans) {
