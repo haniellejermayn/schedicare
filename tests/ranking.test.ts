@@ -160,6 +160,59 @@ describe("recovery option ranking", () => {
     )[0];
     expect(prioritized.score).toBeGreaterThan(normal.score);
   });
+
+  it("preserves the constraint search's preferred slot during recovery", async () => {
+    const { openCase, getCase } = await import("@/core/cases");
+    const { recoverStep } = await import("@/worker/steps");
+    const preferred = mk("2026-08-12T03:00:00.000Z", "doc_santos"); // 11:00 Manila
+    const earlier = mk("2026-08-12T00:00:00.000Z", "doc_santos"); // 08:00 Manila
+    const constraintSet = {
+      intent: "counter_proposal",
+      hard: { allowedDates: ["2026-08-12"] },
+      soft: {
+        preferredTimeWindows: [{ start: "11:00", end: "12:00" }],
+      },
+      unresolvedStatements: [],
+      clinicalContentDetected: false,
+      evidence: [],
+      confidence: 0.9,
+      summary: "Wednesday around 11 AM.",
+    };
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "medium",
+      title: "constraint-ranked recovery",
+      meta: {
+        doctorId: "doc_santos",
+        assessment: {
+          severity: "medium",
+          summary: "one patient",
+          items: [
+            {
+              appointmentId: "appt_grace",
+              patientId: "pat_grace",
+              patientName: "Grace Villanueva",
+              type: "follow_up",
+              startUtc: "2026-08-10T01:50:00.000Z",
+              priorityRank: 1,
+              priorityReason: "Patient counter-proposal",
+              tags: ["counter-proposal"],
+            },
+          ],
+        },
+        slotOptions: { appt_grace: [preferred, earlier] },
+        searchConstraints: { constraintSet },
+      },
+    });
+
+    await recoverStep(c.id, "appt_grace");
+    const plan = (getCase(c.id).meta as any).plans[0];
+    const chosen = plan.options.find(
+      (option: any) => option.id === plan.chosenOptionId,
+    );
+    expect(chosen.startUtc).toBe(preferred.startUtc);
+  });
 });
 
 describe("waitlist ranking", () => {

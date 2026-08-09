@@ -313,13 +313,24 @@ export async function recoverStep(
     const byScore = (a: any, b: any) =>
       (b.score ?? 0) - (a.score ?? 0) || a.startUtc.localeCompare(b.startUtc);
     const sorted = [...plan.options].sort(byScore);
+    const constraintPreferred =
+      onlyAppointmentId && m.searchConstraints?.constraintSet
+        ? slotOptions[plan.appointmentId]?.[0]
+        : undefined;
     // Mirror the ranker's type-conditional continuity: for a follow-up, the
     // best option is the best SAME-doctor option whenever one exists.
     const best =
-      meta?.type === "follow_up"
+      (constraintPreferred
+        ? sorted.find(
+            (option: any) =>
+              option.doctorId === constraintPreferred.doctorId &&
+              option.startUtc === constraintPreferred.startUtc,
+          )
+        : undefined) ??
+      (meta?.type === "follow_up"
         ? (sorted.find((o: any) => o.doctorId === meta.originalDoctorId) ??
           sorted[0])
-        : sorted[0];
+        : sorted[0]);
     if (best && plan.chosenOptionId !== best.id) {
       timeline(
         caseId,

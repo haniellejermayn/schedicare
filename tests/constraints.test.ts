@@ -375,6 +375,15 @@ describe("post-extraction triage", () => {
     expect(triageConstraintSet(unresolved, ok).disposition).toBe(
       "constraint_review",
     );
+    const preferredWindow = emptyConstraintSet("counter_proposal");
+    preferredWindow.soft.preferredTimeWindows = [
+      { start: "11:00", end: "12:00" },
+    ];
+    preferredWindow.confidence = 0.9;
+    expect(isLegacyRepresentable(preferredWindow)).toBe(false);
+    expect(triageConstraintSet(preferredWindow, ok).disposition).toBe(
+      "constraint_review",
+    );
   });
 
   it("keeps terminal intents and simple counters on the existing path", () => {

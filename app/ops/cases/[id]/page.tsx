@@ -634,8 +634,7 @@ export default function CasePage() {
                       const wantsFollowUp =
                         selectedPatient.conv?.currentRecommendationId ===
                           rec.id &&
-                        (oc.label === "Waiting for reply" ||
-                          oc.label === "Message sent");
+                        selectedPatient.conv?.actions?.followUp;
                       return (
                         <div
                           className={cn(

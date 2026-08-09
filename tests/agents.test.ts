@@ -12,6 +12,7 @@ import { runAssessment } from "@/agents/assessment";
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
 import { plainPriorityReason } from "@/components/copy";
+import { agentLabel } from "@/lib/format";
 
 describe("agent runtime (fallback mode)", () => {
   beforeEach(() => freshSeed());
@@ -68,6 +69,10 @@ describe("staff-facing agent copy", () => {
       "Staff-flagged urgent appointment with confirmed status.",
     );
     expect(reason).not.toContain("staffPriority");
+  });
+
+  it("labels constraint extraction in plain language", () => {
+    expect(agentLabel("extractor")).toBe("Constraint Extractor");
   });
 });
 

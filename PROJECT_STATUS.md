@@ -1,8 +1,9 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (**89/89 across 11 files**),
-`npm run typecheck` (strict, clean), and `npm run build` (clean). Extraction
-numbers carry the dev-set caveat (see v2.3).
+Status date: verified against `npm test` (**91/91 across 11 files**) and
+`npm run typecheck` (strict, clean). Production compilation passed; final page
+collection must be rerun with the dev server stopped because both commands share
+`.next`. Extraction numbers carry the dev-set caveat (see v2.3).
 
 ## Guarded negotiation + demo hardening (v2.3)
 

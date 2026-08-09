@@ -42,6 +42,7 @@ export function agentLabel(actor: string): string {
     assessment: "Assessment",
     scheduling: "Scheduling",
     recovery: "Recovery",
+    extractor: "Constraint Extractor",
     risk: "Attendance Risk",
     comms: "Communication",
     executor: "Executor",
