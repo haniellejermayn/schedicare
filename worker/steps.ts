@@ -302,6 +302,36 @@ export async function recoverStep(
   if (items.length === 0) throw new Error("recoverStep: nothing to plan");
   const res = await runRecovery({ caseId, items }, { caseId });
   const r: RecoveryResult = res.output;
+  // Deterministic policy: ranking is a repeated FAIRNESS decision — like
+  // cases must rank alike, and the auditable scorer decides. The model's
+  // reorder permission is retired: chosen is ALWAYS the highest-scored
+  // option (earliest start on ties); staff Modify is the only override.
+  const itemMeta = new Map(items.map((it) => [it.appointmentId, it]));
+  for (const plan of r.plans) {
+    if (plan.chosenOptionId === "none" || plan.options.length === 0) continue;
+    const meta = itemMeta.get(plan.appointmentId);
+    const byScore = (a: any, b: any) =>
+      (b.score ?? 0) - (a.score ?? 0) || a.startUtc.localeCompare(b.startUtc);
+    const sorted = [...plan.options].sort(byScore);
+    // Mirror the ranker's type-conditional continuity: for a follow-up, the
+    // best option is the best SAME-doctor option whenever one exists.
+    const best =
+      meta?.type === "follow_up"
+        ? (sorted.find((o: any) => o.doctorId === meta.originalDoctorId) ??
+          sorted[0])
+        : sorted[0];
+    if (best && plan.chosenOptionId !== best.id) {
+      timeline(
+        caseId,
+        "recovery",
+        "status",
+        `Deterministic ranking kept the top option (model suggested another)`,
+        plan.reorderReason ?? undefined,
+      );
+      plan.chosenOptionId = best.id;
+      plan.reorderReason = undefined;
+    }
+  }
   dedupeChosenAcrossPatients(r, items, caseId);
   updateCaseMeta(caseId, { plans: r.plans, planSummary: r.summary });
   timeline(
@@ -345,6 +375,19 @@ export async function commsStep(
     const origDoctor = getDoctor(
       m.doctorId ?? getAppt(plan.appointmentId).doctorId,
     );
+    // Cross-doctor offer: also surface the patient's closest SAME-doctor
+    // option so the email can name the concrete alternative, not just an
+    // open-ended invitation to wait.
+    const sameDoctorAlt =
+      chosen.doctorId !== origDoctor.id
+        ? plan.options
+            .filter((o: any) => o.doctorId === origDoctor.id)
+            .sort(
+              (a: any, b: any) =>
+                (b.score ?? 0) - (a.score ?? 0) ||
+                a.startUtc.localeCompare(b.startUtc),
+            )[0]
+        : undefined;
     items.push({
       patientId: it.patientId,
       patientName: it.patientName,
@@ -358,6 +401,9 @@ export async function commsStep(
         // for the FRONT DESK — patients only ever hear a generic
         // "unexpected emergency". The model can't repeat what it never sees.
         reason: opts?.replanOf ? "counter" : "unexpected_unavailability",
+        sameDoctorAlt: sameDoctorAlt
+          ? fmtWhen(sameDoctorAlt.startUtc)
+          : undefined,
         extraNote: opts?.replanNote ?? undefined,
       },
     });

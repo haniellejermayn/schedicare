@@ -65,6 +65,8 @@ export const DraftItemSchema = z.object({
     proposedWhen: z.string().optional(),
     proposedDoctorName: z.string().optional(),
     reason: z.string().optional(),
+    /** Closest same-doctor option (short fmtWhen) when the top offer is cross-doctor. */
+    sameDoctorAlt: z.string().optional(),
     extraNote: z.string().optional(),
   }),
 });
@@ -141,7 +143,9 @@ function template(
     !!c.doctorName &&
     c.proposedDoctorName !== c.doctorName;
   const waitOption = crossDoctor
-    ? ` If you'd rather wait for ${c.doctorName}'s next opening instead, just tell us and we'll arrange it.`
+    ? c.sameDoctorAlt
+      ? ` If you'd rather stay with ${c.doctorName}, their closest opening is ${longWhen(c.sameDoctorAlt)} — just reply and tell us which you prefer.`
+      : ` If you'd rather wait for ${c.doctorName}'s next opening instead, just tell us and we'll arrange it.`
     : "";
   switch (purpose) {
     case "reschedule_offer":

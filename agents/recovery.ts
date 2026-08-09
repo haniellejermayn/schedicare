@@ -77,6 +77,7 @@ function scoreItem(item: RecoveryItemInput): RecoveryOption[] {
   }));
   const scored = rankRecoveryOptions(
     {
+      type: item.type,
       originalDoctorId: item.originalDoctorId,
       originalStartUtc: item.originalStartUtc,
       patientPrefDayPart: patient.prefDayPart,
