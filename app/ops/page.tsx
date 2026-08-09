@@ -188,14 +188,16 @@ export default function FrontDeskPage() {
       </div>
 
       <div className="command-bar">
-        <div className="search">
+        <div className="search relative flex items-center">
           <svg
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 shrink-0"
             width="15"
             height="15"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
+            style={{ color: "var(--muted)" }}
           >
             <circle cx="11" cy="11" r="7" />
             <path d="m21 21-4.3-4.3" />
@@ -205,10 +207,11 @@ export default function FrontDeskPage() {
             placeholder="Search patient, doctor, or case…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-ctl border border-line bg-white py-2 pl-9 pr-8 text-[14px] text-ink placeholder:text-muted outline-none focus:border-accent"
           />
           {query && (
             <button
-              className="clear-search"
+              className="clear-search absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full text-muted hover:text-ink focus:outline-none"
               aria-label="Clear search"
               onClick={() => setQuery("")}
             >
