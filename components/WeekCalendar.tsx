@@ -26,10 +26,8 @@ import { APPT_STATUS, appointmentStatus } from "@/components/copy";
  * the demo clock so the "now" line can be drawn.
  */
 
-const PX_PER_HOUR = 52;
 const HOUR_START = 7; // 7am
 const HOUR_END = 19; // 7pm
-const GRID_HEIGHT = (HOUR_END - HOUR_START) * PX_PER_HOUR;
 const HOURS = Array.from(
   { length: HOUR_END - HOUR_START + 1 },
   (_, i) => HOUR_START + i,
@@ -148,6 +146,10 @@ export function WeekCalendar({
   const [selected, setSelected] = useState<any | null>(null);
 
   const days = useMemo(() => Object.keys(week).sort(), [week]);
+  // Single-day mode renders roomier, card-like blocks on a taller hour scale.
+  const dayMode = days.length === 1;
+  const PX_PER_HOUR = dayMode ? 96 : 52;
+  const GRID_HEIGHT = (HOUR_END - HOUR_START) * PX_PER_HOUR;
   const busyByDay = useMemo(() => groupBusyByDay(externalBusy), [externalBusy]);
   const nowFraction = status?.demoNow
     ? manilaHourFraction(status.demoNow)
@@ -180,14 +182,19 @@ export function WeekCalendar({
           <span className="h-2 w-2 rounded-[3px] bg-bad-soft ring-1 ring-bad-line" />
           Doctor unavailable
         </span>
-        <span className="text-muted/70">
-          F/R/U = Follow-up / Routine / Urgent
-        </span>
+        {!dayMode && (
+          <span className="text-muted/70">
+            F/R/U = Follow-up / Routine / Urgent
+          </span>
+        )}
       </div>
 
       <Card className="overflow-x-auto thin-scroll p-0">
         <div
-          className="grid min-w-[720px]"
+          className={cn(
+            "grid",
+            days.length > 1 ? "min-w-[720px]" : "min-w-[320px]",
+          )}
           style={{ gridTemplateColumns: `44px repeat(${days.length}, 1fr)` }}
         >
           {/* Header row */}
@@ -315,10 +322,66 @@ export function WeekCalendar({
                   const top =
                     (manilaHourFraction(a.startUtc) - HOUR_START) * PX_PER_HOUR;
                   const height = Math.max(
-                    18,
+                    dayMode ? 30 : 18,
                     (durationMin(a) / 60) * PX_PER_HOUR - 2,
                   );
                   const risky = riskById[a.id] && riskById[a.id].band !== "low";
+                  if (dayMode) {
+                    // The list card, slotted onto the time axis: white body,
+                    // status rail, full name — not the week grid's dense pill.
+                    const RAIL: Record<string, string> = {
+                      ok: "border-l-ok-rail",
+                      warn: "border-l-warn-rail",
+                      bad: "border-l-bad-rail",
+                      accent: "border-l-accent-rail",
+                      neutral: "border-l-line",
+                    };
+                    const STATUS_TEXT: Record<string, string> = {
+                      ok: "text-ok",
+                      warn: "text-warn",
+                      bad: "text-bad",
+                      accent: "text-accent",
+                      neutral: "text-muted",
+                    };
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelected(a)}
+                        className={cn(
+                          "animate-rise absolute z-[5] overflow-hidden rounded-[8px] border border-line border-l-[3px] bg-white px-2.5 py-1.5 text-left shadow-sm transition-transform hover:z-20 hover:scale-[1.01]",
+                          RAIL[st.tone],
+                        )}
+                        style={{
+                          top,
+                          height,
+                          left: `${(lane / laneCount) * 100}%`,
+                          width: `calc(${100 / laneCount}% - 6px)`,
+                        }}
+                        title={`${a.patientName} · ${typeLabel(a.type)} · ${fmtTimeManila(a.startUtc)}–${fmtTimeManila(a.endUtc)}`}
+                      >
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[13px] font-semibold text-ink">
+                            {a.patientName}
+                          </span>
+                          <span
+                            className={cn(
+                              "shrink-0 text-[11px] font-semibold",
+                              STATUS_TEXT[st.tone],
+                            )}
+                          >
+                            {st.label}
+                          </span>
+                        </span>
+                        {height > 42 && (
+                          <span className="tnum block truncate text-[11px] text-muted">
+                            {fmtTimeManila(a.startUtc)}–
+                            {fmtTimeManila(a.endUtc)} · {typeLabel(a.type)}
+                            {risky ? " · may not show" : ""}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  }
                   return (
                     <button
                       key={a.id}
