@@ -414,8 +414,8 @@ export default function CasePage() {
 
       {/* Metric tiles */}
       {metrics && (
-        <div className="flex flex-wrap gap-2">
-          <div className="min-w-[84px] rounded-[10px] border border-line bg-white px-[13px] py-2">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div className="rounded-[10px] border border-line bg-white px-[13px] py-2">
             <span className="tnum block text-[16px] font-bold leading-none text-ink">
               {metrics.total}
             </span>
@@ -423,7 +423,7 @@ export default function CasePage() {
               Patients affected
             </span>
           </div>
-          <div className="min-w-[84px] rounded-[10px] border border-ok-line bg-ok-soft px-[13px] py-2">
+          <div className="rounded-[10px] border border-ok-line bg-ok-soft px-[13px] py-2">
             <span className="tnum block text-[16px] font-bold leading-none text-ok">
               {metrics.confirmed}
             </span>
@@ -431,7 +431,7 @@ export default function CasePage() {
               Confirmed
             </span>
           </div>
-          <div className="min-w-[84px] rounded-[10px] border border-warn-line bg-warn-soft px-[13px] py-2">
+          <div className="rounded-[10px] border border-warn-line bg-warn-soft px-[13px] py-2">
             <span className="tnum block text-[16px] font-bold leading-none text-warn">
               {metrics.waitingForYou}
             </span>
@@ -439,7 +439,7 @@ export default function CasePage() {
               Waiting for you
             </span>
           </div>
-          <div className="min-w-[84px] rounded-[10px] border border-accent-line bg-accent-soft px-[13px] py-2">
+          <div className="rounded-[10px] border border-accent-line bg-accent-soft px-[13px] py-2">
             <span className="tnum block text-[16px] font-bold leading-none text-accent">
               {metrics.waitingOnPatient}
             </span>
@@ -447,7 +447,7 @@ export default function CasePage() {
               Waiting on patient
             </span>
           </div>
-          <div className="min-w-[84px] rounded-[10px] border border-bad-line bg-bad-soft px-[13px] py-2">
+          <div className="rounded-[10px] border border-bad-line bg-bad-soft px-[13px] py-2">
             <span className="tnum block text-[16px] font-bold leading-none text-bad">
               {metrics.toCall}
             </span>
