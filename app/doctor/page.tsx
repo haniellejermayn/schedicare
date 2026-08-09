@@ -609,7 +609,7 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-accent bg-accent-soft text-accent"
+                            ? "border-accent bg-surface-alt text-accent"
                             : "border-line bg-surface-alt text-muted",
                           rulesDraft && "cursor-pointer",
                         )}
