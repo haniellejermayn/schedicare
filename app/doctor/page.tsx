@@ -30,16 +30,16 @@ const OUT_REASONS = [
   "Other",
 ] as const;
 
-/** 08:00–19:00 in 30-minute steps — the calendar's visible band. */
-const TIME_OPTIONS = Array.from({ length: 23 }, (_, i) => {
+/** 08:00–17:00 in 30-minute steps — the calendar's visible band. */
+const TIME_OPTIONS = Array.from({ length: 19 }, (_, i) => {
   const h = 8 + Math.floor(i / 2);
   const m = i % 2 === 0 ? "00" : "30";
   return `${String(h).padStart(2, "0")}:${m}`;
 });
 
-/** Day range for the visual time windows: 08:00 – 19:00 (660 min). */
+/** Day range for the visual time windows: 08:00 – 17:00 (540 min). */
 const DAY_START = 8 * 60;
-const DAY_END = 19 * 60;
+const DAY_END = 17 * 60;
 const DAY_LEN = DAY_END - DAY_START;
 
 const TYPE_COLORS = {
@@ -116,7 +116,7 @@ function Ring({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#EAEEE3"
+          stroke="#dadada"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -700,7 +700,7 @@ export default function DoctorPage() {
                       return (
                         <div
                           key={t}
-                          className="rounded-card border p-4 bg-surface-strong"
+                          className="rounded-card border p-4 bg-surface-alt"
                           style={{
                             borderColor: TYPE_COLORS[t],
                           }}
@@ -749,8 +749,8 @@ export default function DoctorPage() {
                           </div>
                           <div className="mt-1 flex justify-between font-mono text-[10px] text-muted">
                             <span>8am</span>
-                            <span>1pm</span>
-                            <span>7pm</span>
+                            <span>12pm</span>
+                            <span>5pm</span>
                           </div>
 
                           <p className="mt-2 text-[11px] text-muted">
@@ -828,7 +828,7 @@ export default function DoctorPage() {
 
                     return (
                       <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
-                        <div className="rounded-card bg-surface-strong p-4 text-center">
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
                           <Ring percent={dailyPct} color="#3F6F52">
                             <span className="font-display text-2xl font-bold text-ink">
                               {dailyMax || "—"}
@@ -838,7 +838,7 @@ export default function DoctorPage() {
                             Max Visits / Day
                           </p>
                         </div>
-                        <div className="rounded-card bg-surface-strong p-4 text-center">
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
                           <Ring percent={morningPct} color="#3B6478">
                             <span className="font-display text-2xl font-bold text-ink">
                               {morningMax || "—"}
@@ -851,7 +851,7 @@ export default function DoctorPage() {
                             08:00 – 12:00
                           </p>
                         </div>
-                        <div className="rounded-card bg-surface-strong p-4 text-center">
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
                           <Ring percent={afternoonPct} color="#3B6478">
                             <span className="font-display text-2xl font-bold text-ink">
                               {afternoonMax || "—"}
@@ -864,7 +864,7 @@ export default function DoctorPage() {
                             13:00 – 17:00
                           </p>
                         </div>
-                        <div className="rounded-card bg-surface-strong p-4 text-center">
+                        <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
                           <Ring percent={bufferPct} color="#A0791F">
                             <span className="font-display text-2xl font-bold text-ink">
                               {bufferMin || "—"}
