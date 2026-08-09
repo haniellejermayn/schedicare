@@ -89,6 +89,7 @@ export default function FrontDeskPage() {
   const [appointmentMessage, setAppointmentMessage] = useState<string | null>(
     null,
   );
+  const [query, setQuery] = useState("");
 
   const doctors: Array<{ id: string; name: string }> = docList?.doctors ?? [];
   useEffect(() => {
@@ -137,6 +138,15 @@ export default function FrontDeskPage() {
       : filter === "working"
         ? buckets.working
         : buckets.done;
+
+  const filteredList = query.trim()
+    ? list.filter((c: any) => {
+        const q = query.toLowerCase();
+        const title = (c.title ?? "").toLowerCase();
+        const meta = rowMeta(c).toLowerCase();
+        return title.includes(q) || meta.includes(q);
+      })
+    : list;
 
   const dateStr = status?.demoNow
     ? new Date(status.demoNow).toLocaleDateString("en-PH", {
@@ -190,7 +200,21 @@ export default function FrontDeskPage() {
             <circle cx="11" cy="11" r="7" />
             <path d="m21 21-4.3-4.3" />
           </svg>
-          <input type="text" placeholder="Search patient, doctor, or case…" />
+          <input
+            type="text"
+            placeholder="Search patient, doctor, or case…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button
+              className="clear-search"
+              aria-label="Clear search"
+              onClick={() => setQuery("")}
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 
@@ -282,19 +306,21 @@ export default function FrontDeskPage() {
                       ? "Agents working — no action needed yet"
                       : "Resolved — closed out"}
                 </span>
-                <span className="count">{list.length} cases</span>
+                <span className="count">{filteredList.length} cases</span>
               </div>
 
-              {list.length === 0 ? (
+              {filteredList.length === 0 ? (
                 <p className="px-4 py-3 text-[13px] text-muted">
-                  {filter === "review"
-                    ? "Nothing needs you right now. New suggestions will appear here."
-                    : filter === "working"
-                      ? "Nothing in progress."
-                      : "No finished cases yet."}
+                  {query.trim()
+                    ? "No matching cases in this section."
+                    : filter === "review"
+                      ? "Nothing needs you right now. New suggestions will appear here."
+                      : filter === "working"
+                        ? "Nothing in progress."
+                        : "No finished cases yet."}
                 </p>
               ) : (
-                list.map((c: any) => {
+                filteredList.map((c: any) => {
                   const st = CASE_STATE[c.state] ?? {
                     label: c.state,
                     tone: "neutral" as const,
