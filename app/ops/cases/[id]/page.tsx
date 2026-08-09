@@ -470,14 +470,19 @@ export default function CasePage() {
                 </button>
               );
             })}
-            <details className="case-log mt-3 rounded-card border border-line bg-white">
-              <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink">
+            <div className="case-log mt-3 rounded-card border border-line bg-white">
+              <button
+                type="button"
+                onClick={() => setCaseOpen((v) => !v)}
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink"
+                aria-expanded={caseOpen}
+              >
                 Case log
                 <span className="ml-auto text-[12px] text-muted">
                   {grouped.caseLevel.length}
                 </span>
                 <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
-              </summary>
+              </button>
               {caseOpen && (
                 <ol className="relative ml-1.5 space-y-0 border-l border-line px-3 pb-2.5">
                   {grouped.caseLevel.map((it) => (
@@ -485,7 +490,7 @@ export default function CasePage() {
                   ))}
                 </ol>
               )}
-            </details>
+            </div>
           </aside>
 
           <div>
