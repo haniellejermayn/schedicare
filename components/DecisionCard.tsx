@@ -199,6 +199,7 @@ export function DecisionCard({
 
       {p.priorityReason && !decided && (
         <p className="mt-1 text-[13px] text-muted">
+          <span className="font-semibold text-ink">Context:</span>{" "}
           {plainPriorityReason(p.priorityReason)}
         </p>
       )}

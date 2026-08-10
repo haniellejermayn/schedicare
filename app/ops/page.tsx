@@ -283,17 +283,6 @@ export default function FrontDeskPage() {
                   externalBusy={docData?.externalBusy ?? []}
                   unavailableDates={docData?.doctor?.unavailableDates ?? []}
                 />
-                <div className="sched-legend">
-                  <span>
-                    <i style={{ background: "var(--teal)" }}></i>Routine
-                  </span>
-                  <span>
-                    <i style={{ background: "var(--moss)" }}></i>Follow-up
-                  </span>
-                  <span>
-                    <i style={{ background: "var(--clay)" }}></i>Urgent
-                  </span>
-                </div>
               </div>
             </div>
           ) : (

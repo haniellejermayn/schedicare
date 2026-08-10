@@ -30,6 +30,9 @@ export async function POST(
   if (!appointmentId) return err("appointmentId required", 422);
   const doctorId: string | undefined = body?.doctorId;
   const day: string | undefined = body?.day;
+  const limit = Number.isInteger(body?.limit)
+    ? Math.min(60, Math.max(6, body.limit))
+    : 6;
   if (doctorId && typeof doctorId !== "string")
     return err("invalid doctorId", 422);
   if (day && (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)))
@@ -78,7 +81,7 @@ export async function POST(
     fromDay: day,
     horizonDays: day ? 0 : 14,
   });
-  const visible = scored.slice(0, day ? 60 : 6);
+  const visible = scored.slice(0, day ? 60 : limit);
   const doctors = new Map(
     db
       .select()

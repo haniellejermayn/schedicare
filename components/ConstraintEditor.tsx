@@ -176,7 +176,7 @@ export function ConstraintEditor({
     }
   };
 
-  const search = async () => {
+  const search = async (limit = 6) => {
     if (!target.appointmentId)
       return setNote(
         "No appointment is linked to this reply — handle manually.",
@@ -186,7 +186,11 @@ export function ConstraintEditor({
     try {
       const r = await jfetch(`/api/cases/${caseId}/constraints/search`, {
         method: "POST",
-        body: JSON.stringify({ set, appointmentId: target.appointmentId }),
+        body: JSON.stringify({
+          set,
+          appointmentId: target.appointmentId,
+          limit,
+        }),
       });
       setSlots(r.slots);
       setTotalCount(r.totalCount ?? r.slots.length);
@@ -561,6 +565,18 @@ export function ConstraintEditor({
               </Button>
             </div>
           ))}
+          {totalCount > slots.length && (
+            <div className="flex justify-center pt-1">
+              <Button
+                small
+                variant="secondary"
+                disabled={busy !== ""}
+                onClick={() => search(slots.length + 6)}
+              >
+                {busy === "search" ? <Spinner /> : "Show more"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

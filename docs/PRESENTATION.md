@@ -171,17 +171,17 @@ Fields for the provided template:
 - **Why not just Gmail + Calendar manually?** That's our baseline, not a
   competitor: it costs staff-minutes per disruption, stops at closing time,
   and one doctor out means N patients × M rounds of email tag.
-- **Is ranking LLM-based?** No — deliberately. Ranking is a repeated
-  fairness decision: like cases must rank alike, weights must be auditable
-  and contestable factor by factor, and staff Modify is the override. Model
-  variance there is a bug, not intelligence.
+- **Is slot ranking LLM-based?** No — deliberately. AI extracts patient
+  constraints and explains the result, but deterministic scoring orders valid
+  slots so like cases rank alike. The weights are auditable factor by factor,
+  and staff Modify is the override.
 - **How do urgent, routine, and follow-up affect appointment times?** The
   appointment type selects each doctor's allowed windows and visit duration;
   every result still enforces workdays, buffers, daily caps, calendar
-  conflicts, and patient constraints. Urgent cases get higher operational
-  recovery priority and favor speed, follow-ups strongly favor continuity
-  with the same doctor, and routine visits use the normal weighted ranking.
-  This is scheduling policy, not clinical triage.
+  conflicts, and patient constraints. Urgent is an operational priority signal
+  and can let a faster cross-doctor option win; follow-ups strongly preserve
+  continuity with the same doctor; routine visits use the standard weighted
+  ranking. This is scheduling policy, not clinical triage.
 - **Are the extraction numbers real?** Dev-set figures, stated as such:
   prompt and labels were iterated on those 66 cases; a frozen held-out set
   is the next evaluation step. The honest comparison is same-scorer,

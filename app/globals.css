@@ -125,9 +125,6 @@ header.topnav{position:sticky;top:0;z-index:40;border-bottom:1px solid var(--lin
 .daycol{position:relative;border-left:1px solid var(--line);background-image:repeating-linear-gradient(to bottom, transparent, transparent 39px, rgba(23,33,43,.08) 39px, rgba(23,33,43,.08) 40px);}
 .blk{position:absolute;left:3px;right:3px;border-radius:6px;padding:2px 5px;font-size:9.5px;font-weight:700;color:#fff;overflow:hidden;white-space:nowrap;}
 .blk.r{background:var(--teal);} .blk.f{background:var(--moss);} .blk.u{background:var(--clay);}
-.sched-legend{display:flex;gap:14px;margin-top:10px;font-size:11px;color:var(--muted);}
-.sched-legend i{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle;}
-
 .rail{display:flex;flex-direction:column;gap:var(--gap);position:sticky;top:76px;}
 .rail-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-card);padding:var(--pad) 16px;}
 .rail-card h3{font-size:13px;font-weight:700;margin-bottom:2px;}
