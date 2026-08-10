@@ -31,6 +31,9 @@ const TYPES = [
 
 const WEEKDAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"];
 
+/** Dates visible in the strip at once before paging. */
+const DATE_PAGE_SIZE = 5;
+
 function toDayKey(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
@@ -119,6 +122,10 @@ export default function PatientPage() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  // The day strip shows a window of DATE_PAGE_SIZE dates; the full month grid
+  // lives behind "Pick a date" so the booking step stays short on a phone.
+  const [dateOffset, setDateOffset] = useState(0);
+  const [expandedOpen, setExpandedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
@@ -235,6 +242,47 @@ export default function PatientPage() {
   const firstName = (me?.name ?? "").split(" ")[0];
   const selectedSlots = selectedDay ? (slotMap[selectedDay] ?? []) : [];
   const today = toDayKey(new Date());
+
+  const availableDates = Object.keys(slotMap)
+    .filter((d) => d >= today)
+    .sort();
+  const visibleDates = availableDates.slice(
+    dateOffset,
+    dateOffset + DATE_PAGE_SIZE,
+  );
+  const canPrevDates = dateOffset > 0;
+  const canNextDates = dateOffset + DATE_PAGE_SIZE < availableDates.length;
+  // With the default 7-day slot window the clinic rarely has more than a
+  // page of open days, and two permanently-greyed arrows read as broken.
+  // They appear only once there is somewhere to page to.
+  const needsDatePaging = availableDates.length > DATE_PAGE_SIZE;
+  const availableDateSet = useMemo(
+    () => new Set(availableDates),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [availableDates.join(",")],
+  );
+
+  // Changing doctor or visit type can shorten the list under the current
+  // offset, which would otherwise leave the strip showing nothing.
+  useEffect(() => {
+    setDateOffset((prev) =>
+      Math.min(prev, Math.max(0, availableDates.length - DATE_PAGE_SIZE)),
+    );
+  }, [availableDates.length]);
+
+  // Keep the selected day inside the visible window, so a date chosen from the
+  // month grid is not scrolled off the strip behind it.
+  useEffect(() => {
+    if (!selectedDay) return;
+    const i = availableDates.indexOf(selectedDay);
+    if (i < 0) return;
+    setDateOffset((prev) =>
+      i < prev || i >= prev + DATE_PAGE_SIZE
+        ? Math.max(0, i - Math.floor(DATE_PAGE_SIZE / 2))
+        : prev,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, availableDates.join(",")]);
 
   return (
     <PatientShell tab={tab} onTabChange={setTab}>
@@ -436,98 +484,129 @@ export default function PatientPage() {
               </div>
             </section>
 
+            {/* Day strip, ported from the front-desk calendar work on main
+                (compact window + paging + a full month behind "Pick a date").
+                Touch targets are sized up from that original: this view is
+                driven by a thumb, so the cells are 52px rather than ~28px. */}
             <section className="flex flex-col gap-2">
-              <Eyebrow>Pick a day</Eyebrow>
-              <Card className="p-3">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() =>
-                      setMonthDate(
-                        new Date(
-                          monthDate.getFullYear(),
-                          monthDate.getMonth() - 1,
-                          1,
-                        ),
-                      )
-                    }
-                    aria-label="Previous month"
-                    className="flex h-9 w-9 items-center justify-center rounded-ctl text-muted transition-colors hover:bg-surface-alt hover:text-ink"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-                      <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                  <span className="text-[14px] font-bold text-ink">
-                    {monthLabel(monthDate)}
-                  </span>
-                  <button
-                    onClick={() =>
-                      setMonthDate(
-                        new Date(
-                          monthDate.getFullYear(),
-                          monthDate.getMonth() + 1,
-                          1,
-                        ),
-                      )
-                    }
-                    aria-label="Next month"
-                    className="flex h-9 w-9 items-center justify-center rounded-ctl text-muted transition-colors hover:bg-surface-alt hover:text-ink"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
-                      <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </div>
+              <div className="flex items-center justify-between gap-2">
+                <Eyebrow>Pick a day</Eyebrow>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const base = selectedDay
+                      ? new Date(`${selectedDay}T00:00:00+08:00`)
+                      : new Date();
+                    setMonthDate(new Date(base.getFullYear(), base.getMonth(), 1));
+                    setExpandedOpen(true);
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-ctl border border-line bg-surface-alt px-2.5 py-1.5",
+                    "text-[12px] font-semibold text-ink transition-colors duration-fast ease-snappy",
+                    "hover:border-strong hover:bg-white",
+                  )}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <rect x="3" y="5" width="18" height="16" rx="3" />
+                    <path d="M8 3v4M16 3v4M3 10h18" strokeLinecap="round" />
+                  </svg>
+                  Pick a date
+                </button>
+              </div>
 
-                <div className="mt-3 grid grid-cols-7 gap-1 text-center">
-                  {WEEKDAY_INITIALS.map((d, i) => (
-                    <div key={i} className="text-[12px] font-semibold text-muted">
-                      {d}
+              {availableDates.length === 0 ? (
+                <Empty>No open days for this doctor and visit type.</Empty>
+              ) : (
+                <Card className="p-2">
+                  <div className="flex items-center gap-1.5">
+                    {needsDatePaging && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDateOffset((prev) => Math.max(0, prev - DATE_PAGE_SIZE))
+                      }
+                      disabled={!canPrevDates}
+                      aria-label="Earlier dates"
+                      className={cn(
+                        "flex h-9 w-8 shrink-0 items-center justify-center rounded-ctl text-muted",
+                        "transition-colors duration-fast hover:bg-surface-alt hover:text-ink",
+                        "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent",
+                      )}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+                        <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    )}
+
+                    <div className="grid flex-1 grid-cols-5 gap-1.5">
+                      {visibleDates.map((day) => {
+                        const d = new Date(`${day}T00:00:00+08:00`);
+                        const isSelected = day === selectedDay;
+                        const count = (slotMap[day] ?? []).length;
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => setSelectedDay(day)}
+                            aria-pressed={isSelected}
+                            aria-label={`${fmtDayManila(`${day}T00:00:00+08:00`)} — ${count} time${count === 1 ? "" : "s"} open`}
+                            className={cn(
+                              "flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-ctl border",
+                              "transition-colors duration-fast ease-snappy",
+                              isSelected
+                                ? "border-accent bg-accent font-bold text-white"
+                                : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "text-[11px] font-semibold uppercase tracking-wide",
+                                isSelected ? "text-white/80" : "text-muted",
+                              )}
+                            >
+                              {d.toLocaleDateString("en-US", {
+                                weekday: "short",
+                                timeZone: "Asia/Manila",
+                              })}
+                            </span>
+                            <span className="tnum text-[16px] font-bold leading-none">
+                              {d.toLocaleDateString("en-US", {
+                                day: "numeric",
+                                timeZone: "Asia/Manila",
+                              })}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-1 grid grid-cols-7 gap-1">
-                  {monthCells.map((cell, idx) => {
-                    const hasSlots = Boolean(slotMap[cell.day]);
-                    const isSelected = cell.day === selectedDay;
-                    const isPast = cell.day < today;
-                    const disabled = !cell.inMonth || isPast || !hasSlots;
-                    return (
-                      <button
-                        key={`${cell.day}-${idx}`}
-                        onClick={
-                          disabled ? undefined : () => setSelectedDay(cell.day)
-                        }
-                        disabled={disabled}
-                        aria-label={`${cell.date.getDate()} ${
-                          hasSlots && !disabled ? "— times available" : "— unavailable"
-                        }`}
-                        aria-pressed={isSelected}
-                        className={cn(
-                          // 40px minimum so a thumb can hit a date reliably.
-                          "tnum relative flex h-10 items-center justify-center rounded-ctl border text-[14px] transition-colors duration-fast",
-                          isSelected
-                            ? "border-accent bg-accent font-bold text-white"
-                            : disabled
-                              ? "cursor-not-allowed border-transparent text-muted/35"
-                              : "border-transparent font-semibold text-ink hover:bg-accent-soft",
-                        )}
-                      >
-                        {cell.date.getDate()}
-                        {/* Availability dot: never colour alone — the enabled
-                            state and label carry it too. */}
-                        {hasSlots && !disabled && !isSelected && (
-                          <span
-                            className="absolute bottom-1 h-1 w-1 rounded-full bg-accent-rail"
-                            aria-hidden
-                          />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
+                    {needsDatePaging && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDateOffset((prev) =>
+                          Math.min(
+                            prev + DATE_PAGE_SIZE,
+                            Math.max(0, availableDates.length - DATE_PAGE_SIZE),
+                          ),
+                        )
+                      }
+                      disabled={!canNextDates}
+                      aria-label="Later dates"
+                      className={cn(
+                        "flex h-9 w-8 shrink-0 items-center justify-center rounded-ctl text-muted",
+                        "transition-colors duration-fast hover:bg-surface-alt hover:text-ink",
+                        "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent",
+                      )}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+                        <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    )}
+                  </div>
+                </Card>
+              )}
             </section>
 
             <section className="flex flex-col gap-2 pb-2">
@@ -632,6 +711,99 @@ export default function PatientPage() {
             may be offered to someone on the waitlist.
           </p>
         )}
+      </Modal>
+
+      {/* Full month, opened from "Pick a date" — for booking further out than
+          the strip reaches. Sheet-style on a phone. */}
+      <Modal
+        open={expandedOpen}
+        onClose={() => setExpandedOpen(false)}
+        title="Pick a date"
+        sheetOnMobile
+      >
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() =>
+              setMonthDate(
+                new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1),
+              )
+            }
+            aria-label="Previous month"
+            className="flex h-10 w-10 items-center justify-center rounded-ctl text-muted transition-colors duration-fast hover:bg-surface-alt hover:text-ink"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+              <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <span className="text-[15px] font-bold text-ink">
+            {monthLabel(monthDate)}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setMonthDate(
+                new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1),
+              )
+            }
+            aria-label="Next month"
+            className="flex h-10 w-10 items-center justify-center rounded-ctl text-muted transition-colors duration-fast hover:bg-surface-alt hover:text-ink"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+              <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-7 gap-1 text-center">
+          {WEEKDAY_INITIALS.map((d, i) => (
+            <div key={i} className="text-[12px] font-semibold text-muted">
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-1 grid grid-cols-7 gap-1">
+          {monthCells.map((cell, idx) => {
+            const hasSlots = availableDateSet.has(cell.day);
+            const isSelected = cell.day === selectedDay;
+            const disabled = !cell.inMonth || cell.day < today || !hasSlots;
+            return (
+              <button
+                key={`${cell.day}-${idx}`}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  setSelectedDay(cell.day);
+                  setExpandedOpen(false);
+                }}
+                aria-pressed={isSelected}
+                aria-label={`${cell.date.getDate()} ${
+                  disabled ? "— unavailable" : "— times available"
+                }`}
+                className={cn(
+                  "tnum relative flex h-11 items-center justify-center rounded-ctl border text-[14px]",
+                  "transition-colors duration-fast",
+                  isSelected
+                    ? "border-accent bg-accent font-bold text-white"
+                    : disabled
+                      ? "cursor-not-allowed border-transparent text-muted/35"
+                      : "border-transparent font-semibold text-ink hover:bg-accent-soft",
+                )}
+              >
+                {cell.date.getDate()}
+                {/* Availability dot: never colour alone — the enabled state
+                    and the label carry it too. */}
+                {!disabled && !isSelected && (
+                  <span
+                    className="absolute bottom-1 h-1 w-1 rounded-full bg-accent-rail"
+                    aria-hidden
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </Modal>
     </PatientShell>
   );
