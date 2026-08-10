@@ -42,10 +42,6 @@ function rowMeta(c: any): string {
   return "Agents working on it";
 }
 
-function initials(name: string): string {
-  return name.trim().charAt(0).toUpperCase();
-}
-
 function toneClass(tone?: string): string {
   switch (tone) {
     case "warn":
@@ -329,9 +325,6 @@ export default function FrontDeskPage() {
                           router.push(`/ops/cases/${c.id}`);
                       }}
                     >
-                      <div className="avatars">
-                        <div className="av av-1">{initials(c.title)}</div>
-                      </div>
                       <div className="case-body">
                         <div className="case-top">
                           {c.state === "awaiting_approval" ||
