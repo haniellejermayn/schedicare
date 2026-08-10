@@ -28,6 +28,9 @@ function whyBullets(option: any, payload: any): string[] {
   return labels;
 }
 
+/** Floor for a hand-written draft — below this it is a slip, not a message. */
+const MIN_DRAFT_CHARS = 10;
+
 const REJECT_REASONS = [
   "Patient prefers a phone call",
   "The time won't work for this patient",
@@ -555,7 +558,7 @@ export function DecisionCard({
       <Modal
         open={draftOpen}
         onClose={() => setDraftOpen(false)}
-        title="Message to the patient"
+        title={`Message to ${p.patientName ?? "the patient"}`}
         wide
         footer={
           editing ? (
@@ -564,17 +567,20 @@ export function DecisionCard({
                 Cancel
               </Button>
               <Button
-                disabled={busy === "edit" || editBody.trim().length < 10}
+                loading={busy === "edit"}
+                disabled={editBody.trim().length < MIN_DRAFT_CHARS}
                 onClick={saveDraftEdit}
               >
-                {busy === "edit" ? <Spinner /> : "Save edit"}
+                Save edit
               </Button>
             </>
           ) : (
             <>
+              <Button variant="quiet" onClick={() => setDraftOpen(false)}>
+                Close
+              </Button>
               {!decided && p.draft && (
                 <Button
-                  variant="secondary"
                   onClick={() => {
                     setEditBody(p.draft.body);
                     setEditing(true);
@@ -583,39 +589,116 @@ export function DecisionCard({
                   Edit message
                 </Button>
               )}
-              <Button variant="secondary" onClick={() => setDraftOpen(false)}>
-                Close
-              </Button>
             </>
           )
         }
       >
         {p.draft && !editing && (
-          <div className="rounded-ctl border border-line bg-paper p-3">
-            <p className="text-[13px] font-bold text-ink">{p.draft.subject}</p>
-            {p.draftEditedByStaff && (
-              <p className="mt-0.5 text-[11px] font-semibold text-accent">
-                Edited by staff
-              </p>
-            )}
-            <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-ink/85">
-              {p.draft.body}
+          <>
+            {/* Header strip + body, so it reads as the email it will become
+                rather than a paragraph in a box. */}
+            <div className="overflow-hidden rounded-ctl border border-line">
+              <div className="border-b border-line bg-surface-alt px-3.5 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="eyebrow shrink-0">To</span>
+                  <span className="truncate text-[13px] font-semibold text-ink">
+                    {p.patientName ?? "Patient"}
+                  </span>
+                  {p.draftEditedByStaff && (
+                    <Chip tone="accent" className="ml-auto shrink-0">
+                      Edited by staff
+                    </Chip>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[14px] font-bold text-ink">
+                  {p.draft.subject}
+                </p>
+              </div>
+              <div className="bg-white px-3.5 py-3.5">
+                <p className="whitespace-pre-wrap text-[14px] leading-[1.65] text-ink-soft">
+                  {p.draft.body}
+                </p>
+              </div>
+            </div>
+            {/* The gate, restated at the point where staff are looking at the
+                words that would go out. */}
+            <p className="mt-3 flex items-start gap-2 text-[12px] text-muted">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 14 14"
+                fill="none"
+                aria-hidden
+                className="mt-[1px] shrink-0"
+              >
+                <rect
+                  x="2.6"
+                  y="6.2"
+                  width="8.8"
+                  height="6.2"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+                <path
+                  d="M4.7 6.2V4.6a2.3 2.3 0 0 1 4.6 0v1.6"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Nothing is sent until you approve. You can change the wording
+              first.
             </p>
-          </div>
+          </>
         )}
         {editing && (
           <>
-            <p className="text-[12px] text-muted">
-              Your wording replaces the draft. The subject stays standardized,
-              and changing the time later rewrites the whole message for the new
-              slot.
-            </p>
+            {/* The subject stays on screen while editing — you are writing the
+                body underneath it, and losing it costs you the context. */}
+            <div className="rounded-t-ctl border border-b-0 border-line bg-surface-alt px-3.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="eyebrow shrink-0">To</span>
+                <span className="truncate text-[13px] font-semibold text-ink">
+                  {p.patientName ?? "Patient"}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[14px] font-bold text-ink">
+                {p.draft?.subject}
+              </p>
+            </div>
             <textarea
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
-              rows={10}
-              className="mt-2 w-full rounded-ctl border border-line px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-accent"
+              rows={11}
+              autoFocus
+              aria-label="Message body"
+              className={cn(
+                "block w-full rounded-b-ctl border border-line bg-white px-3.5 py-3",
+                "text-[14px] leading-[1.65] text-ink outline-none",
+                "transition-colors duration-fast focus:border-accent-rail",
+              )}
             />
+            <div className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+              <p className="text-[12px] text-muted">
+                Changing the time later rewrites the whole message for the new
+                slot.
+              </p>
+              {/* Save is disabled under the minimum; without this the button
+                  just sits dead with no stated reason. */}
+              <span
+                className={cn(
+                  "tnum shrink-0 text-[12px] font-semibold",
+                  editBody.trim().length < MIN_DRAFT_CHARS
+                    ? "text-bad"
+                    : "text-muted",
+                )}
+              >
+                {editBody.trim().length < MIN_DRAFT_CHARS
+                  ? `${MIN_DRAFT_CHARS - editBody.trim().length} more characters needed`
+                  : `${editBody.trim().length} characters`}
+              </span>
+            </div>
           </>
         )}
       </Modal>
