@@ -5,7 +5,7 @@
  * times from, and validatePlacementNow() is the hard gate re-run before every
  * calendar write.
  */
-import { addDays } from "date-fns";
+import { addDays, addMinutes } from "date-fns";
 import { and, eq, gt, inArray, lt } from "drizzle-orm";
 import { db, schema } from "./db/client";
 import { demoNow } from "./clock";
@@ -18,6 +18,9 @@ import { CLINIC_TZ } from "./env";
 
 const ACTIVE_STATUSES = ["booked", "confirmed"] as const;
 
+/** Minimum lead time for clinic-initiated replacement offers. */
+export const RESCHEDULE_MIN_NOTICE_MINUTES = 4 * 60;
+
 export interface FindSlotsOptions {
   doctorId: string;
   type: ApptType;
@@ -28,6 +31,7 @@ export interface FindSlotsOptions {
   dayPart?: "am" | "pm";
   /** Exclude one appointment from conflict checks (when rescheduling it). */
   ignoreAppointmentId?: string;
+  minimumNoticeMinutes?: number;
   limit?: number;
 }
 
@@ -75,6 +79,7 @@ export async function findOpenSlots(opts: FindSlotsOptions): Promise<Slot[]> {
   const known = activeAppointments(opts.doctorId, range);
   const rawBusy = await getBusyIntervals(doctor.calendarId, range);
   const busy = subtractKnown(rawBusy, known);
+  const notBefore = addMinutes(demoNow(), opts.minimumNoticeMinutes ?? 0);
   const slots = generateSlots({
     doctorId: opts.doctorId,
     rules,
@@ -84,7 +89,7 @@ export async function findOpenSlots(opts: FindSlotsOptions): Promise<Slot[]> {
     existing,
     busy,
     unavailableDates: (doctor.unavailableDates as string[]) ?? [],
-    notBefore: demoNow(),
+    notBefore,
     afterTime: opts.afterTime,
     beforeTime: opts.beforeTime,
     dayPart: opts.dayPart,
@@ -97,6 +102,7 @@ export async function validatePlacementNow(input: {
   type: ApptType;
   startUtc: string;
   ignoreAppointmentId?: string;
+  minimumNoticeMinutes?: number;
 }): Promise<{ ok: boolean; reason?: string }> {
   const doctor = db.select().from(schema.doctors).where(eq(schema.doctors.id, input.doctorId)).get();
   if (!doctor) return { ok: false, reason: `doctor ${input.doctorId} not found` };
@@ -113,7 +119,8 @@ export async function validatePlacementNow(input: {
   const known = activeAppointments(input.doctorId, wide);
   const rawBusy = await getBusyIntervals(doctor.calendarId, wide);
   const busy = subtractKnown(rawBusy, known);
-  return validatePlacement(
+  const notBefore = addMinutes(demoNow(), input.minimumNoticeMinutes ?? 0);
+  const result = validatePlacement(
     {
       doctorId: input.doctorId,
       rules,
@@ -121,10 +128,22 @@ export async function validatePlacementNow(input: {
       existing,
       busy,
       unavailableDates: (doctor.unavailableDates as string[]) ?? [],
-      notBefore: demoNow(),
+      notBefore,
     },
     input.startUtc
   );
+  if (
+    !result.ok &&
+    input.minimumNoticeMinutes &&
+    new Date(input.startUtc) < notBefore
+  ) {
+    const hours = input.minimumNoticeMinutes / 60;
+    return {
+      ok: false,
+      reason: `Replacement offers require at least ${hours} hours' notice`,
+    };
+  }
+  return result;
 }
 
 /** Fraction of a doctor's maxPerDay already booked on a clinic-local day. */

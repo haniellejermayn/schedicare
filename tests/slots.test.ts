@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { formatInTimeZone } from "date-fns-tz";
 import { freshSeed } from "./helpers";
-import { findOpenSlots, validatePlacementNow, dayLoad } from "@/core/scheduling";
+import {
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+  findOpenSlots,
+  validatePlacementNow,
+  dayLoad,
+} from "@/core/scheduling";
+import { demoNow } from "@/core/clock";
 import { generateSlots, localDayOf, blockOf } from "@/core/slots";
 import { getRules } from "@/core/rules";
 import { db, schema } from "@/core/db/client";
@@ -57,6 +63,40 @@ describe("slot engine", () => {
     const late = await findOpenSlots({ doctorId: "doc_santos", type: "routine", fromDay: "2026-08-11", toDay: "2026-08-12", afterTime: "16:00" });
     for (const s of late) expect(hhmm(s.startUtc) >= "16:00").toBe(true);
     expect(late.length).toBeGreaterThan(0);
+  });
+
+  it("enforces four hours' notice for replacement offers", async () => {
+    const query = {
+      doctorId: "doc_reyes",
+      type: "urgent" as const,
+      fromDay: "2026-08-10",
+      toDay: "2026-08-10",
+      limit: 200,
+    };
+    const unrestricted = await findOpenSlots(query);
+    const cutoff = new Date(
+      demoNow().getTime() + RESCHEDULE_MIN_NOTICE_MINUTES * 60_000,
+    );
+    const tooSoon = unrestricted.find((slot) => new Date(slot.startUtc) < cutoff);
+    expect(tooSoon).toBeDefined();
+
+    const guarded = await findOpenSlots({
+      ...query,
+      minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
+    });
+    expect(guarded.length).toBeGreaterThan(0);
+    expect(guarded.every((slot) => new Date(slot.startUtc) >= cutoff)).toBe(true);
+
+    const checked = await validatePlacementNow({
+      doctorId: tooSoon!.doctorId,
+      type: query.type,
+      startUtc: tooSoon!.startUtc,
+      minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
+    });
+    expect(checked).toEqual({
+      ok: false,
+      reason: "Replacement offers require at least 4 hours' notice",
+    });
   });
 
   it("caps per-day and per-block load against existing bookings", () => {

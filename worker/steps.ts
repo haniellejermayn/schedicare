@@ -23,7 +23,10 @@ import {
 } from "@/core/constraints";
 import { audit } from "@/core/audit";
 import { getCase, transitionCase, updateCaseMeta } from "@/core/cases";
-import { validatePlacementNow } from "@/core/scheduling";
+import {
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+  validatePlacementNow,
+} from "@/core/scheduling";
 import { blockOf, localDayOf } from "@/core/slots";
 import { runAssessment, type AssessmentResult } from "@/agents/assessment";
 import {
@@ -158,6 +161,7 @@ export async function scheduleStep(
         type: (req?.type ?? "routine") as any,
         startUtc: opt.startUtc,
         ignoreAppointmentId: per.appointmentId,
+        minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
       });
       if (v.ok) keep.push(opt);
       else dropped += 1;
@@ -852,6 +856,7 @@ export async function replanWithConstraintSet(
     ignoreAppointmentId: appointmentId,
     originalDoctorId,
     horizonDays: 14,
+    minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
   });
   const totalCount = scored.length;
   let candidates = scored.map((s) => s.slot);
@@ -876,6 +881,7 @@ export async function replanWithConstraintSet(
       type: item.type,
       startUtc: slot.startUtc,
       ignoreAppointmentId: appointmentId,
+      minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
     });
     if (v.ok) keep.push(slot);
     if (keep.length >= 6) break;

@@ -2,7 +2,10 @@ import { boot, body, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
 import { and, eq } from "drizzle-orm";
 import { demoNowIso, fmtWhen, manilaDate } from "@/core/clock";
-import { findOpenSlots } from "@/core/scheduling";
+import {
+  findOpenSlots,
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+} from "@/core/scheduling";
 import { rebuiltOfferDraft } from "@/agents/comms";
 import { audit } from "@/core/audit";
 import { timeline } from "@/core/timeline";
@@ -93,6 +96,7 @@ export async function POST(
         fromDay: day,
         toDay: day,
         ignoreAppointmentId: payload.appointmentId,
+        minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
         limit: 200,
       });
       const hit = (open as any[]).find(

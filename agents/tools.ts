@@ -7,7 +7,11 @@ import { z } from "zod";
 import { and, desc, eq, gt, gte, inArray, lt } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
 import { demoNow, demoToday, fmtWhen } from "@/core/clock";
-import { findOpenSlots, dayLoad } from "@/core/scheduling";
+import {
+  findOpenSlots,
+  dayLoad,
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+} from "@/core/scheduling";
 import { getRules } from "@/core/rules";
 import { scoreNoShowRisk } from "@/core/risk";
 import { addDays, format } from "date-fns";
@@ -98,7 +102,11 @@ export const toolFindOpenSlots: ToolDef = {
     ignoreAppointmentId: z.string().optional().describe("exclude this appointment from conflicts when rescheduling it"),
   }),
   run: async (i) => {
-    const slots = await findOpenSlots({ ...i, limit: 24 });
+    const slots = await findOpenSlots({
+      ...i,
+      minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
+      limit: 24,
+    });
     return slots.map((s) => ({ ...s, when: fmtWhen(s.startUtc) }));
   },
 };

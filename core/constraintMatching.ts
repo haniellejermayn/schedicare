@@ -141,6 +141,7 @@ export interface ConstraintSearchInput {
   originalDoctorId?: string;
   fromDay?: string;
   horizonDays?: number;
+  minimumNoticeMinutes?: number;
   limit?: number;
 }
 
@@ -190,6 +191,7 @@ export async function findSlotsForConstraints(
       afterTime: single?.start,
       beforeTime: single?.end,
       ignoreAppointmentId: input.ignoreAppointmentId,
+      minimumNoticeMinutes: input.minimumNoticeMinutes,
     });
     collected.push(...slots);
   }
