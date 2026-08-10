@@ -961,6 +961,7 @@ export default function CasePage() {
         open={caseLogOpen}
         onClose={() => setCaseLogOpen(false)}
         title="Case log"
+        wide
       >
         <div className="mb-2 flex items-center gap-2">
           <span className="text-[12px] font-semibold text-muted">
@@ -979,7 +980,7 @@ export default function CasePage() {
             {tech ? "On" : "Off"}
           </button>
         </div>
-        <ol className="relative ml-1.5 h-72 space-y-0 overflow-y-auto border-l border-line px-3 pb-2.5 thin-scroll">
+        <ol className="relative ml-1.5 h-96 space-y-0 overflow-y-auto border-l border-line px-3 pb-2.5 thin-scroll">
           {grouped.caseLevel.map((it) => (
             <ActivityRow key={it.id} it={it} tech={tech} />
           ))}
