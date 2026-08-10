@@ -30,7 +30,7 @@
     "@langchain/langgraph": "^1.4.8",
     "@langchain/langgraph-checkpoint-sqlite": "^1.0.3",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^12.10.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.2.0",
@@ -59,8 +59,7 @@
     "vitest": "^2.1.4"
   },
   "allowScripts": {
-    "better-sqlite3@12.11.1": true,
-    "better-sqlite3@13.0.3": true
+    "better-sqlite3@12.11.1": true
   },
   "overrides": {
     "better-sqlite3": "$better-sqlite3"
