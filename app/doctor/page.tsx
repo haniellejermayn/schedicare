@@ -611,12 +611,12 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-line bg-ink text-white"
+                            ? "border-[#3F6F52] bg-[#3F6F52] text-white"
                             : "border-line bg-surface-alt text-muted",
                           rulesDraft && "cursor-pointer",
                         )}
                       >
-                        {on ? `✓ ${w}` : w}
+                        {w}
                       </button>
                     );
                   })}
