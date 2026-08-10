@@ -14,12 +14,9 @@ export interface RecoveryContext {
   originalStartUtc: string;
   patientPrefDayPart: DayPart;
   patientPreferredDoctorId?: string | null;
-  staffPriority: number; // 0..2
   waitingSinceDays?: number; // for waitlist fairness
   /** Fraction of the target doctor's day already booked (0..1), per slot day. */
-  capacityHeadroom?: (slot: Slot) => number;
-  /** Historical acceptance likelihood proxy (0..1). */
-  acceptanceLikelihood?: number;
+  dayLoad?: (slot: Slot) => number;
 }
 
 export interface ScoredSlot {
@@ -30,10 +27,9 @@ export interface ScoredSlot {
 }
 
 /**
- * score = w1·slot_soonness + w2·patient_pref_match + w3·doctor_rule_fit(same doctor / same day-part)
- *       + w4·capacity_headroom + w5·waiting_time_fairness + w6·staff_priority
- *       + w7·historical_acceptance_likelihood
- * All weights sum to a 0–100 scale; every component becomes a "Why?" chip.
+ * score = slot soonness + patient preference + continuity/rule fit
+ *       + waiting-time fairness - near-capacity penalty.
+ * Patient-facing factors dominate; capacity only protects nearly full days.
  */
 export function scoreRecoveryOption(
   ctx: RecoveryContext,
@@ -95,13 +91,13 @@ export function scoreRecoveryOption(
     chips.push({ label: "Patient's preferred doctor", pts: 5 });
   }
 
-  // w4 — capacity headroom (0..12).
-  const load = ctx.capacityHeadroom ? ctx.capacityHeadroom(slot) : 0.5;
-  const headroomPts = Math.round((1 - Math.min(1, Math.max(0, load))) * 12);
-  chips.push({
-    label: `Keeps ${doctorName.split(" ").slice(-1)[0]}'s day at ${Math.round(load * 100)}% capacity`,
-    pts: headroomPts,
-  });
+  // Capacity is neutral below 80%; it is a small resilience penalty near the
+  // hard daily cap, never a reward for spreading appointments across doctors.
+  const load = Math.min(1, Math.max(0, ctx.dayLoad?.(slot) ?? 0));
+  if (load >= 0.9)
+    chips.push({ label: "Doctor's day is nearly full", pts: -4 });
+  else if (load >= 0.8)
+    chips.push({ label: "Doctor's day is getting full", pts: -2 });
 
   // w5 — waiting-time fairness (0..10).
   if (ctx.waitingSinceDays != null) {
@@ -109,21 +105,6 @@ export function scoreRecoveryOption(
     if (fair > 0)
       chips.push({ label: `Waiting ${ctx.waitingSinceDays} days`, pts: fair });
   }
-
-  // w6 — staff priority (0..10).
-  if (ctx.staffPriority > 0)
-    chips.push({
-      label: `Staff priority ${ctx.staffPriority === 2 ? "high" : "elevated"}`,
-      pts: ctx.staffPriority * 5,
-    });
-
-  // w7 — historical acceptance likelihood (0..8).
-  const accept = ctx.acceptanceLikelihood ?? 0.6;
-  const acceptPts = Math.round(accept * 8);
-  chips.push({
-    label: `${Math.round(accept * 100)}% historical acceptance for similar offers`,
-    pts: acceptPts,
-  });
 
   const score = chips.reduce((s, c) => s + c.pts, 0);
   const dots = Math.max(1, Math.min(5, Math.round(score / 20)));
@@ -166,7 +147,6 @@ export interface WaitlistCandidateInput {
   type: string;
   dayPart: DayPart;
   addedAt: string;
-  staffPriority: number;
   preferredDoctorId?: string | null;
   history: Array<{ kind: string }>;
 }
@@ -204,11 +184,6 @@ export function rankWaitlistCandidates(
         });
       if (c.preferredDoctorId && c.preferredDoctorId === slot.doctorId)
         chips.push({ label: "Preferred doctor matches", pts: 12 });
-      if (c.staffPriority > 0)
-        chips.push({
-          label: `Staff priority ${c.staffPriority === 2 ? "high" : "elevated"}`,
-          pts: c.staffPriority * 8,
-        });
       const noShows = c.history.filter((h) => h.kind === "no_show").length;
       if (noShows === 0)
         chips.push({ label: "Reliable attendance history", pts: 8 });

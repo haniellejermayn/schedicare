@@ -242,7 +242,7 @@ export default function PatientPage() {
         {toast && (
           <div
             role="status"
-            className="animate-pop flex items-start gap-2 rounded-card border border-accent-line bg-accent-soft px-4 py-3 text-base font-semibold text-ink"
+            className="animate-pop flex items-start gap-2 rounded-card border border-accent-line bg-accent-soft px-4 py-3 text-[14px] font-semibold text-ink"
           >
             <span className="flex-1">{toast}</span>
             <button
@@ -259,8 +259,8 @@ export default function PatientPage() {
             <div className="flex items-center gap-3">
               <Avatar name={me?.name ?? "Patient"} size={44} />
               <div className="min-w-0">
-                <p className="text-sm text-muted">Hello</p>
-                <h1 className="truncate text-xl font-bold text-ink">
+                <p className="text-[13px] text-muted">Hello</p>
+                <h1 className="truncate text-[20px] font-bold text-ink">
                   {firstName || "there"}
                 </h1>
               </div>
@@ -274,7 +274,7 @@ export default function PatientPage() {
                 {disrupted.slice(-2).map((a: any) => (
                   <p
                     key={a.id}
-                    className="mt-2 text-base leading-relaxed text-ink-soft"
+                    className="mt-2 text-[14px] leading-relaxed text-ink-soft"
                   >
                     Your {typeLabel(a.type).toLowerCase()} on{" "}
                     <b className="tnum text-ink">{fmtWhenManila(a.startUtc)}</b>{" "}
@@ -311,12 +311,12 @@ export default function PatientPage() {
                       )}
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="tnum text-lg font-bold text-ink">
+                        <span className="tnum text-[17px] font-bold text-ink">
                           {fmtWhenManila(a.startUtc)}
                         </span>
                         <Chip tone={st.tone}>{st.label}</Chip>
                       </div>
-                      <p className="mt-1 text-base text-muted">
+                      <p className="mt-1 text-[14px] text-muted">
                         {typeLabel(a.type)} · {a.doctorName}
                       </p>
                       <div className="mt-3.5 flex gap-2">
@@ -353,13 +353,13 @@ export default function PatientPage() {
                   return (
                     <div
                       key={a.id}
-                      className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3"
+                      className="flex items-center gap-3 rounded-card border border-line bg-white px-4 py-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="tnum truncate text-base font-semibold text-ink">
+                        <p className="tnum truncate text-[14px] font-semibold text-ink">
                           {fmtWhenManila(a.startUtc)}
                         </p>
-                        <p className="truncate text-sm text-muted">
+                        <p className="truncate text-[13px] text-muted">
                           {typeLabel(a.type)} · {a.doctorName}
                         </p>
                       </div>
@@ -377,7 +377,7 @@ export default function PatientPage() {
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 aria-label="View as patient"
-                className="bg-surface"
+                className="bg-white"
               >
                 {patients.map((p: any) => (
                   <option key={p.id} value={p.id}>
@@ -389,7 +389,7 @@ export default function PatientPage() {
           </>
         ) : (
           <>
-            <h1 className="text-xl font-bold text-ink">Book a visit</h1>
+            <h1 className="text-[20px] font-bold text-ink">Book a visit</h1>
 
             <section className="flex flex-col gap-2">
               <Eyebrow>Doctor</Eyebrow>
@@ -417,18 +417,18 @@ export default function PatientPage() {
                       "transition-colors duration-fast ease-snappy",
                       type === t.id
                         ? "border-accent bg-accent-soft"
-                        : "border-line bg-surface hover:border-line-strong",
+                        : "border-line bg-white hover:border-strong",
                     )}
                   >
                     <span
                       className={cn(
-                        "text-base font-semibold",
+                        "text-[14px] font-semibold",
                         type === t.id ? "text-accent" : "text-ink",
                       )}
                     >
                       {t.label}
                     </span>
-                    <span className="text-xs leading-tight text-muted">
+                    <span className="text-[12px] leading-tight text-muted">
                       {t.blurb}
                     </span>
                   </button>
@@ -457,7 +457,7 @@ export default function PatientPage() {
                       <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
-                  <span className="text-base font-bold text-ink">
+                  <span className="text-[14px] font-bold text-ink">
                     {monthLabel(monthDate)}
                   </span>
                   <button
@@ -481,7 +481,7 @@ export default function PatientPage() {
 
                 <div className="mt-3 grid grid-cols-7 gap-1 text-center">
                   {WEEKDAY_INITIALS.map((d, i) => (
-                    <div key={i} className="text-xs font-semibold text-muted">
+                    <div key={i} className="text-[12px] font-semibold text-muted">
                       {d}
                     </div>
                   ))}
@@ -506,7 +506,7 @@ export default function PatientPage() {
                         aria-pressed={isSelected}
                         className={cn(
                           // 40px minimum so a thumb can hit a date reliably.
-                          "tnum relative flex h-10 items-center justify-center rounded-ctl border text-base transition-colors duration-fast",
+                          "tnum relative flex h-10 items-center justify-center rounded-ctl border text-[14px] transition-colors duration-fast",
                           isSelected
                             ? "border-accent bg-accent font-bold text-white"
                             : disabled
@@ -543,8 +543,8 @@ export default function PatientPage() {
                       key={s.startUtc}
                       onClick={() => setPicked(s)}
                       className={cn(
-                        "tnum flex min-h-[46px] items-center justify-center rounded-ctl border border-line bg-surface",
-                        "text-base font-semibold text-ink transition-colors duration-fast",
+                        "tnum flex min-h-[46px] items-center justify-center rounded-ctl border border-line bg-white",
+                        "text-[14px] font-semibold text-ink transition-colors duration-fast",
                         "hover:border-accent hover:bg-accent-soft hover:text-accent",
                       )}
                     >
@@ -563,7 +563,7 @@ export default function PatientPage() {
           </>
         )}
 
-        <p className="pt-2 text-center text-sm leading-relaxed text-muted">
+        <p className="pt-2 text-center text-[13px] leading-relaxed text-muted">
           For medical concerns call (02) 8641 0117.
         </p>
       </div>
@@ -587,14 +587,14 @@ export default function PatientPage() {
       >
         {picked && (
           <div className="flex flex-col gap-1">
-            <span className="tnum text-lg font-bold text-ink">
+            <span className="tnum text-[17px] font-bold text-ink">
               {fmtWhenManila(picked.startUtc)}
             </span>
-            <span className="text-base text-muted">
+            <span className="text-[14px] text-muted">
               {typeLabel(type)} with{" "}
               {doctors.find((d) => d.id === doctorId)?.name}
             </span>
-            <span className="text-base text-muted">
+            <span className="text-[14px] text-muted">
               Riverside Family Clinic
             </span>
           </div>

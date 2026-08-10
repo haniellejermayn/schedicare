@@ -141,6 +141,7 @@ export interface ConstraintSearchInput {
   originalDoctorId?: string;
   fromDay?: string;
   horizonDays?: number;
+  minimumNoticeMinutes?: number;
   limit?: number;
 }
 
@@ -163,7 +164,9 @@ export async function findSlotsForConstraints(
     hard.requiredDoctorId ??
     (hard.requireSameDoctor ? input.originalDoctorId : undefined);
   const doctorIds = pinnedDoctor
-    ? [pinnedDoctor]
+    ? input.doctorIds && !input.doctorIds.includes(pinnedDoctor)
+      ? []
+      : [pinnedDoctor]
     : hard.requireSameDoctor
       ? [] // unenforceable hard constraint (no original known) — fail closed
       : (input.doctorIds ??
@@ -188,6 +191,7 @@ export async function findSlotsForConstraints(
       afterTime: single?.start,
       beforeTime: single?.end,
       ignoreAppointmentId: input.ignoreAppointmentId,
+      minimumNoticeMinutes: input.minimumNoticeMinutes,
     });
     collected.push(...slots);
   }

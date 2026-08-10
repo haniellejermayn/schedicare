@@ -2,12 +2,16 @@ import { boot, body, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
 import { and, eq } from "drizzle-orm";
 import { demoNowIso, fmtWhen, manilaDate } from "@/core/clock";
-import { findOpenSlots } from "@/core/scheduling";
+import {
+  findOpenSlots,
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+} from "@/core/scheduling";
 import { rebuiltOfferDraft } from "@/agents/comms";
 import { audit } from "@/core/audit";
 import { timeline } from "@/core/timeline";
 import {
   getCase,
+  pendingConstraintReviews,
   pendingRecommendationCounts,
   transitionCase,
 } from "@/core/cases";
@@ -52,6 +56,17 @@ export async function POST(
     );
 
   const payload = rec.payload as any;
+  if (
+    pendingConstraintReviews(rec.caseId, {
+      patientId: rec.patientId ?? payload.patientId,
+      appointmentId: payload.appointmentId,
+    }).length > 0
+  ) {
+    return err(
+      "Required constraint review must be completed before acting on this patient.",
+      409,
+    );
+  }
 
   if (b.action === "approve") {
     db.update(schema.recommendations)
@@ -81,6 +96,7 @@ export async function POST(
         fromDay: day,
         toDay: day,
         ignoreAppointmentId: payload.appointmentId,
+        minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
         limit: 200,
       });
       const hit = (open as any[]).find(

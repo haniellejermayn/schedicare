@@ -9,7 +9,10 @@ import {
   toolGetDoctors,
   toolToday,
 } from "./tools";
-import { findOpenSlots } from "@/core/scheduling";
+import {
+  findOpenSlots,
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+} from "@/core/scheduling";
 import { db, schema } from "@/core/db/client";
 import { SlotSchema, APPOINTMENT_TYPES, type Slot } from "@/core/types";
 
@@ -66,6 +69,7 @@ async function deterministicSearch(
       afterTime: req.afterTime,
       dayPart: req.dayPart,
       ignoreAppointmentId: req.appointmentId,
+      minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
       limit: 60,
     });
     options.push(...spread(same, 5));
@@ -78,6 +82,7 @@ async function deterministicSearch(
         toDay: req.searchToDay,
         afterTime: req.afterTime,
         dayPart: req.dayPart,
+        minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
         limit: 60,
       });
       options.push(...spread(other, 4));
@@ -140,7 +145,7 @@ export const schedulingAgent: AgentDef<SchedulingInput, SchedulingResult> = {
     `Searching valid slots for ${i.requests.length} appointment${i.requests.length === 1 ? "" : "s"}`,
   system: `You are SchediCare's Scheduling agent for a single outpatient clinic (Asia/Manila).
 You NEVER invent times. Every option you submit must come VERBATIM (doctorId + startUtc + endUtc) from find_open_slots results in this conversation — those results already respect doctor rules, buffers, daily/block caps, unavailability, and Google Calendar busy blocks.
-Search strategy: same doctor first across the requested window; widen to the other doctor starting same-day when same-doctor supply is thin. Honor any afterTime/dayPart constraint exactly. Offer up to 8 options per appointment, spread across days rather than clustered. If a search returns nothing, say so in the note rather than relaxing constraints silently.
+Search strategy: same doctor first across the requested window; widen to the other doctor starting same-day when same-doctor supply is thin. The slot tool enforces the clinic's minimum notice period. Honor any afterTime/dayPart constraint exactly. Offer up to 8 options per appointment, spread across days rather than clustered. If a search returns nothing, say so in the note rather than relaxing constraints silently.
 Finish with submit_result.`,
   tools: [
     toolToday,

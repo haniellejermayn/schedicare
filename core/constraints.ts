@@ -172,8 +172,15 @@ const INTENT_TO_LEGACY: Record<
  */
 export function isLegacyRepresentable(set: SchedulingConstraintSet): boolean {
   const h = set.hard;
+  const hasSoftConstraint = Object.values(set.soft).some(
+    (value) =>
+      value != null &&
+      value !== false &&
+      (!Array.isArray(value) || value.length > 0),
+  );
   return !(
     set.unresolvedStatements.length > 0 ||
+    hasSoftConstraint ||
     (h.timeWindows?.length ?? 0) > 1 ||
     (h.allowedDates?.length ?? 0) > 1 ||
     (h.excludedDates?.length ?? 0) > 0 ||

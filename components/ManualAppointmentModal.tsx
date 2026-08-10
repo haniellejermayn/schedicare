@@ -1,11 +1,109 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { usePoll } from "@/lib/usePoll";
 import { fmtWhenManila, jfetch, typeLabel } from "@/lib/format";
 import { Button, Empty, Modal, Spinner } from "@/components/ui";
 
 const TYPES = ["routine", "follow_up", "urgent"] as const;
+
+function SearchSelect({
+  items,
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+}: {
+  items: Array<{ id: string; label: string }>;
+  value: string;
+  onChange: (id: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = items.find((i) => i.id === value);
+
+  const filtered = query.trim()
+    ? items.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()))
+    : items;
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [open]);
+
+  function handleInputChange(e: ChangeEvent<HTMLInputElement>) {
+    setQuery(e.target.value);
+    setOpen(true);
+  }
+
+  function select(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function handleInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && open && filtered.length > 0) {
+      select(filtered[0].id);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative mt-1">
+      <input
+        type="text"
+        value={open ? query : selected?.label ?? ""}
+        onChange={handleInputChange}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleInputKeyDown}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        className="w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink placeholder:text-muted outline-none focus:border-accent"
+      />
+      {open && (
+        <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-auto rounded-ctl border border-line bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-[13px] text-muted">No matches</li>
+          ) : (
+            filtered.map((i) => (
+              <li key={i.id}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    select(i.id);
+                  }}
+                  className="block w-full px-3 py-2 text-left text-[13px] text-ink hover:bg-accent-soft focus:bg-accent-soft focus:outline-none"
+                >
+                  {i.label}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function ManualAppointmentModal({
   open,
@@ -95,32 +193,40 @@ export function ManualAppointmentModal({
         </>
       }
     >
-      {error && <p className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-sm font-semibold text-bad">{error}</p>}
+      {error && <p className="mb-3 rounded-ctl border border-bad-line bg-bad-soft px-3 py-2 text-[13px] font-semibold text-bad">{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-bold text-muted">
+        <label className="text-[12px] font-bold text-muted">
           Patient
-          <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base text-ink">
-            {patients.map((patient: any) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
-          </select>
+          <SearchSelect
+            items={patients.map((patient: any) => ({ id: patient.id, label: patient.name }))}
+            value={patientId}
+            onChange={setPatientId}
+            placeholder="Select patient"
+            ariaLabel="Patient"
+          />
         </label>
-        <label className="text-xs font-bold text-muted">
+        <label className="text-[12px] font-bold text-muted">
           Doctor
-          <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base text-ink">
-            {doctors.map((doctor: any) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
-          </select>
+          <SearchSelect
+            items={doctors.map((doctor: any) => ({ id: doctor.id, label: doctor.name }))}
+            value={doctorId}
+            onChange={setDoctorId}
+            placeholder="Select doctor"
+            ariaLabel="Doctor"
+          />
         </label>
       </div>
 
-      <button className="mt-2 text-xs font-semibold text-accent hover:underline" onClick={() => setAddingPatient((value) => !value)}>
+      <button className="mt-2 text-[12px] font-semibold text-accent hover:underline" onClick={() => setAddingPatient((value) => !value)}>
         {addingPatient ? "Use an existing patient" : "Add a new patient"}
       </button>
       {addingPatient && (
-        <div className="mt-2 rounded-card border border-line bg-canvas p-3">
+        <div className="mt-2 rounded-card border border-line bg-paper p-3">
           <div className="grid gap-2 sm:grid-cols-2">
-            <input value={patientForm.name} onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })} placeholder="Name" className="rounded-ctl border border-line px-3 py-2 text-sm" />
-            <input value={patientForm.email} onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })} placeholder="Email" type="email" className="rounded-ctl border border-line px-3 py-2 text-sm" />
-            <input value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} placeholder="Phone (optional)" className="rounded-ctl border border-line px-3 py-2 text-sm" />
+            <input value={patientForm.name} onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })} placeholder="Name" className="rounded-ctl border border-line px-3 py-2 text-[13px]" />
+            <input value={patientForm.email} onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })} placeholder="Email" type="email" className="rounded-ctl border border-line px-3 py-2 text-[13px]" />
+            <input value={patientForm.phone} onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })} placeholder="Phone (optional)" className="rounded-ctl border border-line px-3 py-2 text-[13px]" />
             <Button small variant="secondary" disabled={busy || !patientForm.name.trim() || !patientForm.email.trim()} onClick={addPatient}>
               {busy ? <Spinner /> : "Save patient"}
             </Button>
@@ -128,7 +234,7 @@ export function ManualAppointmentModal({
         </div>
       )}
 
-      <p className="mt-3 text-xs font-bold text-muted">Appointment type</p>
+      <p className="mt-3 text-[12px] font-bold text-muted">Appointment type</p>
       <div className="mt-1 flex gap-2">
         {TYPES.map((item) => (
           <Button key={item} small variant={type === item ? "primary" : "secondary"} onClick={() => setType(item)}>
@@ -137,18 +243,18 @@ export function ManualAppointmentModal({
         ))}
       </div>
 
-      <label className="mt-3 block text-xs font-bold text-muted">
+      <label className="mt-3 block text-[12px] font-bold text-muted">
         Valid date and time
         {slots.length === 0 ? (
           <div className="mt-1"><Empty>No open slots for this doctor and type.</Empty></div>
         ) : (
-          <select value={slot} onChange={(e) => setSlot(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base text-ink">
+          <select value={slot} onChange={(e) => setSlot(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
             <option value="">Select a time</option>
             {slots.map((item: any) => <option key={item.startUtc} value={item.startUtc}>{fmtWhenManila(item.startUtc)}</option>)}
           </select>
         )}
       </label>
-      <p className="mt-1 text-xs text-muted">The selected time is checked again before the appointment is saved.</p>
+      <p className="mt-1 text-[11px] text-muted">The selected time is checked again before the appointment is saved.</p>
     </Modal>
   );
 }

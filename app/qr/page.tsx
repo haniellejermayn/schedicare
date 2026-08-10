@@ -43,10 +43,10 @@ export default async function QrPage({
 
       {!target ? (
         <Card className="border-bad-line bg-bad-soft p-5">
-          <p className="text-base font-semibold text-bad">
+          <p className="text-[14px] font-semibold text-bad">
             No network address found.
           </p>
-          <p className="mt-1 text-base text-ink-soft">
+          <p className="mt-1 text-[14px] text-ink-soft">
             The laptop does not appear to be on wi-fi. Connect it to a network —
             or to a phone&apos;s hotspot — and reload.
           </p>
@@ -61,7 +61,7 @@ export default async function QrPage({
               role="img"
               aria-label={`QR code for ${target}`}
             />
-            <p className="tnum break-all text-center font-mono text-base font-semibold text-ink">
+            <p className="tnum break-all text-center font-mono text-[14px] font-semibold text-ink">
               {target}
             </p>
           </Card>
@@ -76,14 +76,14 @@ export default async function QrPage({
                   <Chip tone="warn">Same wi-fi required</Chip>
                 )}
               </div>
-              <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 text-base text-ink-soft">
+              <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 text-[14px] text-ink-soft">
                 <li>
                   Start the server with{" "}
-                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-sm">
+                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[13px]">
                     npm run dev:lan
                   </code>
                   . The plain{" "}
-                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-sm">
+                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[13px]">
                     npm run dev
                   </code>{" "}
                   binds to localhost only, and no phone can reach it.
@@ -102,7 +102,7 @@ export default async function QrPage({
 
             <Card className="p-5">
               <Eyebrow>If phones cannot load it</Eyebrow>
-              <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-base text-ink-soft">
+              <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-[14px] text-ink-soft">
                 <li>
                   <b className="text-ink">Hotspot.</b> Turn on your phone&apos;s
                   hotspot, join the laptop to it, reload this page for the new
@@ -111,18 +111,18 @@ export default async function QrPage({
                 </li>
                 <li>
                   <b className="text-ink">Public tunnel.</b> Run{" "}
-                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-sm">
+                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[13px]">
                     cloudflared tunnel --url http://localhost:3000
                   </code>
                   , then open{" "}
-                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-sm">
+                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[13px]">
                     /qr?url=&lt;the https link&gt;
                   </code>
                   . Any phone on cellular can then reach it.
                 </li>
                 <li>
                   <b className="text-ink">No phones at all.</b> Project{" "}
-                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-sm">
+                  <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[13px]">
                     /book?frame=phone
                   </code>{" "}
                   instead — the patient view inside a phone bezel.
@@ -135,7 +135,7 @@ export default async function QrPage({
                 <Eyebrow>Other addresses on this machine</Eyebrow>
                 <ul className="mt-2 flex flex-col gap-1">
                   {addresses.slice(1).map((a) => (
-                    <li key={a.address} className="text-base text-muted">
+                    <li key={a.address} className="text-[14px] text-muted">
                       <span className="tnum font-mono">{a.address}</span> ·{" "}
                       {a.name}
                       {!a.likelyReachable && " — virtual adapter, unlikely"}

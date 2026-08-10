@@ -52,12 +52,14 @@ interface CorpusCase {
   id: string;
   category: string;
   body: string;
+  outboundContext?: string;
   expected: {
     intent?: ConstraintIntent;
     hard?: SchedulingConstraintSet["hard"];
     soft?: SchedulingConstraintSet["soft"];
     unresolved?: boolean;
     guard?: boolean;
+    evidence?: string[];
     /** Field paths (e.g. "hard.allowedDaysOfWeek") where presence and absence
      * are BOTH acceptable — for genuinely bistable encodings. Documented per
      * case; not counted in field tallies either way. */
@@ -250,11 +252,15 @@ let guardReached = 0;
 let liveRuns = 0;
 let fallbackRuns = 0;
 
-async function predictFor(body: string): Promise<SchedulingConstraintSet> {
+async function predictFor(c: CorpusCase): Promise<SchedulingConstraintSet> {
   if (CANDIDATE === "baseline")
-    return fromLegacyInterpretation(ruleClassifyReply(body));
+    return fromLegacyInterpretation(ruleClassifyReply(c.body));
   const run = await extractConstraints(
-    { caseId: null, replyBody: body },
+    {
+      caseId: null,
+      replyBody: c.body,
+      outboundContext: c.outboundContext,
+    },
     { caseId: null },
   );
   if (run.mode === "live") liveRuns++;
@@ -285,7 +291,7 @@ async function main() {
         const legacyIntent = ruleClassifyReply(c.body).intent;
         reached = legacyIntent === "needs_human" || legacyIntent === "question";
       } else if (!reached) {
-        const p = await predictFor(c.body);
+        const p = await predictFor(c);
         // Layered detection: the extractor's clinical flag or an ambiguous
         // routing both put the message in front of a human.
         reached = p.clinicalContentDetected || p.intent === "ambiguous";
@@ -325,7 +331,7 @@ async function main() {
       confidence: 1,
       summary: "",
     });
-    const predictedRaw = await predictFor(c.body);
+    const predictedRaw = await predictFor(c);
 
     // Normalize BOTH sides through the same deterministic validator before
     // comparing, so semantically identical sets (e.g. an explicit end at
@@ -345,9 +351,17 @@ async function main() {
     const unresolvedOk =
       expectedN.unresolvedStatements.length > 0 ===
       predicted.unresolvedStatements.length > 0;
+    const evidenceOk = (c.expected.evidence ?? []).every((field) =>
+      predicted.evidence.some(
+        (e) =>
+          e.field === field &&
+          c.body.toLowerCase().includes(e.sourceText.toLowerCase()),
+      ),
+    );
     const clinicalOk = !predicted.clinicalContentDetected; // routine message must not be flagged
     if (intentOk) r.intentOk++;
-    const full = intentOk && exact && unresolvedOk && predV.ok && clinicalOk;
+    const full =
+      intentOk && exact && unresolvedOk && evidenceOk && predV.ok && clinicalOk;
     if (full) r.fullMatch++;
     else {
       const why: string[] = [];
@@ -362,6 +376,7 @@ async function main() {
             ? `unresolved-flag: got ${short2(predicted.unresolvedStatements[0])}`
             : "unresolved-flag: expected something unresolved, got none",
         );
+      if (!evidenceOk) why.push("missing or non-verbatim evidence");
       failures.push({
         id: c.id,
         category: c.category,

@@ -40,10 +40,10 @@ diagram (Diagram 2) as a backup slide for Q&A.
 
 **Say:** Our "tree" is honestly a gated graph — and that's deliberate.
 There's no LLM supervisor: orchestration is a deterministic state machine
-(LangGraph checkpointed threads; edges route on database state). Four LLM
-specialists sit at the open-ended joints — assessment, slot-search
-narration, continuation drafting (replies to what a patient said), and
-reply understanding. First-contact mail is deliberately template-rendered:
+(LangGraph checkpointed threads; edges route on database state). Specialist
+models sit only at open-ended joints: summarizing disruption context, choosing
+useful searches, explaining code-ranked options, understanding free-text
+replies, and choosing a bounded negotiation move. First-contact mail is deliberately template-rendered:
 we drafted with the model, extended the template until it covered the
 space, then demoted the model — enumeration succeeded, so the model keeps
 only the open-ended half. Every path out of
@@ -65,9 +65,10 @@ diffs. No vector store — by design.
 _Stack:_ Next.js 14 + TS strict · Drizzle/SQLite · LangGraph · Claude
 Sonnet 4.6 on Bedrock · Gmail + Google Calendar (simulated twins).
 
-**Say (pick one beat):** The scheduling agent never searches slots — it only
-chooses which searches to run; slots come verbatim from the engine. That's
-the pattern everywhere: the model proposes, code disposes.
+**Say (pick one beat):** Assessment compresses many affected visits for staff;
+scheduling chooses searches but receives every time verbatim from the engine;
+recovery explains a deterministic ranking. These supporting agents improve
+comprehension without becoming authorities: the model proposes, code disposes.
 
 ## 5 · Observability & failure handling — 1:15
 
@@ -77,7 +78,9 @@ toggle ON (tool calls + arguments visible) next to the same view OFF
 
 **Say:** Every tool call, argument, transition, and decision lands on a
 per-case timeline — plain secretary language by default, full technical
-trace behind a toggle — plus an actor-attributed audit log, and a
+trace behind a toggle. The summaries are audit captions for people, not
+chain-of-thought and not inputs to routing, ranking, validation, or execution.
+The same events also feed an actor-attributed audit log and a
 `why-not-resolved` script that prints exactly what blocks any case.
 Failure modes are designed, not hoped: if Bedrock is down, every agent
 degrades to a deterministic fallback with the same schemas — degrading to
@@ -94,11 +97,11 @@ arc only (per the runbook):
 
 1. (~40s) Walk the existing timeline: detected → assessed → 3 validated
    offers → staff approved → sent. Point at the gates.
-2. Paste Camille's Taglish counter → extraction + constraint editor appear;
+2. Paste Miguel's compound Taglish counter — `Hindi ako available that time. Wednesday or Thursday after 4 PM sana, pero not August 14 po.` → the required-review panel and constraint editor appear;
    narrate evidence quotes and hard/soft while inference runs.
-3. Zero slots → relaxation hints with computed yields → "Keep everything —
-   ask the patient" → clarification card → Approve → the email lands **in
-   the same Gmail thread**.
+3. Zero same-doctor slots → computed relaxation hint → **Ask about another
+   doctor** → natural Taglish clarification card → Approve → the email lands
+   **in the same Gmail thread**.
 4. Paste her concession → merge diff on the timeline → offer card →
    Approve → paste "Okay po, noted!" → deterministic confirmation ack →
    case resolves on its own.
@@ -115,9 +118,9 @@ it is one).
 
 **Slide:** Measured: **34% → 100%** reply-understanding vs a rules baseline
 on a 66-case Taglish dev corpus (_dev-set figure; frozen held-out set is
-the next step_) · 79 automated tests · every action gated. Projected:
-recovery latency, staff minutes per disruption, after-hours coverage,
-waitlist backfill. Future: SMS + call-log intake — **integrations, not
+the next step_) · 95 automated tests · every action gated. Projected:
+recovery latency, staff minutes per disruption, after-hours coverage.
+Future: SMS, call-log, and appointment-email intake — **integrations, not
 redesigns**; the extractor consumes text, the gates consume
 recommendations; none of it knows the channel.
 
@@ -171,10 +174,29 @@ Fields for the provided template:
 - **Why not just Gmail + Calendar manually?** That's our baseline, not a
   competitor: it costs staff-minutes per disruption, stops at closing time,
   and one doctor out means N patients × M rounds of email tag.
-- **Is ranking LLM-based?** No — deliberately. Ranking is a repeated
-  fairness decision: like cases must rank alike, weights must be auditable
-  and contestable factor by factor, and staff Modify is the override. Model
-  variance there is a bug, not intelligence.
+- **Is slot ranking LLM-based?** No — deliberately. AI extracts patient
+  constraints and explains the result, but deterministic scoring orders valid
+  slots so like cases rank alike. The weights are auditable factor by factor,
+  and staff Modify is the override.
+- **Why use agents at all, and why not make the whole system an LLM?** Models
+  help where enumeration fails: compressing context, interpreting free text,
+  and phrasing the next bounded move. Code owns states, slot validity, ranking,
+  policy guards, and external writes because those must be repeatable and
+  testable; Assessment and Recovery can fall back to deterministic playbooks.
+- **Why does scheduling need an LLM?** It can choose useful tool searches as
+  semantic constraints grow, but it is not required to validate or invent a
+  time. Fixed cases use the deterministic fallback, and every returned slot
+  still comes from and is rechecked by the scheduling engine.
+- **How does doctor capacity affect ranking?** It does not reward an empty day.
+  Load is neutral below 80%, then receives only a small penalty near the hard
+  cap, so patient preference, continuity, visit type, and timing remain primary.
+- **How do urgent, routine, and follow-up affect appointment times?** The
+  appointment type selects each doctor's allowed windows and visit duration;
+  every result still enforces workdays, buffers, daily caps, calendar
+  conflicts, and patient constraints. Urgent is an operational priority signal
+  and can let a faster cross-doctor option win; follow-ups strongly preserve
+  continuity with the same doctor; routine visits use the standard weighted
+  ranking. This is scheduling policy, not clinical triage.
 - **Are the extraction numbers real?** Dev-set figures, stated as such:
   prompt and labels were iterated on those 66 cases; a frozen held-out set
   is the next evaluation step. The honest comparison is same-scorer,

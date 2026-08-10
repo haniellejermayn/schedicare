@@ -12,6 +12,10 @@ import { useMemo, useState } from "react";
 import { Button, Chip, Spinner, cn } from "@/components/ui";
 import { jfetch, fmtWhenManila } from "@/lib/format";
 import { CONSTRAINT_FIELD_LABELS } from "@/core/constraints";
+import {
+  ManualSlotPicker,
+  type ManualSlot,
+} from "@/components/ManualSlotPicker";
 
 const DOW = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -28,6 +32,12 @@ type AnySet = {
 };
 
 const FIELD_LABELS = CONSTRAINT_FIELD_LABELS;
+
+export type ConstraintCompletion = {
+  patientId: string;
+  previousRecommendationId: string;
+  operation: "replan" | "negotiate";
+};
 
 /** hard key ↔ soft twin, for the demote/promote toggle. */
 const SOFT_TWIN: Record<string, string> = {
@@ -63,12 +73,16 @@ export function ConstraintEditor({
   caseId,
   latest,
   conversations,
-  onDone,
+  embedded = false,
+  onRefresh,
+  onComplete,
 }: {
   caseId: string;
   latest: any; // one entry of meta.constraintsByAppt — carries its own identity
   conversations: any[];
-  onDone: () => void;
+  embedded?: boolean;
+  onRefresh: () => void;
+  onComplete: (completion: ConstraintCompletion) => void;
 }) {
   const [set, setSet] = useState<AnySet>(() => structuredClone(latest.set));
   const [dirty, setDirty] = useState(false);
@@ -77,7 +91,10 @@ export function ConstraintEditor({
   >("");
   const [note, setNote] = useState<string>("");
   const [slots, setSlots] = useState<any[] | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
   const [relaxations, setRelaxations] = useState<any[]>([]);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualSlot, setManualSlot] = useState<ManualSlot | null>(null);
 
   // Identity was captured server-side at extraction time — the entry IS the
   // source of truth. Only the current recommendation may have moved since.
@@ -151,7 +168,7 @@ export function ConstraintEditor({
           ? `Saved with ${r.warnings.length} normalization note(s).`
           : "Saved.",
       );
-      onDone();
+      onRefresh();
     } catch (e: any) {
       setNote(`Could not save: ${e.message ?? e}`);
     } finally {
@@ -159,7 +176,7 @@ export function ConstraintEditor({
     }
   };
 
-  const search = async () => {
+  const search = async (limit = 6) => {
     if (!target.appointmentId)
       return setNote(
         "No appointment is linked to this reply — handle manually.",
@@ -169,9 +186,14 @@ export function ConstraintEditor({
     try {
       const r = await jfetch(`/api/cases/${caseId}/constraints/search`, {
         method: "POST",
-        body: JSON.stringify({ set, appointmentId: target.appointmentId }),
+        body: JSON.stringify({
+          set,
+          appointmentId: target.appointmentId,
+          limit,
+        }),
       });
       setSlots(r.slots);
+      setTotalCount(r.totalCount ?? r.slots.length);
       setRelaxations(r.relaxations ?? []);
       if (r.slots.length === 0 && (r.relaxations ?? []).length === 0)
         setNote(
@@ -184,7 +206,7 @@ export function ConstraintEditor({
     }
   };
 
-  const delegateToNegotiator = async () => {
+  const delegateToNegotiator = async (targetField?: string) => {
     if (!target.appointmentId || !target.supersededRecId)
       return setNote(
         "Missing appointment/recommendation linkage — handle manually.",
@@ -198,6 +220,7 @@ export function ConstraintEditor({
           set,
           appointmentId: target.appointmentId,
           supersededRecId: target.supersededRecId,
+          targetField,
         }),
       });
       setNote(
@@ -205,7 +228,11 @@ export function ConstraintEditor({
       );
       setSlots(null);
       setRelaxations([]);
-      onDone();
+      onComplete({
+        patientId: latest.patientId,
+        previousRecommendationId: target.supersededRecId,
+        operation: "negotiate",
+      });
     } catch (e: any) {
       setNote(`Could not start the negotiation: ${e.message ?? e}`);
     } finally {
@@ -234,7 +261,11 @@ export function ConstraintEditor({
         "Approved — the new offer will appear below for your review in a moment.",
       );
       setSlots(null);
-      onDone();
+      onComplete({
+        patientId: latest.patientId,
+        previousRecommendationId: target.supersededRecId,
+        operation: "replan",
+      });
     } catch (e: any) {
       setNote(`Could not start the replan: ${e.message ?? e}`);
     } finally {
@@ -256,14 +287,23 @@ export function ConstraintEditor({
   ].filter((r) => present(r.value));
 
   const approved = latest.disposition === "approved";
+  const systemDefaultFields = new Set<string>(
+    latest.systemDefaultFields ?? [],
+  );
 
   return (
-    <div className="rounded-card border border-line bg-surface p-4">
+    <div
+      className={cn(
+        !embedded && "rounded-card border border-line bg-white p-4",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="eyebrow">
-            Extracted constraints — {target.patientName}
-          </h2>
+          {!embedded && (
+            <h2 className="eyebrow">
+              Extracted constraints — {target.patientName}
+            </h2>
+          )}
           <Chip tone={latest.mode === "live" ? "ok" : "neutral"}>
             {latest.mode === "live" ? "AI extracted" : "manual"}
           </Chip>
@@ -273,16 +313,16 @@ export function ConstraintEditor({
           {approved && <Chip tone="ok">approved</Chip>}
         </div>
       </div>
-      <p className="mt-1 text-sm text-muted">{set.summary}</p>
+      <p className="mt-1 text-[13px] text-muted">{set.summary}</p>
 
       {Array.isArray(latest.diff) && latest.diff.length > 0 && (
         <div className="mt-2 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
-          <p className="text-xs font-semibold text-ink">
+          <p className="text-[12px] font-semibold text-ink">
             Changed by the latest reply:
           </p>
           <ul className="mt-0.5 space-y-0.5">
             {latest.diff.map((c: any, i: number) => (
-              <li key={i} className="text-xs text-ink">
+              <li key={i} className="text-[12px] text-ink">
                 <span className="font-semibold capitalize">{c.op}</span> —{" "}
                 {FIELD_LABELS[c.field] ?? c.field}
                 {c.scope === "soft" ? " (preference)" : ""}
@@ -299,7 +339,7 @@ export function ConstraintEditor({
       )}
 
       {set.clinicalContentDetected && (
-        <div className="mt-2 rounded-ctl border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad">
+        <div className="mt-2 rounded-ctl border border-bad/40 bg-bad/5 px-3 py-2 text-[13px] text-bad">
           Possible clinical content — read the original message before acting.
           Nothing is automated for this reply.
         </div>
@@ -308,6 +348,7 @@ export function ConstraintEditor({
       <ul className="mt-3 space-y-1.5">
         {rows.map(({ scope, key, value }) => {
           const quote = evidenceFor(scope, key);
+          const systemDefault = systemDefaultFields.has(`${scope}.${key}`);
           return (
             <li
               key={`${scope}.${key}`}
@@ -315,21 +356,30 @@ export function ConstraintEditor({
             >
               <div className="flex items-center gap-2">
                 <Chip
-                  tone={scope === "hard" ? "bad" : "neutral"}
-                  className="!text-micro uppercase"
+                  tone={
+                    systemDefault
+                      ? "warn"
+                      : scope === "hard"
+                        ? "bad"
+                        : "neutral"
+                  }
+                  className="!text-[10px] uppercase"
                 >
-                  {scope}
+                  {systemDefault ? "clinic default" : scope}
                 </Chip>
-                <span className="text-sm font-semibold text-ink">
-                  {FIELD_LABELS[key] ?? key}
+                <span className="text-[13px] font-semibold text-ink">
+                  {systemDefault
+                    ? "Keep current doctor unless patient agrees"
+                    : FIELD_LABELS[key] ?? key}
                 </span>
-                <span className="text-sm text-ink">
+                <span className="text-[13px] text-ink">
                   {fmtValue(key, value)}
                 </span>
                 <span className="flex-1" />
-                {(scope === "hard" ? SOFT_TWIN[key] : HARD_TWIN[key]) && (
+                {!systemDefault &&
+                  (scope === "hard" ? SOFT_TWIN[key] : HARD_TWIN[key]) && (
                   <button
-                    className="text-xs font-semibold text-accent hover:underline"
+                    className="text-[12px] font-semibold text-accent hover:underline"
                     onClick={() => toggleScope(scope, key)}
                     title={
                       scope === "hard"
@@ -340,16 +390,18 @@ export function ConstraintEditor({
                     {scope === "hard" ? "→ preference" : "→ required"}
                   </button>
                 )}
-                <button
-                  className="text-sm text-muted hover:text-bad"
-                  onClick={() => removeField(scope, key)}
-                  title="Remove"
-                >
-                  ✕
-                </button>
+                {!systemDefault && (
+                  <button
+                    className="text-[13px] text-muted hover:text-bad"
+                    onClick={() => removeField(scope, key)}
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
               {quote && (
-                <p className="mt-1 pl-1 text-xs italic text-muted">
+                <p className="mt-1 pl-1 text-[12px] italic text-muted">
                   “{quote}”
                 </p>
               )}
@@ -357,7 +409,7 @@ export function ConstraintEditor({
           );
         })}
         {rows.length === 0 && (
-          <li className="text-sm text-muted">
+          <li className="text-[13px] text-muted">
             No constraints — every open slot qualifies.
           </li>
         )}
@@ -365,21 +417,21 @@ export function ConstraintEditor({
 
       {set.unresolvedStatements.length > 0 && (
         <div className="mt-3 rounded-ctl border border-warn/50 bg-warn/5 px-3 py-2">
-          <p className="text-xs font-semibold text-ink">
+          <p className="text-[12px] font-semibold text-ink">
             Needs your judgement (not auto-processed):
           </p>
           <ul className="mt-1 space-y-1">
             {set.unresolvedStatements.map((u, i) => (
               <li
                 key={i}
-                className="flex items-center gap-2 text-sm text-ink"
+                className="flex items-center gap-2 text-[13px] text-ink"
               >
                 <span className="flex-1 italic">“{u}”</span>
                 <button
-                  className="text-xs font-semibold text-accent hover:underline"
+                  className="text-[12px] font-semibold text-accent hover:underline"
                   onClick={() => resolveStatement(i)}
                 >
-                  mark resolved
+                  Ignore for slot search
                 </button>
               </li>
             ))}
@@ -404,38 +456,99 @@ export function ConstraintEditor({
             set.unresolvedStatements.length > 0 ||
             !!set.clinicalContentDetected
           }
-          onClick={search}
+          onClick={() => search()}
         >
           {busy === "search" ? <Spinner /> : "Search matching slots"}
         </Button>
+        <Button
+          small
+          variant="secondary"
+          disabled={
+            busy !== "" ||
+            dirty ||
+            set.unresolvedStatements.length > 0 ||
+            !!set.clinicalContentDetected
+          }
+          onClick={() => {
+            setManualOpen((open) => !open);
+            setManualSlot(null);
+          }}
+        >
+          {manualOpen ? "Close time picker" : "Pick another valid time"}
+        </Button>
         {dirty && (
-          <span className="text-xs text-muted">
+          <span className="text-[12px] text-muted">
             Save your edits before searching.
           </span>
         )}
         {!dirty && set.unresolvedStatements.length > 0 && (
-          <span className="text-xs text-muted">
+          <span className="text-[12px] text-muted">
             Resolve the highlighted statements first.
           </span>
         )}
       </div>
 
+      {manualOpen && target.appointmentId && (
+        <div className="mt-3 rounded-ctl border border-line p-3">
+          <p className="mb-2 text-[12px] text-muted">
+            Appointment type stays unchanged. Only times satisfying every hard
+            constraint, doctor rule, and calendar check are shown.
+          </p>
+          <ManualSlotPicker
+            name={`constraint-manual-${target.appointmentId}`}
+            selected={manualSlot}
+            onSelect={setManualSlot}
+            searchSlots={async (doctorId, day) => {
+              const r = await jfetch<any>(
+                `/api/cases/${caseId}/constraints/search`,
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    set,
+                    appointmentId: target.appointmentId,
+                    doctorId,
+                    day,
+                  }),
+                },
+              );
+              return { slots: r.slots ?? [], totalCount: r.totalCount ?? 0 };
+            }}
+            emptyMessage="No times for that doctor and day satisfy every reviewed hard constraint. Edit the constraints before choosing a conflicting time."
+          />
+          {manualSlot && (
+            <div className="mt-2 flex justify-end">
+              <Button
+                small
+                variant="success"
+                disabled={busy !== ""}
+                onClick={() => offer(manualSlot)}
+              >
+                {busy === "offer" ? <Spinner /> : "Offer this slot"}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {slots && slots.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          <p className="text-xs font-semibold text-ink">
-            Valid slots (hard constraints enforced; ranked by preferences):
+          <p className="text-[12px] font-semibold text-ink">
+            {totalCount > slots.length
+              ? `Showing the first ${slots.length} of ${totalCount} valid slots`
+              : `${totalCount} valid slot${totalCount === 1 ? "" : "s"}`} (hard
+            constraints enforced; ranked by preferences):
           </p>
           {slots.map((s: any) => (
             <div
               key={`${s.doctorId}|${s.startUtc}`}
               className="flex items-center gap-2 rounded-ctl border border-line px-3 py-2"
             >
-              <span className="text-sm font-semibold text-ink">
+              <span className="text-[13px] font-semibold text-ink">
                 {fmtWhenManila(s.startUtc)}
               </span>
-              <span className="text-sm text-muted">{s.doctorName}</span>
+              <span className="text-[13px] text-muted">{s.doctorName}</span>
               {s.chips?.map((ch: any, i: number) => (
-                <Chip key={i} tone="ok" className="!text-micro">
+                <Chip key={i} tone="ok" className="!text-[10px]">
                   {ch.label} +{ch.pts}
                 </Chip>
               ))}
@@ -452,19 +565,31 @@ export function ConstraintEditor({
               </Button>
             </div>
           ))}
+          {totalCount > slots.length && (
+            <div className="flex justify-center pt-1">
+              <Button
+                small
+                variant="secondary"
+                disabled={busy !== ""}
+                onClick={() => search(slots.length + 6)}
+              >
+                {busy === "search" ? <Spinner /> : "Show more"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
       {slots && slots.length === 0 && relaxations.length > 0 && (
         <div className="mt-3 rounded-ctl border border-accent-line bg-accent-soft px-3 py-2">
-          <p className="text-xs font-semibold text-ink">
+          <p className="text-[12px] font-semibold text-ink">
             No slot matches everything — but one relaxation would:
           </p>
           <ul className="mt-1 space-y-1">
             {relaxations.map((r: any) => (
               <li
                 key={r.field}
-                className="flex items-center gap-2 text-sm text-ink"
+                className="flex items-center gap-2 text-[13px] text-ink"
               >
                 <span className="flex-1">
                   Without{" "}
@@ -475,12 +600,22 @@ export function ConstraintEditor({
                   <span className="font-semibold tnum">{r.slotsIfDropped}</span>{" "}
                   option{r.slotsIfDropped === 1 ? "" : "s"}
                 </span>
-                <button
-                  className="text-xs font-semibold text-accent hover:underline"
-                  onClick={() => relaxOne(r.field)}
-                >
-                  relax this
-                </button>
+                {systemDefaultFields.has(`hard.${r.field}`) ? (
+                  <Button
+                    small
+                    disabled={busy !== "" || dirty}
+                    onClick={() => delegateToNegotiator(r.field)}
+                  >
+                    Ask about another doctor
+                  </Button>
+                ) : (
+                  <button
+                    className="text-[12px] font-semibold text-accent hover:underline"
+                    onClick={() => relaxOne(r.field)}
+                  >
+                    relax this
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -488,7 +623,7 @@ export function ConstraintEditor({
             <Button
               small
               disabled={busy !== "" || dirty}
-              onClick={delegateToNegotiator}
+              onClick={() => delegateToNegotiator()}
             >
               {busy === "negotiate" ? (
                 <Spinner />
@@ -496,7 +631,7 @@ export function ConstraintEditor({
                 "Keep everything — ask the patient"
               )}
             </Button>
-            <span className="text-xs text-muted">
+            <span className="text-[12px] text-muted">
               The AI drafts the question (citing these numbers); you approve it
               before anything is sent.
             </span>
@@ -507,7 +642,7 @@ export function ConstraintEditor({
       {note && (
         <p
           className={cn(
-            "mt-2 text-sm",
+            "mt-2 text-[13px]",
             note.startsWith("Could") || note.startsWith("Search failed")
               ? "text-bad"
               : "text-muted",

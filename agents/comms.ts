@@ -10,7 +10,30 @@ import {
 } from "@/core/types";
 
 export const CLINIC_NAME = "Riverside Family Clinic";
-const SIGNOFF = `Warm regards,\n${CLINIC_NAME}\n(02) 8641 0117`;
+export const SIGNOFF = `Warm regards,\n${CLINIC_NAME}\n(02) 8641 0117`;
+
+export const REPLY_REGISTERS = ["english", "taglish", "tagalog"] as const;
+export type ReplyRegister = (typeof REPLY_REGISTERS)[number];
+
+/** Conservative register signal; drafting receives only this enum, not reply text. */
+export function detectReplyRegister(body: string): ReplyRegister {
+  const words = body.toLowerCase().match(/[a-zÀ-ÿ]+/g) ?? [];
+  const filipino = new Set([
+    "ako", "ang", "ano", "ba", "baka", "basta", "dahil", "gusto",
+    "hindi", "iyon", "kasi", "ko", "lang", "may", "mga", "mo", "na",
+    "naman", "ng", "nga", "okay", "pero", "po", "pwede", "sana",
+    "sige", "si", "talaga", "yung",
+  ]);
+  const english = new Set([
+    "after", "appointment", "available", "before", "can", "day", "doctor",
+    "fine", "for", "is", "morning", "schedule", "that", "the", "time",
+    "week", "with", "work", "works",
+  ]);
+  const filipinoHits = words.filter((word) => filipino.has(word)).length;
+  if (filipinoHits === 0) return "english";
+  const englishHits = words.filter((word) => english.has(word)).length;
+  return filipinoHits >= 3 && englishHits === 0 ? "tagalog" : "taglish";
+}
 
 // ---------------------------------------------------------------------------
 // Drafting
@@ -59,6 +82,7 @@ export const DraftItemSchema = z.object({
   patientId: z.string(),
   patientName: z.string(),
   appointmentId: z.string().optional(),
+  replyRegister: z.enum(REPLY_REGISTERS).optional(),
   context: z.object({
     doctorName: z.string().optional(),
     originalWhen: z.string().optional(),
@@ -258,12 +282,13 @@ Hard rules:
 - Scheduling logistics ONLY. Never any medical advice, symptom talk, diagnoses, medication or dosage language.
 - Never invent times, doctors, or promises — use exactly the times given in the context.
 - The doctor's specific reason (family emergency, illness, etc.) is PRIVATE to the clinic: patients are told only "an unexpected emergency" or "is unexpectedly unavailable" — never the detail, even when the context includes it.
-- Always end with exactly this sign-off block, on its own lines: "Warm regards," then "Riverside Family Clinic Care Team" then "(02) 8641 0117". No other closing.
 - Availability wording: state an exact number of open slots only when it is 5 or fewer (where the number helps the patient decide); otherwise use qualitative phrasing ("we have several openings on weekday afternoons"). Large exact counts are internal and never reach the patient.
 - Cross-doctor offers must SAY SO: when the proposed doctor differs from the patient's usual doctor (context.doctorName), name the arrangement plainly — "with Dr. Reyes, who is covering for Dr. Santos" — and offer the alternative of waiting for their usual doctor (an invitation to reply; NEVER name a date for it that wasn't provided).
 - PRIVACY: the doctor's personal reason is never shared with patients. Say only "an unexpected emergency" or "is unexpectedly unavailable" — even if a specific reason appears anywhere in the context or conversation.
 - End every email with EXACTLY this sign-off block, nothing else after it:
 ${SIGNOFF}
+- Match only the supplied replyRegister enum. english: warm, plain English. taglish: use an English base with familiar Filipino words and at most one or two natural uses of "po". tagalog: conversational Filipino, never stiff or ceremonial. Never imitate slang, anger, misspellings, or excessive informality.
+- Avoid overly formal Tagalog such as "ipinababatid", "makipag-ugnayan", and "kung inyong nanaisin".
 - FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally — invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.
 - CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,
@@ -275,7 +300,7 @@ ${SIGNOFF}
     i.items
       .map(
         (it) =>
-          `- ${it.patientName} (${it.patientId}${it.appointmentId ? `, appt ${it.appointmentId}` : ""}): ${JSON.stringify(it.context)}`,
+          `- ${it.patientName} (${it.patientId}${it.appointmentId ? `, appt ${it.appointmentId}` : ""}, replyRegister=${it.replyRegister ?? "english"}): ${JSON.stringify(it.context)}`,
       )
       .join("\n"),
   fallback: async (i) => ({
@@ -348,6 +373,21 @@ function to24h(hRaw: number, mRaw: number, ampm?: string): string {
   if (ampm === "am" && h === 12) h = 0;
   if (!ampm && h <= 7) h += 12; // "after 4" almost always means afternoon
   return `${String(h).padStart(2, "0")}:${String(mRaw).padStart(2, "0")}`;
+}
+
+/** Narrow acknowledgement check used only when a concrete offer was sent. */
+export function isClearOfferAcceptance(body: string): boolean {
+  const t = body.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t || t.includes("?") || /\d/.test(t)) return false;
+  if (
+    /\b(but|pero|however|hindi|except|instead|another|different|after|before|earlier|later|morning|afternoon|evening|monday|tuesday|wednesday|thursday|friday|saturday|sunday|doctor|schedule|reschedul|cancel|maybe|baka|depende|check muna)\b/.test(
+      t,
+    )
+  )
+    return false;
+  return /^(?:yes|yes po|okay|okay po|ok|ok po|sige|sige po|sure|that works|that works for me|works for me|sounds good)(?:[,.!\s]+(?:thank you|thanks|salamat|salamat po))?[.!\s]*$/.test(
+    t,
+  );
 }
 
 export function ruleClassifyReply(body: string): ReplyInterpretation {

@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { usePoll } from "@/lib/usePoll";
 import { jfetch, fmtTimeManila, typeLabel } from "@/lib/format";
 import {
-  Avatar,
   Button,
   Card,
   Chip,
   Empty,
   Modal,
+  PageTitle,
   RailRow,
   Spinner,
   Tabs,
@@ -42,28 +42,16 @@ const DAY_START = 8 * 60;
 const DAY_END = 17 * 60;
 const DAY_LEN = DAY_END - DAY_START;
 
-/**
- * Visit-type colours resolve through the shared tokens rather than the literal
- * hexes this page used to carry — that local set was a third palette competing
- * with globals.css and tailwind.config.ts, and it is why the calendar legend
- * and the week grid showed different greens.
- */
 const TYPE_COLORS = {
-  follow_up: "var(--ok)",
-  routine: "var(--accent)",
-  urgent: "var(--bad)",
+  follow_up: "#5B8C6E",
+  routine: "#5C7D90",
+  urgent: "#B87050",
 } as const;
 
 const TYPE_BG = {
-  follow_up: "var(--ok-soft)",
-  routine: "var(--accent-soft)",
-  urgent: "var(--bad-soft)",
-} as const;
-
-const TYPE_LINE = {
-  follow_up: "var(--ok-line)",
-  routine: "var(--accent-line)",
-  urgent: "var(--bad-line)",
+  follow_up: "#E9F1EC",
+  routine: "#E7EEF1",
+  urgent: "#F7EEE8",
 } as const;
 
 function timeToMin(t: string): number {
@@ -98,14 +86,10 @@ function fmtDayLabel(day: string): string {
   });
 }
 
-/**
- * Circular progress ring for the daily caps / rest buffer section. `color`
- * takes a CSS variable so the rings stay on the token palette; the track uses
- * --line-strong rather than a literal grey.
- */
+/** Circular progress ring used in the daily caps / rest buffer section. */
 function Ring({
   percent,
-  color = "var(--accent)",
+  color = "#3F6F52",
   size = 80,
   strokeWidth = 7,
   children,
@@ -132,7 +116,7 @@ function Ring({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="var(--line-strong)"
+          stroke="#dadada"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -174,10 +158,10 @@ function NumField({
           min={0}
           value={value ?? 0}
           onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
-          className="tnum mt-1 w-20 rounded-ctl border border-line px-2 py-1 text-sm outline-none focus:border-accent"
+          className="tnum mt-1 w-20 rounded-ctl border border-line px-2 py-1 text-[13px] outline-none focus:border-accent"
         />
       ) : (
-        <p className="tnum mt-1 text-base font-bold text-ink">
+        <p className="tnum mt-1 text-[14px] font-bold text-ink">
           {value ?? "—"}
         </p>
       )}
@@ -197,7 +181,7 @@ function WindowRow({
 }) {
   const [start = "08:00", end = "17:00"] = value.split("-");
   const sel =
-    "rounded-ctl border border-line bg-surface px-2 py-1 tnum text-sm outline-none focus:border-accent";
+    "rounded-ctl border border-line bg-white px-2 py-1 tnum text-[13px] outline-none focus:border-accent";
   return (
     <div className="flex items-center gap-1.5">
       <select
@@ -212,7 +196,7 @@ function WindowRow({
           </option>
         ))}
       </select>
-      <span className="text-xs text-muted">to</span>
+      <span className="text-[12px] text-muted">to</span>
       <select
         className={sel}
         value={end}
@@ -228,7 +212,7 @@ function WindowRow({
       <button
         onClick={onRemove}
         aria-label="Remove window"
-        className="rounded-ctl px-1.5 py-0.5 text-sm font-bold text-muted hover:text-bad"
+        className="rounded-ctl px-1.5 py-0.5 text-[13px] font-bold text-muted hover:text-bad"
       >
         ×
       </button>
@@ -361,7 +345,7 @@ export default function DoctorPage() {
       value={typeFilter}
       onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
       aria-label="Filter by visit type"
-      className="rounded-ctl border border-line bg-surface px-2 py-1 text-xs font-semibold text-ink outline-none focus:border-accent"
+      className="rounded-ctl border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-accent"
     >
       <option value="all">All visit types</option>
       <option value="follow_up">Follow-up</option>
@@ -372,62 +356,47 @@ export default function DoctorPage() {
 
   return (
     <div className="space-y-5">
-      {/* Identity lives on the page, not in the shell — the shell would have to
-          duplicate this page's doctorId state to render it. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Avatar name={doctor?.name ?? "Doctor"} size={44} />
-          <div>
-            <h1 className="text-2xl font-bold text-ink">
-              {doctor?.name ?? "Doctor"}
-            </h1>
-            <p className="text-sm text-muted">
-              {doctor?.specialty ?? "Family Medicine"} · Riverside Family Clinic
-            </p>
+      <PageTitle
+        right={
+          <div className="flex items-center rounded-full border border-line bg-white p-0.5">
+            {doctors.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setDoctorId(d.id)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[13px] font-semibold",
+                  doctorId === d.id
+                    ? "bg-ink text-white shadow-cut"
+                    : "text-muted hover:text-ink",
+                )}
+              >
+                {d.name.replace(/^Dr\.\s*(\S+)\s+/, "Dr. ").trim()}
+              </button>
+            ))}
           </div>
-        </div>
-        <div
-          className="flex items-center rounded-full border border-line bg-surface p-0.5"
-          role="group"
-          aria-label="Viewing as"
-        >
-          {doctors.map((d) => (
-            <button
-              key={d.id}
-              onClick={() => setDoctorId(d.id)}
-              aria-pressed={doctorId === d.id}
-              className={cn(
-                "inline-flex min-h-[38px] items-center rounded-full px-3.5 text-sm font-semibold",
-                "transition-colors duration-fast",
-                doctorId === d.id
-                  ? "bg-ink text-white"
-                  : "text-muted hover:text-ink",
-              )}
-            >
-              {d.name.replace(/^Dr\.\s*(\S+)\s+/, "Dr. ").trim()}
-            </button>
-          ))}
-        </div>
-      </div>
+        }
+      >
+        {doctor?.name ?? "Doctor"}
+      </PageTitle>
 
       {/* Availability strip — deliberately NOT a RailRow, so it reads as a
           console control, not another event in the list. */}
       {isUnavailableToday ? (
         <div className="rounded-card border border-bad-line bg-bad-soft px-4 py-3">
           <p className="eyebrow !text-bad">Marked out today</p>
-          <p className="mt-1 text-base font-semibold text-ink">
+          <p className="mt-1 text-[14px] font-semibold text-ink">
             The front desk is rebooking your patients — nothing else for you to
             do.
           </p>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface-alt px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface-strong px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="eyebrow">Availability</p>
-            <p className="mt-0.5 text-base font-semibold text-ink">
+            <p className="mt-0.5 text-[14px] font-semibold text-ink">
               Can&apos;t come in?
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-[13px] text-muted">
               Pick the day, and the front desk starts rebooking. Nothing reaches
               patients until staff approve.
             </p>
@@ -438,7 +407,7 @@ export default function DoctorPage() {
         </div>
       )}
       {upcomingOut.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
           Also marked out:
           {upcomingOut.map((d) => (
             <Chip key={d} tone="bad">
@@ -447,7 +416,7 @@ export default function DoctorPage() {
           ))}
         </div>
       )}
-      {done && <p className="text-sm font-semibold text-ok">{done}</p>}
+      {done && <p className="text-[13px] font-semibold text-ok">{done}</p>}
 
       <Tabs<Tab>
         value={tab}
@@ -463,7 +432,7 @@ export default function DoctorPage() {
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {cap > 0 ? (
-              <div className="flex items-center gap-2 text-xs text-muted">
+              <div className="flex items-center gap-2 text-[12px] text-muted">
                 <div className="h-1.5 w-40 overflow-hidden rounded-full bg-line">
                   <div
                     className="h-full rounded-full bg-accent"
@@ -480,7 +449,7 @@ export default function DoctorPage() {
             <div className="flex items-center gap-2">
               {filterSelect}
               <div
-                className="flex items-center rounded-full border border-line bg-surface p-0.5"
+                className="flex items-center rounded-full border border-line bg-white p-0.5"
                 role="group"
                 aria-label="Today view"
               >
@@ -489,7 +458,7 @@ export default function DoctorPage() {
                     key={v}
                     onClick={() => setTodayView(v)}
                     className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                      "rounded-full px-2.5 py-0.5 text-[12px] font-semibold",
                       todayView === v
                         ? "bg-ink text-white"
                         : "text-muted hover:text-ink",
@@ -536,14 +505,14 @@ export default function DoctorPage() {
                     }
                     className="flex items-center gap-3 px-4 py-2.5"
                   >
-                    <span className="tnum w-[72px] text-base font-bold text-ink">
+                    <span className="tnum w-[72px] text-[14px] font-bold text-ink">
                       {fmtTimeManila(a.startUtc)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-semibold text-ink">
+                      <p className="truncate text-[14px] font-semibold text-ink">
                         {a.patientName}
                       </p>
-                      <p className="text-xs text-muted">
+                      <p className="text-[12px] text-muted">
                         {typeLabel(a.type)} · {apptMinutes(a)} min
                       </p>
                     </div>
@@ -556,7 +525,7 @@ export default function DoctorPage() {
               })}
             </>
           )}
-          <p className="pt-1 text-xs text-muted">
+          <p className="pt-1 text-[11px] text-muted">
             Scheduled visits shown; walk-ins are handled at the front desk and
             don&apos;t appear here.
           </p>
@@ -578,9 +547,9 @@ export default function DoctorPage() {
       )}
 
       {tab === "rules" && (
-        <Card className="p-4 bg-surface-alt">
+        <Card className="p-4 bg-surface-strong">
           <div className="flex items-center justify-between">
-            <h2 className="text-md font-bold text-ink">
+            <h2 className="font-display text-[15px] font-bold text-ink">
               Scheduling rules
             </h2>
             {rulesDraft ? (
@@ -606,12 +575,12 @@ export default function DoctorPage() {
               </Button>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="mt-0.5 text-[12px] text-muted">
             Every suggestion the system makes must fit these. Changes apply
             immediately.
           </p>
           {rulesMsg && (
-            <p className="mt-2 text-xs font-semibold text-ok">{rulesMsg}</p>
+            <p className="mt-2 text-[12px] font-semibold text-ok">{rulesMsg}</p>
           )}
           {!r ? (
             <div className="mt-3">
@@ -630,6 +599,7 @@ export default function DoctorPage() {
                       <button
                         key={w}
                         disabled={!rulesDraft}
+                        aria-pressed={on}
                         onClick={() =>
                           setRulesDraft((d: any) => ({
                             ...d,
@@ -641,8 +611,8 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-line bg-surface-alt text-ink/60"
-                            : "border-line bg-surface-alt text-muted",
+                            ? "border-[#5B8C6E] bg-[#5B8C6E] text-white"
+                            : "border-line bg-surface-alt text-[#5B8C6E]/40",
                           rulesDraft && "cursor-pointer",
                         )}
                       >
@@ -715,7 +685,7 @@ export default function DoctorPage() {
                                   },
                                 }))
                               }
-                              className="self-start text-xs font-semibold text-accent hover:underline"
+                              className="self-start text-[12px] font-semibold text-accent hover:underline"
                             >
                               + Add window
                             </button>
@@ -736,16 +706,16 @@ export default function DoctorPage() {
                         >
                           <div className="flex items-center justify-between">
                             <span
-                              className="rounded-full px-2.5 py-1 font-mono text-xs font-semibold"
+                              className="font-mono text-[11px] font-semibold px-2.5 py-1 rounded-full"
                               style={{
                                 backgroundColor: TYPE_BG[t],
                                 color: TYPE_COLORS[t],
-                                border: `1px solid ${TYPE_LINE[t]}`,
+                                border: `1px solid ${TYPE_COLORS[t]}55`,
                               }}
                             >
                               {typeLabel(t)}
                             </span>
-                            <span className="tnum text-2xl font-bold text-ink">
+                            <span className="font-display text-2xl font-bold text-ink">
                               {duration}
                               <span className="ml-1 text-xs font-normal text-muted">
                                 min
@@ -780,13 +750,13 @@ export default function DoctorPage() {
                               );
                             })}
                           </div>
-                          <div className="mt-1 flex justify-between font-mono text-micro text-muted">
+                          <div className="mt-1 flex justify-between font-mono text-[10px] text-muted">
                             <span>8am</span>
                             <span>12pm</span>
                             <span>5pm</span>
                           </div>
 
-                          <p className="mt-2 text-xs text-muted">
+                          <p className="mt-2 text-[11px] text-muted">
                             Allowed Window
                           </p>
                           <p className="text-sm font-bold text-ink">
@@ -862,54 +832,54 @@ export default function DoctorPage() {
                     return (
                       <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={dailyPct} color="var(--ok)">
-                            <span className="text-2xl font-bold text-ink">
+                          <Ring percent={dailyPct} color="#5B8C6E">
+                            <span className="font-display text-2xl font-bold text-ink">
                               {dailyMax || "—"}
                             </span>
                           </Ring>
-                          <p className="mt-1 text-xs font-semibold text-ink-soft">
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
                             Max Visits / Day
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={morningPct} color="var(--accent)">
-                            <span className="text-2xl font-bold text-ink">
+                          <Ring percent={100} color="#5C7D90">
+                            <span className="font-display text-2xl font-bold text-ink">
                               {morningMax || "—"}
                             </span>
                           </Ring>
-                          <p className="mt-1 text-xs font-semibold text-ink-soft">
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
                             Max Morning
                           </p>
-                          <p className="font-mono text-micro text-muted">
+                          <p className="font-mono text-[10px] text-muted">
                             08:00 – 12:00
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={afternoonPct} color="var(--accent)">
-                            <span className="text-2xl font-bold text-ink">
+                          <Ring percent={100} color="#5C7D90">
+                            <span className="font-display text-2xl font-bold text-ink">
                               {afternoonMax || "—"}
                             </span>
                           </Ring>
-                          <p className="mt-1 text-xs font-semibold text-ink-soft">
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
                             Max Afternoon
                           </p>
-                          <p className="font-mono text-micro text-muted">
+                          <p className="font-mono text-[10px] text-muted">
                             13:00 – 17:00
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={bufferPct} color="var(--warn)">
-                            <span className="text-2xl font-bold text-ink">
+                          <Ring percent={100} color="#A0791F">
+                            <span className="font-display text-2xl font-bold text-ink">
                               {bufferMin || "—"}
                               <span className="ml-1 text-xs font-normal text-muted">
                                 min
                               </span>
                             </span>
                           </Ring>
-                          <p className="mt-1 text-xs font-semibold text-ink-soft">
+                          <p className="mt-1 text-[12px] font-semibold text-ink-soft">
                             Break Buffer
                           </p>
-                          <p className="font-mono text-micro text-muted">
+                          <p className="font-mono text-[10px] text-muted">
                             After each visit
                           </p>
                         </div>
@@ -948,7 +918,7 @@ export default function DoctorPage() {
           <b> Nothing reaches patients until the front desk approves.</b>
         </p>
         <label
-          className="mt-3 block text-xs font-bold text-muted"
+          className="mt-3 block text-[12px] font-bold text-muted"
           htmlFor="out-date"
         >
           Which day?
@@ -959,10 +929,10 @@ export default function DoctorPage() {
           value={outDate}
           min={demoDay || undefined}
           onChange={(e) => setOutDate(e.target.value)}
-          className="tnum mt-1 rounded-ctl border border-line px-3 py-2 text-base outline-none focus:border-accent"
+          className="tnum mt-1 rounded-ctl border border-line px-3 py-2 text-[14px] outline-none focus:border-accent"
         />
         <label
-          className="mt-3 block text-xs font-bold text-muted"
+          className="mt-3 block text-[12px] font-bold text-muted"
           htmlFor="out-reason"
         >
           Reason
@@ -973,7 +943,7 @@ export default function DoctorPage() {
           onChange={(e) =>
             setOutReason(e.target.value as (typeof OUT_REASONS)[number])
           }
-          className="mt-1 w-full rounded-ctl border border-line bg-surface px-3 py-2 text-base outline-none focus:border-accent"
+          className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] outline-none focus:border-accent"
         >
           {OUT_REASONS.map((o) => (
             <option key={o} value={o}>
@@ -982,7 +952,7 @@ export default function DoctorPage() {
           ))}
         </select>
         <label
-          className="mt-3 block text-xs font-bold text-muted"
+          className="mt-3 block text-[12px] font-bold text-muted"
           htmlFor="out-note"
         >
           {outReason === "Other"
@@ -996,7 +966,7 @@ export default function DoctorPage() {
           placeholder={
             outReason === "Other" ? "e.g. clinic conference until Thursday" : ""
           }
-          className="mt-1 w-full rounded-ctl border border-line px-3 py-2 text-base outline-none focus:border-accent"
+          className="mt-1 w-full rounded-ctl border border-line px-3 py-2 text-[14px] outline-none focus:border-accent"
         />
       </Modal>
     </div>

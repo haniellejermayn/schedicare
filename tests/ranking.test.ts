@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { freshSeed } from "./helpers";
 import { scoreNoShowRisk } from "@/core/risk";
-import { rankRecoveryOptions, rankWaitlistCandidates } from "@/core/ranking";
+import {
+  rankRecoveryOptions,
+  rankWaitlistCandidates,
+  scoreRecoveryOption,
+} from "@/core/ranking";
 import { demoNow } from "@/core/clock";
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
@@ -98,7 +102,6 @@ describe("recovery option ranking", () => {
       originalDoctorId: "doc_a",
       originalStartUtc: "2026-08-10T02:00:00.000Z",
       patientPrefDayPart: "any" as const,
-      staffPriority: 0,
     };
     // Weighted score alone prefers the sooner cross-doctor slot…
     const routine = rankRecoveryOptions({ ...ctx, type: "routine" }, [
@@ -127,8 +130,6 @@ describe("recovery option ranking", () => {
       originalStartUtc: "2026-08-10T05:30:00.000Z", // Mon 1:30pm MNL
       patientPrefDayPart: "pm" as const,
       patientPreferredDoctorId: null,
-      staffPriority: 0,
-      acceptanceLikelihood: 0.9,
     };
     const soonPmSame = mk("2026-08-11T06:00:00.000Z", "doc_santos"); // Tue 2pm MNL
     const soonAmOther = mk("2026-08-11T00:30:00.000Z", "doc_reyes"); // Tue 8:30am MNL
@@ -144,21 +145,120 @@ describe("recovery option ranking", () => {
     }
   });
 
-  it("staff priority and waiting time raise the score", () => {
+  it("waiting time raises the score without an unsupported staff-priority factor", () => {
     const base = {
       originalDoctorId: "doc_santos",
       originalStartUtc: "2026-08-10T05:30:00.000Z",
       patientPrefDayPart: "any" as const,
       patientPreferredDoctorId: null,
-      staffPriority: 0,
     };
     const slot = mk("2026-08-11T06:00:00.000Z", "doc_santos");
     const normal = rankRecoveryOptions(base, [slot])[0];
-    const prioritized = rankRecoveryOptions(
-      { ...base, staffPriority: 2, waitingSinceDays: 14 },
+    const waiting = rankRecoveryOptions(
+      { ...base, waitingSinceDays: 14 },
       [slot],
     )[0];
-    expect(prioritized.score).toBeGreaterThan(normal.score);
+    expect(waiting.score).toBeGreaterThan(normal.score);
+    expect(waiting.chips.map((chip) => chip.label).join(" ")).not.toMatch(
+      /staff priority|acceptance/i,
+    );
+  });
+
+  it("uses small capacity penalties only at 80% and above", () => {
+    const slot = mk("2026-08-11T06:00:00.000Z", "doc_santos");
+    const base = {
+      originalDoctorId: "doc_santos",
+      originalStartUtc: "2026-08-10T05:30:00.000Z",
+      patientPrefDayPart: "pm" as const,
+    };
+    const below = scoreRecoveryOption(
+      { ...base, dayLoad: () => 0.79 },
+      slot,
+      slot.doctorName,
+    );
+    const gettingFull = scoreRecoveryOption(
+      { ...base, dayLoad: () => 0.8 },
+      slot,
+      slot.doctorName,
+    );
+    const nearlyFull = scoreRecoveryOption(
+      { ...base, dayLoad: () => 0.9 },
+      slot,
+      slot.doctorName,
+    );
+    expect(below.chips.some((chip) => /full/i.test(chip.label))).toBe(false);
+    expect(gettingFull.score).toBe(below.score - 2);
+    expect(nearlyFull.score).toBe(below.score - 4);
+  });
+
+  it("keeps patient preference stronger than the near-capacity penalty", () => {
+    const pmPreferred = mk("2026-08-11T06:00:00.000Z", "doc_reyes");
+    const amLowLoad = mk("2026-08-11T00:30:00.000Z", "doc_reyes");
+    const ranked = rankRecoveryOptions(
+      {
+        originalDoctorId: "doc_santos",
+        originalStartUtc: "2026-08-10T00:30:00.000Z",
+        patientPrefDayPart: "pm",
+        dayLoad: (slot) => (slot.block === "pm" ? 0.95 : 0.5),
+      },
+      [amLowLoad, pmPreferred],
+    );
+    expect(ranked[0].slot.startUtc).toBe(pmPreferred.startUtc);
+    expect(ranked.flatMap((item) => item.chips).map((chip) => chip.label).join(" "))
+      .not.toMatch(/historical acceptance|staff priority/i);
+  });
+
+  it("preserves the constraint search's preferred slot during recovery", async () => {
+    const { openCase, getCase } = await import("@/core/cases");
+    const { recoverStep } = await import("@/worker/steps");
+    const preferred = mk("2026-08-12T03:00:00.000Z", "doc_santos"); // 11:00 Manila
+    const earlier = mk("2026-08-12T00:00:00.000Z", "doc_santos"); // 08:00 Manila
+    const constraintSet = {
+      intent: "counter_proposal",
+      hard: { allowedDates: ["2026-08-12"] },
+      soft: {
+        preferredTimeWindows: [{ start: "11:00", end: "12:00" }],
+      },
+      unresolvedStatements: [],
+      clinicalContentDetected: false,
+      evidence: [],
+      confidence: 0.9,
+      summary: "Wednesday around 11 AM.",
+    };
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "medium",
+      title: "constraint-ranked recovery",
+      meta: {
+        doctorId: "doc_santos",
+        assessment: {
+          severity: "medium",
+          summary: "one patient",
+          items: [
+            {
+              appointmentId: "appt_grace",
+              patientId: "pat_grace",
+              patientName: "Grace Villanueva",
+              type: "follow_up",
+              startUtc: "2026-08-10T01:50:00.000Z",
+              priorityRank: 1,
+              priorityReason: "Patient counter-proposal",
+              tags: ["counter-proposal"],
+            },
+          ],
+        },
+        slotOptions: { appt_grace: [preferred, earlier] },
+        searchConstraints: { constraintSet },
+      },
+    });
+
+    await recoverStep(c.id, "appt_grace");
+    const plan = (getCase(c.id).meta as any).plans[0];
+    const chosen = plan.options.find(
+      (option: any) => option.id === plan.chosenOptionId,
+    );
+    expect(chosen.startUtc).toBe(preferred.startUtc);
   });
 });
 
@@ -197,7 +297,6 @@ describe("waitlist ranking", () => {
           type: w.type,
           dayPart: w.dayPart as any,
           addedAt: w.addedAt,
-          staffPriority: w.staffPriority,
           preferredDoctorId: w.doctorId,
           history: patientHistory(w.patientId),
         };

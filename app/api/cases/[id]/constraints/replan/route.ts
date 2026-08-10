@@ -28,13 +28,19 @@ export async function POST(
     return err("appointmentId and supersededRecId required", 422);
   const v = validateConstraintSet(parsed.data);
   if (!v.ok) return json({ ok: false, errors: v.errors }, { status: 422 });
-  const prior = ((c.meta as any) ?? {}).latestConstraints ?? {};
+  const byAppt = ((c.meta as any) ?? {}).constraintsByAppt ?? {};
+  const prior = byAppt[body.appointmentId] ?? {};
+  const reviewedAt = demoNowIso();
   updateCaseMeta(c.id, {
-    latestConstraints: {
-      ...prior,
-      set: v.normalized,
-      staffApprovedAt: demoNowIso(),
-      disposition: "approved",
+    constraintsByAppt: {
+      ...byAppt,
+      [body.appointmentId]: {
+        ...prior,
+        set: v.normalized,
+        appointmentId: body.appointmentId,
+        staffApprovedAt: reviewedAt,
+        reviewedAt,
+      },
     },
   });
   audit({

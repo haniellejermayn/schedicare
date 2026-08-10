@@ -1,17 +1,9 @@
 # PROJECT_STATUS — what shipped, what changed, what's cut
 
-Status date: build verified against `npm test` (**83/83 across 10 files**),
-`npm run typecheck` (strict, clean), and `npm run build` (clean). Extraction
-numbers carry the dev-set caveat (see v2.3).
-
-> **Native-dependency note.** `better-sqlite3` must resolve to a *single*
-> deduped copy. `@langchain/langgraph-checkpoint-sqlite` declares
-> `better-sqlite3@^12.10.0`; when the app's own dependency moved to `^13`, npm
-> installed a *second*, nested copy whose native binding never got built, and
-> `SqliteSaver.fromConnString()` threw at graph-compile time. The `overrides`
-> block in `package.json` pins every consumer to the app's version. If the
-> graph tests ever fail with `Could not locate the bindings file`, check for a
-> nested `better-sqlite3` under `node_modules/@langchain/` before anything else.
+Status date: verified against `npm test` (**91/91 across 11 files**) and
+`npm run typecheck` (strict, clean). Production compilation passed; final page
+collection must be rerun with the dev server stopped because both commands share
+`.next`. Extraction numbers carry the dev-set caveat (see v2.3).
 
 ## Guarded negotiation + demo hardening (v2.3)
 
@@ -54,9 +46,11 @@ staff gate (logged, state kept), decisions are accepted on escalated cases
 with pending proposals, and the staff-only guard on any transition into
 `executing` is unchanged. Two regression tests pin the behavior.
 
-**Extraction re-run (supersedes the v2.2 numbers).** After label corrections
-and prompt iteration: dev corpus **66 cases — 100% full match, guard 4/4**,
-vs the corrected deterministic baseline at **34%**. _Dev-set figures_ — a
+**Extraction re-run (supersedes the v2.2 numbers).** After adding the Grace
+approximate-time regression: dev corpus **67 cases — 91% full match, 100%
+intent, 91% field precision/recall, guard 4/4**, vs the corrected deterministic
+baseline at **34%**. The Grace case itself passes with a soft 11:00–12:00
+window, verbatim evidence, and no duplicate unresolved statement. _Dev-set figures_ — a
 frozen held-out set (~35 fresh cases, run once) is still owed before the
 defense, with dev numbers re-run at freeze time.
 
@@ -83,7 +77,7 @@ plus a lossy bridge down to the legacy four-field `ReplyInterpretation`
 constraints filter, soft preferences rank, and only `findOpenSlots` ever
 produces a time.
 
-**The yardstick.** `eval/constraintCorpus.json` (65 labeled messy replies:
+**The yardstick.** `eval/constraintCorpus.json` (67 labeled messy replies:
 compound, negation, relative dates, Taglish, doctor preferences, ambiguity,
 mixed clinical) + `eval/constraintBaseline.ts` scoring the deterministic
 guard+rules path field-by-field. Baseline (corrected labels): 63% intent, **31% full match**
@@ -124,7 +118,9 @@ frozen held-out set is the next evaluation step.
 
 ## Final capstone polish
 
-- The Messages tab keeps one operational case while grouping messages by patient. Outbound and inbound messages stay chronological, patients with no email still appear, and common Gmail/Outlook quoted history is hidden from the normal UI while the raw inbound body remains stored.
+- The Messages tab keeps one operational case while grouping messages by patient. Outbound and inbound messages stay chronological, patients with no email still appear, and common Gmail/Outlook quoted history—including folded `On …` / `wrote:` headers—is hidden from the normal UI while the raw inbound body remains stored.
+- Constraint review now opens from the relevant decision card in a modal. Saving edits or searching keeps the review pending and open; a successful offer or negotiation action completes the review and closes it.
+- Plain `npm run demo` uses the clean three-patient flagship profile. `npm run demo -- full` retains the three secondary sweep cases for backup questions.
 - Patient outcome cards support **Mark called**, **Mark handled**, and **Release hold** using existing recommendation outcomes, callback flags, Calendar deletion, timeline, and audit records.
 - Front desk staff can create a patient with name/email and optional phone, then create a confirmed appointment from existing doctors, appointment types, and validator-approved slots. The booking uses the doctor rule duration and existing live/simulated Calendar provider factory.
 - The Doctor view follows the demo clock, labels SchediCare `booked` appointments as **Temporary hold**, and shows whole-day unavailability with existing external Calendar busy blocks.
@@ -199,9 +195,9 @@ and health check (a readiness path, not the active integration).
    confirm" 2 hours before a visit is front-desk phone territory; the sweep
    targets tomorrow-and-later bookings inside the 36-hour window. This also
    keeps the boot queue focused (Paolo) instead of five overlapping nudges.
-4. **Assessment priority: visit type outranks staff priority.** Camille's
-   same-day urgent outranks Teresa's post-op staff-priority flag, matching the
-   product narrative; both remain top-2.
+4. **Assessment priority is operational and attributable.** Visit type,
+   timing, and continuity notes determine the order; the earlier seeded
+   `staffPriority` flag was removed because staff had no workflow to set it.
 5. **A superseded execution doesn't count as a recovery.** Miguel's first
    (countered) offer is excluded from the scoreboard's `rebooked` so the
    metric reflects patients actually recovered (5/6 + 1 phone callback), not
@@ -234,9 +230,7 @@ and health check (a readiness path, not the active integration).
   webhook calendars, timezone-per-patient, SMS. MCP is a readiness path with a
   working health check, not the active integration (see docs/MCP_FEASIBILITY.md).
 - **Accessibility:** semantic labels, no color-only status, reduced-motion
-  support, dialog focus traps with focus restore, and a palette whose contrast
-  is asserted in CI (`tests/tokens.test.ts` — AA for every text grade on both
-  grounds, 3:1 for every status rail). A full screen-reader pass was still not
+  support; a full audit (focus traps in dialogs, screen-reader passes) was not
   performed.
 
 ## Metrics snapshot (resilience mode, this machine — reproduce with `npm run eval`)

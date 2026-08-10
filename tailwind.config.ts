@@ -1,14 +1,12 @@
 import type { Config } from "tailwindcss";
-import { motion, neutral, radius, shadow, tone } from "./design/tokens";
 
 /**
- * Values come from design/tokens.ts — never hardcode a hex here. Semantics:
- *   accent = azure (brand / primary action) · ok = green · warn = amber
- *   bad = red · tech = slate-navy (agent + technical register)
- *
- * Per tone, `DEFAULT` is the WCAG-AA text/solid grade and `rail` is the vivid
- * grade for rails, dots and marks. See the note in design/tokens.ts about why
- * that split exists.
+ * Atlas Console adaptation (see DESIGN.md). Semantic mapping:
+ *   accent = teal (primary/brand) · ok = moss · warn = amber · bad = clay
+ *   tech = navy (technical/mono accents)
+ * Per tone: DEFAULT is the WCAG-AA text/solid grade; `rail` is the raw Atlas
+ * hue for rails, dots, and fills (3:1 graphical contrast is enough there);
+ * soft/line are tinted fill/border. Existing class names keep working.
  */
 export default {
   content: [
@@ -19,50 +17,51 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: neutral.canvas,
-        surface: {
-          DEFAULT: neutral.surface,
-          alt: neutral.surfaceAlt,
-          strong: neutral.surfaceStrong,
+        paper: "#f7f5ef",
+        surface: { alt: "#f4f6f0", strong: "#ecf0e7" },
+        line: "rgba(23, 33, 43, 0.12)",
+        strong: "rgba(23, 33, 43, 0.2)",
+        ink: { DEFAULT: "#17212b", soft: "#2f3a45" },
+        muted: "#62707c",
+        tech: "#1c3d5a",
+        accent: {
+          DEFAULT: "#16746e",
+          rail: "#1a7f79",
+          soft: "#e4f0ee",
+          line: "#b7d6d3",
+          press: "#125e59",
         },
-        line: { DEFAULT: neutral.line, strong: neutral.lineStrong },
-        ink: { DEFAULT: neutral.ink, soft: neutral.inkSoft },
-        muted: neutral.muted,
-        accent: tone.accent,
-        ok: tone.ok,
-        warn: tone.warn,
-        bad: tone.bad,
-        tech: tone.tech,
+        ok: {
+          DEFAULT: "#45703f",
+          rail: "#5f8b5a",
+          soft: "#ecf2e8",
+          line: "#c6d8c0",
+        },
+        warn: {
+          DEFAULT: "#8a6425",
+          rail: "#d8a357",
+          soft: "#f7eedd",
+          line: "#e8d3ab",
+        },
+        bad: {
+          DEFAULT: "#9c4626",
+          rail: "#c86b4b",
+          soft: "#f6e8e2",
+          line: "#e7c3b4",
+        },
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+        display: ['"Space Grotesk"', "system-ui", "sans-serif"],
+        body: ['"Spline Sans"', "system-ui", "sans-serif"],
+        mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
       },
-      fontSize: {
-        // A tight, deliberate scale. Anything not on it is a mistake.
-        micro: ["10.5px", { lineHeight: "1.4", letterSpacing: "0.1em" }],
-        xs: ["11.5px", { lineHeight: "1.45" }],
-        sm: ["12.5px", { lineHeight: "1.5" }],
-        base: ["14px", { lineHeight: "1.55" }],
-        md: ["15px", { lineHeight: "1.5" }],
-        lg: ["17px", { lineHeight: "1.4", letterSpacing: "-0.01em" }],
-        xl: ["20px", { lineHeight: "1.3", letterSpacing: "-0.015em" }],
-        "2xl": ["24px", { lineHeight: "1.22", letterSpacing: "-0.02em" }],
-        "3xl": ["30px", { lineHeight: "1.18", letterSpacing: "-0.022em" }],
-      },
-      borderRadius: {
-        ctl: radius.ctl,
-        card: radius.card,
-        modal: radius.modal,
-      },
+      borderRadius: { card: "12px", ctl: "8px", lg2: "18px", xl2: "28px" },
       boxShadow: {
-        xs: shadow.xs,
-        sm: shadow.sm,
-        md: shadow.md,
-        lg: shadow.lg,
+        cut: "0 2px 0 rgba(23, 33, 43, 0.55)",
+        soft: "0 18px 36px rgba(23, 33, 43, 0.14)",
       },
-      transitionTimingFunction: { snappy: motion.ease },
-      transitionDuration: { fast: motion.fast, base: motion.base },
+      transitionTimingFunction: { snappy: "cubic-bezier(0.3, 0.8, 0.2, 1)" },
+      transitionDuration: { fast: "140ms", base: "300ms" },
       keyframes: {
         rise: {
           "0%": { opacity: "0", transform: "translateY(4px)" },
@@ -72,18 +71,10 @@ export default {
           "0%": { opacity: "0", transform: "scale(0.98)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
-        "slide-up": {
-          "0%": { transform: "translateY(100%)" },
-          "100%": { transform: "translateY(0)" },
-        },
-        shimmer: {
-          "100%": { transform: "translateX(100%)" },
-        },
       },
       animation: {
-        rise: "rise 180ms cubic-bezier(0.2,0.8,0.2,1) both",
-        pop: "pop 140ms cubic-bezier(0.2,0.8,0.2,1) both",
-        "slide-up": "slide-up 260ms cubic-bezier(0.2,0.8,0.2,1) both",
+        rise: "rise 160ms ease-out both",
+        pop: "pop 140ms ease-out both",
       },
     },
   },

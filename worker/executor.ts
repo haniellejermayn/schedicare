@@ -12,7 +12,10 @@ import { autoSimulateReplies } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { audit } from "@/core/audit";
 import { getCase, maybeResolveCase, transitionCase } from "@/core/cases";
-import { validatePlacementNow } from "@/core/scheduling";
+import {
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+  validatePlacementNow,
+} from "@/core/scheduling";
 import {
   pickCalendarProvider,
   pickMailProvider,
@@ -673,6 +676,7 @@ async function executeReschedule(
     type: payload.type,
     startUtc: option.startUtc,
     ignoreAppointmentId: payload.appointmentId,
+    minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
   });
   if (!check.ok) {
     db.update(schema.recommendations)

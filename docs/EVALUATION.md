@@ -19,7 +19,6 @@ replan round → measure. Fully offline in resilience mode; with
 | Time to approval gate (6 patients)              | < 30 s | **~0.4 s** (fallback agents)                                                                           |
 | Agent-run errors                                | 0      | **0** (13 runs — one fewer than v1: the LLM orchestrator was replaced by the graph)                    |
 | Tool-call success                               | ≥ 95%  | 100% (0 calls in fallback — deterministic playbooks don't use the tool loop; live mode populates this) |
-| Care minutes recovered (flagship case)          | —      | **130**                                                                                                |
 
 ## Constraint-extraction corpus (`eval/constraintCorpus.json`)
 

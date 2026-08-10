@@ -12,7 +12,7 @@ export default function BookLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Suspense fallback={<div className="min-h-dvh bg-canvas" />}>
+    <Suspense fallback={<div className="min-h-dvh bg-paper" />}>
       {children}
     </Suspense>
   );

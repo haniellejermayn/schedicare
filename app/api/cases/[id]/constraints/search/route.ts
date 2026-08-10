@@ -28,6 +28,15 @@ export async function POST(
   if (!parsed.success) return err("invalid constraint set", 422);
   const appointmentId: string | undefined = body?.appointmentId;
   if (!appointmentId) return err("appointmentId required", 422);
+  const doctorId: string | undefined = body?.doctorId;
+  const day: string | undefined = body?.day;
+  const limit = Number.isInteger(body?.limit)
+    ? Math.min(60, Math.max(6, body.limit))
+    : 6;
+  if (doctorId && typeof doctorId !== "string")
+    return err("invalid doctorId", 422);
+  if (day && (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day)))
+    return err("invalid day", 422);
   const appt = db
     .select()
     .from(schema.appointments)
@@ -41,14 +50,38 @@ export async function POST(
       { status: 422 },
     );
   const meta = (c.meta as any) ?? {};
+  if (
+    doctorId &&
+    !db
+      .select({ id: schema.doctors.id })
+      .from(schema.doctors)
+      .where(eq(schema.doctors.id, doctorId))
+      .get()
+  )
+    return err("doctor not found", 404);
+  const scopedSet = day
+    ? {
+        ...v.normalized,
+        hard: {
+          ...v.normalized.hard,
+          allowedDates:
+            !v.normalized.hard.allowedDates ||
+            v.normalized.hard.allowedDates.includes(day)
+              ? [day]
+              : [],
+        },
+      }
+    : v.normalized;
   const scored = await findSlotsForConstraints({
-    set: v.normalized,
+    set: scopedSet,
     type: appt.type as any,
+    doctorIds: doctorId ? [doctorId] : undefined,
     ignoreAppointmentId: appointmentId,
     originalDoctorId: meta.doctorId ?? appt.doctorId,
-    horizonDays: 14,
-    limit: 6,
+    fromDay: day,
+    horizonDays: day ? 0 : 14,
   });
+  const visible = scored.slice(0, day ? 60 : limit);
   const doctors = new Map(
     db
       .select()
@@ -64,7 +97,7 @@ export async function POST(
     value: string;
     slotsIfDropped: number;
   }> = [];
-  if (scored.length === 0) {
+  if (scored.length === 0 && !doctorId && !day) {
     const a = await relaxationAnalysis({
       set: v.normalized,
       type: appt.type as any,
@@ -78,7 +111,8 @@ export async function POST(
     ok: true,
     warnings: v.warnings,
     relaxations,
-    slots: scored.map((s) => ({
+    totalCount: scored.length,
+    slots: visible.map((s) => ({
       doctorId: s.slot.doctorId,
       doctorName: doctors.get(s.slot.doctorId) ?? s.slot.doctorId,
       startUtc: s.slot.startUtc,

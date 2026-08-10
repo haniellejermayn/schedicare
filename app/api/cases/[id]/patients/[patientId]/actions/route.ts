@@ -1,7 +1,12 @@
 import { boot, body, err, json } from "@/lib/api";
 import { db, schema } from "@/core/db/client";
 import { and, desc, eq } from "drizzle-orm";
-import { getCase, maybeResolveCase, updateCaseMeta } from "@/core/cases";
+import {
+  getCase,
+  maybeResolveCase,
+  pendingConstraintReviews,
+  updateCaseMeta,
+} from "@/core/cases";
 import { timeline } from "@/core/timeline";
 import { audit } from "@/core/audit";
 import {
@@ -31,6 +36,11 @@ export async function POST(
   }
 
   const c = getCase(params.id);
+  if (pendingConstraintReviews(c.id, { patientId: params.patientId }).length > 0)
+    return err(
+      "Required constraint review must be completed before acting on this patient.",
+      409,
+    );
   const patient = getPatient(params.patientId);
   const rec = db
     .select()

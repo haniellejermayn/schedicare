@@ -22,8 +22,16 @@ import {
   type SchedulingConstraintSet,
 } from "@/core/constraints";
 import { audit } from "@/core/audit";
-import { getCase, transitionCase, updateCaseMeta } from "@/core/cases";
-import { validatePlacementNow } from "@/core/scheduling";
+import {
+  escalateCase,
+  getCase,
+  transitionCase,
+  updateCaseMeta,
+} from "@/core/cases";
+import {
+  RESCHEDULE_MIN_NOTICE_MINUTES,
+  validatePlacementNow,
+} from "@/core/scheduling";
 import { blockOf, localDayOf } from "@/core/slots";
 import { runAssessment, type AssessmentResult } from "@/agents/assessment";
 import {
@@ -158,6 +166,7 @@ export async function scheduleStep(
         type: (req?.type ?? "routine") as any,
         startUtc: opt.startUtc,
         ignoreAppointmentId: per.appointmentId,
+        minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
       });
       if (v.ok) keep.push(opt);
       else dropped += 1;
@@ -313,13 +322,24 @@ export async function recoverStep(
     const byScore = (a: any, b: any) =>
       (b.score ?? 0) - (a.score ?? 0) || a.startUtc.localeCompare(b.startUtc);
     const sorted = [...plan.options].sort(byScore);
+    const constraintPreferred =
+      onlyAppointmentId && m.searchConstraints?.constraintSet
+        ? slotOptions[plan.appointmentId]?.[0]
+        : undefined;
     // Mirror the ranker's type-conditional continuity: for a follow-up, the
     // best option is the best SAME-doctor option whenever one exists.
     const best =
-      meta?.type === "follow_up"
+      (constraintPreferred
+        ? sorted.find(
+            (option: any) =>
+              option.doctorId === constraintPreferred.doctorId &&
+              option.startUtc === constraintPreferred.startUtc,
+          )
+        : undefined) ??
+      (meta?.type === "follow_up"
         ? (sorted.find((o: any) => o.doctorId === meta.originalDoctorId) ??
           sorted[0])
-        : sorted[0];
+        : sorted[0]);
     if (best && plan.chosenOptionId !== best.id) {
       timeline(
         caseId,
@@ -392,6 +412,11 @@ export async function commsStep(
       patientId: it.patientId,
       patientName: it.patientName,
       appointmentId: plan.appointmentId,
+      replyRegister: (Object.values(m.constraintsByAppt ?? {}) as any[])
+        .filter((entry: any) => entry.patientId === it.patientId)
+        .sort((a: any, b: any) =>
+          String(b.extractedAt ?? "").localeCompare(String(a.extractedAt ?? "")),
+        )[0]?.replyRegister,
       context: {
         doctorName: origDoctor.name,
         originalWhen: fmtWhen(it.startUtc),
@@ -447,6 +472,7 @@ export async function commsStep(
   }
 
   let created = 0;
+  const createdIds: string[] = [];
   for (const plan of plans) {
     if (!plan.options.length || plan.chosenOptionId === "none") {
       timeline(
@@ -465,7 +491,8 @@ export async function commsStep(
       (d) => d.appointmentId === plan.appointmentId,
     );
     const appt = getAppt(plan.appointmentId);
-    db.insert(schema.recommendations)
+    const inserted = db
+      .insert(schema.recommendations)
       .values({
         caseId,
         appointmentId: plan.appointmentId,
@@ -497,8 +524,10 @@ export async function commsStep(
         },
         createdAt: new Date().toISOString(),
       })
-      .run();
+      .returning({ id: schema.recommendations.id })
+      .get();
     created += 1;
+    createdIds.push(inserted.id);
     timeline(
       caseId,
       "comms",
@@ -508,9 +537,18 @@ export async function commsStep(
       { appointmentId: plan.appointmentId },
     );
   }
+  if (created === 0) {
+    escalateCase(
+      caseId,
+      "orchestrator",
+      "No valid replacement remains — review the patient's constraints or follow up directly.",
+    );
+    await pace();
+    return "No recommendation created — staff follow-up required";
+  }
   if (opts?.replanOf) {
     db.update(schema.recommendations)
-      .set({ outcome: "superseded" })
+      .set({ outcome: "superseded", supersededBy: createdIds[0] })
       .where(eq(schema.recommendations.id, opts.replanOf))
       .run();
   }
@@ -662,7 +700,6 @@ export async function waitlistStep(caseId: string): Promise<string> {
       type: w.type,
       dayPart: w.dayPart as any,
       addedAt: w.addedAt,
-      staffPriority: w.staffPriority,
       preferredDoctorId: w.doctorId,
       history: patientHistory(w.patientId),
     };
@@ -836,7 +873,9 @@ export async function replanWithConstraintSet(
     ignoreAppointmentId: appointmentId,
     originalDoctorId,
     horizonDays: 14,
+    minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
   });
+  const totalCount = scored.length;
   let candidates = scored.map((s) => s.slot);
   if (args.chosenSlot) {
     candidates = candidates.filter(
@@ -859,24 +898,32 @@ export async function replanWithConstraintSet(
       type: item.type,
       startUtc: slot.startUtc,
       ignoreAppointmentId: appointmentId,
+      minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
     });
     if (v.ok) keep.push(slot);
     if (keep.length >= 6) break;
   }
+  if (args.chosenSlot && keep.length === 0)
+    throw new Error(
+      "replanWithConstraintSet: the chosen slot is no longer available",
+    );
+  const selectedDetail = args.chosenSlot
+    ? ` Staff selected ${fmtWhen(args.chosenSlot.startUtc)}.`
+    : "";
 
   updateCaseMeta(caseId, {
     slotOptions: { ...(m.slotOptions ?? {}), [appointmentId]: keep },
-    searchSummary: `Constraint search: ${keep.length} valid option${keep.length === 1 ? "" : "s"} (${describeConstraintSet(args.set)})`,
+    searchSummary: `Constraint search: ${totalCount} valid option${totalCount === 1 ? "" : "s"} (${describeConstraintSet(args.set)}).${selectedDetail}`,
     searchConstraints: { constraintSet: args.set },
   });
   timeline(
     caseId,
     "scheduling",
-    keep.length === 0 ? "error" : "status",
-    keep.length === 0
+    totalCount === 0 ? "error" : "status",
+    totalCount === 0
       ? "No slots satisfy the approved constraints — staff follow-up needed"
-      : `Constraint search found ${keep.length} valid option${keep.length === 1 ? "" : "s"}`,
-    args.set.summary,
+      : `Constraint search found ${totalCount} valid option${totalCount === 1 ? "" : "s"}`,
+    `${args.set.summary}${selectedDetail}`,
     { appointmentId },
   );
 

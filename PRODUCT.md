@@ -101,7 +101,7 @@ Priority if time-boxed: **1, 2, 3, 4** are core; 5–8 are stretch in that order
 
 1. **(0:30)** Maria books on her phone — show doctor-rule-aware slots.
 2. **(0:45)** Doctor dashboard: Dr. Santos' rules, capacity bar, tomorrow's risk flags.
-3. **(0:30)** Ops dashboard at rest: two low-grade cases (one unconfirmed appointment, one high-risk no-show) already queued by the scheduled sweep.
+3. **(0:30)** Ops dashboard at rest: the normal flagship profile is clean so the Santos cascade remains the focus. Use the full demo profile only when backup sweep cases are needed for questions.
 4. **(2:30)** **The Cascade**: emergency button → live agent feed → ranked plans with "Why?" → approval gate → staff approves 7, modifies 1, rejects 1.
 5. **(1:00)** Simulated patients reply; Communication agent interprets, one counter-proposal triggers a mini-replan; calendar updates land (live Google Calendar segment here).
 6. **(0:45)** Recovery scoreboard + audit replay of the case.

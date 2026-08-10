@@ -2,7 +2,6 @@
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { Logo, cn } from "@/components/ui";
-import { DemoRoleFab } from "@/components/shell/RoleSwitcher";
 
 export type PatientTab = "visits" | "book";
 
@@ -33,7 +32,7 @@ const TABS: Array<{ id: PatientTab; label: string; icon: ReactNode }> = [
  * Built for a phone first and centred on desktop at phone-ish width, so the
  * same URL reads correctly whether it is opened on a handset or projected from
  * a laptop. Chrome is deliberately minimal — a patient should see a clinic's
- * app, not a console.
+ * app, not a console, and no staff navigation appears here at all.
  */
 export function PatientShell(props: {
   tab: PatientTab;
@@ -49,13 +48,13 @@ export function PatientShell(props: {
   // what the audience needs to understand at a glance.
   return (
     <div className="flex min-h-dvh items-center justify-center bg-surface-strong p-6">
-      <div className="rounded-[44px] border-[3px] border-ink/85 bg-ink/85 p-2 shadow-lg">
-        <div className="relative h-[812px] w-[375px] overflow-hidden rounded-[36px] bg-canvas">
+      <div className="rounded-[44px] border-[3px] border-ink/85 bg-ink/85 p-2 shadow-soft">
+        <div className="relative h-[812px] w-[375px] overflow-hidden rounded-[36px] bg-paper">
           {/* Status-bar stand-in — sells the device without faking chrome. */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-7 items-center justify-center">
             <span className="h-1.5 w-20 rounded-full bg-ink/25" />
           </div>
-          <div className="scroll-quiet h-full overflow-y-auto pt-7">
+          <div className="h-full overflow-y-auto pt-7">
             <PatientChrome {...props} framed />
           </div>
         </div>
@@ -78,18 +77,18 @@ function PatientChrome({
   return (
     <div
       className={cn(
-        "flex flex-col bg-canvas",
+        "flex flex-col bg-paper",
         // Inside the bezel the frame scrolls, not the viewport.
         framed ? "min-h-full" : "min-h-dvh",
       )}
     >
-      <header className="sticky top-0 z-30 border-b border-line bg-canvas/90 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur-md">
         <div className="mx-auto flex h-14 w-full max-w-[520px] items-center gap-2.5 px-4">
-          <Logo size={24} />
-          <span className="text-md font-bold tracking-[-0.025em] text-ink">
+          <Logo size={26} />
+          <span className="font-display text-[16px] font-bold tracking-tight text-ink">
             SchediCare
           </span>
-          <span className="ml-auto text-xs font-semibold text-muted">
+          <span className="ml-auto text-[12px] font-semibold text-muted">
             Riverside Family Clinic
           </span>
         </div>
@@ -109,9 +108,9 @@ function PatientChrome({
               onClick={() => onTabChange(t.id)}
               aria-current={tab === t.id ? "page" : undefined}
               className={cn(
-                "-mb-px border-b-2 px-3 py-2.5 text-base font-semibold transition-colors duration-fast",
+                "-mb-px border-b-2 px-3 py-2.5 text-[14px] font-semibold transition-colors duration-fast",
                 tab === t.id
-                  ? "border-accent text-ink"
+                  ? "border-accent-rail text-ink"
                   : "border-transparent text-muted hover:text-ink",
               )}
             >
@@ -139,7 +138,7 @@ function PatientChrome({
       <nav
         aria-label="Sections"
         className={cn(
-          "z-30 border-t border-line bg-surface/95 backdrop-blur-md",
+          "z-30 border-t border-line bg-white/95 backdrop-blur-md",
           "pb-[env(safe-area-inset-bottom)]",
           framed
             ? "sticky bottom-0 mt-auto"
@@ -153,7 +152,7 @@ function PatientChrome({
               onClick={() => onTabChange(t.id)}
               aria-current={tab === t.id ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-semibold transition-colors duration-fast",
+                "flex flex-1 flex-col items-center gap-1 py-2.5 text-[12px] font-semibold transition-colors duration-fast",
                 tab === t.id ? "text-accent" : "text-muted",
               )}
             >
@@ -163,8 +162,6 @@ function PatientChrome({
           ))}
         </div>
       </nav>
-
-      <DemoRoleFab />
     </div>
   );
 }

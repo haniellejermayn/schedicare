@@ -2,7 +2,7 @@ import { z } from "zod";
 import { differenceInCalendarDays } from "date-fns";
 import { runAgent } from "./runtime";
 import type { AgentCtx, AgentDef, ToolDef } from "./runtime/types";
-import { getDoctor, getPatient, patientHistory, toolToday } from "./tools";
+import { getDoctor, getPatient, toolToday } from "./tools";
 import {
   rankRecoveryOptions,
   rankWaitlistCandidates,
@@ -62,15 +62,6 @@ export type RecoveryResult = z.infer<typeof RecoveryResultSchema>;
 /** Deterministic scorer exposed as a tool: the LLM sees scored options, never raw math. */
 function scoreItem(item: RecoveryItemInput): RecoveryOption[] {
   const patient = getPatient(item.patientId);
-  const hist = patientHistory(item.patientId);
-  const accepted = hist.filter((h) => h.kind === "attended").length;
-  const declinedish = hist.filter(
-    (h) => h.kind === "no_show" || h.kind === "late_cancel",
-  ).length;
-  const acceptance =
-    accepted + declinedish === 0
-      ? 0.6
-      : Math.max(0.3, Math.min(0.95, accepted / (accepted + declinedish)));
   const withNames = item.options.map((o) => ({
     ...o,
     doctorName: getDoctor(o.doctorId).name,
@@ -82,9 +73,7 @@ function scoreItem(item: RecoveryItemInput): RecoveryOption[] {
       originalStartUtc: item.originalStartUtc,
       patientPrefDayPart: patient.prefDayPart,
       patientPreferredDoctorId: patient.preferredDoctorId,
-      staffPriority: patient.staffPriority,
-      capacityHeadroom: (slot: Slot) => dayLoad(slot.doctorId, slot.day),
-      acceptanceLikelihood: acceptance,
+      dayLoad: (slot: Slot) => dayLoad(slot.doctorId, slot.day),
     },
     withNames,
   );
@@ -106,7 +95,7 @@ function scoreItem(item: RecoveryItemInput): RecoveryOption[] {
 const toolRankOptions: ToolDef = {
   name: "rank_recovery_options",
   description:
-    "Deterministically score and rank the validated slot options for one affected appointment (soonness, preference match, continuity, capacity headroom, fairness, staff priority, acceptance likelihood). Returns ranked options with per-factor chips. You may not silently reorder these: choosing a non-top option requires a stated reorderReason.",
+    "Deterministically score and rank validated slot options using soonness, patient preference, continuity, waiting-time fairness, and a small near-capacity penalty. Returns ranked options with per-factor chips. You may not silently reorder these: choosing a non-top option requires a stated reorderReason.",
   schema: z.object({ appointmentId: z.string() }),
   run: async () => ({ error: "bound at runtime" }),
 };

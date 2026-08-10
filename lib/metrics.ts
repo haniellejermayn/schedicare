@@ -10,7 +10,6 @@ export interface Scoreboard {
   rebooked: number;
   confirmed: number;
   declinedOrCallback: number;
-  minutesRecovered: number;
 }
 
 /** Recovery scoreboard for one case (drives the ops header + admin metrics). */
@@ -25,7 +24,6 @@ export function caseScoreboard(caseId: string): Scoreboard {
     rebooked: 0,
     confirmed: 0,
     declinedOrCallback: 0,
-    minutesRecovered: 0,
   };
   for (const r of substantive) {
     const payload = r.payload as any;
@@ -35,10 +33,8 @@ export function caseScoreboard(caseId: string): Scoreboard {
       s.rebooked += 1;
       const appt = db.select().from(schema.appointments).where(eq(schema.appointments.id, payload.createdAppointmentId)).get();
       if (appt) {
-        const mins = Math.round((new Date(appt.endUtc).getTime() - new Date(appt.startUtc).getTime()) / 60000);
         if (appt.status === "confirmed") {
           s.confirmed += 1;
-          s.minutesRecovered += mins;
         }
         if (appt.status === "cancelled_by_patient") s.declinedOrCallback += 1;
       }
@@ -53,7 +49,6 @@ export interface AdminMetrics {
   recommendations: { proposed: number; executed: number; accepted: number; declined: number; needsHuman: number };
   agentRuns: { total: number; live: number; fallback: number; errors: number; avgLatencyMs: number; toolCalls: number; toolErrors: number };
   appointments: { upcoming: number; unconfirmed: number; needsCallback: number };
-  minutesRecovered: number;
 }
 
 export function adminMetrics(): AdminMetrics {
@@ -67,8 +62,6 @@ export function adminMetrics(): AdminMetrics {
     .all();
 
   const finishedRuns = runs.filter((r) => r.latencyMs != null);
-  const minutesRecovered = cases.reduce((sum, c) => sum + caseScoreboard(c.id).minutesRecovered, 0);
-
   return {
     cases: {
       total: cases.length,
@@ -98,6 +91,5 @@ export function adminMetrics(): AdminMetrics {
       unconfirmed: upcoming.filter((a) => a.status === "booked").length,
       needsCallback: db.select().from(schema.appointments).where(eq(schema.appointments.needsCallback, true)).all().length,
     },
-    minutesRecovered,
   };
 }

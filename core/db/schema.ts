@@ -63,7 +63,7 @@ export const patients = sqliteTable("patients", {
     .notNull()
     .default("any"),
   preferredDoctorId: text("preferred_doctor_id"),
-  /** 0 = normal, 1 = elevated, 2 = high (staff-entered, operational only). */
+  /** Legacy compatibility column; intentionally unused by product behavior. */
   staffPriority: integer("staff_priority").notNull().default(0),
   notes: text("notes"),
   createdAt: createdAt(),
