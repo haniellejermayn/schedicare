@@ -419,10 +419,11 @@ export default function FrontDeskPage() {
                 <div className="out-doc" key={name}>
                   <div className="av">
                     {name
+                      .replace(/^dr\.?\s+/i, "")
                       .split(" ")
+                      .slice(0, 2)
                       .map((p: string) => p[0])
                       .join("")
-                      .slice(0, 2)
                       .toUpperCase()}
                   </div>
                   <div className="info">
