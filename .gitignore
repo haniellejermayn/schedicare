@@ -11,3 +11,10 @@ eval/results/
 .DS_Store
 .env.local
 .env*.local
+
+# Local agent/editor tooling. settings.local.json holds per-machine
+# permissions, and launch.json is dev-server scaffolding — neither is
+# something a teammate should inherit. CLAUDE.md is kept local by choice;
+# it is read from disk, so ignoring it costs nothing locally.
+.claude/
+CLAUDE.md

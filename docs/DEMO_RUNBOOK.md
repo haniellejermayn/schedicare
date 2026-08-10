@@ -94,6 +94,57 @@ Close with:
 > it safe, staff controlled every outbound offer, and the final state is visible
 > in the real systems the clinic already uses.
 
+## Showing the patient view on a phone
+
+The patient view (`/book`) is built for a handset. Two ways to put it on the
+projector, in order of preference. **Decide which one you are using during
+pre-flight, not on stage.**
+
+### A · QR code the room can scan (preferred)
+
+1. Start the server with `npm run dev:lan` — not `npm run dev`. The default
+   binds to localhost only, which is why a phone on the same wi-fi still
+   cannot reach it.
+2. Project **`http://localhost:3000/qr`**. It shows a scannable code for the
+   patient view plus the address in plain text as a typing fallback.
+3. **Scan it yourself before the room fills.** This is the step people skip.
+
+Anyone on the same network can then open the patient view on their own phone.
+If you also want your handset on the projector, mirror it: `scrcpy` over USB
+for Android (most reliable — no network involved); iPhone on Windows needs
+third-party software, so test it in advance or use option B.
+
+**The failure mode to plan for:** many campus and venue networks enable client
+isolation, so devices cannot reach each other even on the same SSID. Two ways
+through it:
+
+- **Hotspot.** Turn on your phone's hotspot, join the laptop to it, reload
+  `/qr` for the new address. No venue wi-fi involved — but everyone scanning
+  has to join that hotspot too, so it suits a small panel, not a full room.
+- **Public tunnel.** `cloudflared tunnel --url http://localhost:3000` prints an
+  https URL. Open `/qr?url=<that link>` and the code re-encodes to it, so any
+  phone on **cellular** can reach it — no shared network needed. This is the
+  only option that reliably works for a whole room. It does expose the app to
+  the public internet for the duration, so start it just before and stop it
+  after.
+
+If you let the panel book appointments live, expect their bookings to appear in
+the front-desk queue. That is a good moment if you have rehearsed it, and a
+distraction if you have not — decide in advance which.
+
+### B · Framed phone view on the laptop (fallback)
+
+```
+http://localhost:3000/book?frame=phone
+```
+
+Renders the patient view inside a 375×812 device bezel with the phone tab bar,
+centred on a neutral backdrop. Use this if mirroring is not working — it reads
+as a phone from the audience, where a browser window resized narrow just reads
+as a broken layout.
+
+Both paths show the same build; only the chrome differs.
+
 ## What not to do live
 
 - Do not enable **Force demo mode**; it disables the live providers.
@@ -112,3 +163,5 @@ Close with:
 | No reply appears after 10 seconds | Confirm the reply came from the separate patient account and the worker terminal is running. |
 | Worker stopped | Run `npm run worker`; queued work resumes from SQLite. |
 | Demo state is dirty | Reset demo data, then remove leftover SchediCare events from the dedicated Google calendar. |
+| Phone cannot load the LAN address | Venue wi-fi is isolating clients. Switch to the phone's hotspot, or fall back to `?frame=phone`. |
+| Every case sits in "Needs a person" | The LangGraph checkpointer cannot open SQLite. Run `npm rebuild better-sqlite3`, restart the worker, reset demo data. See the note in PROJECT_STATUS about the `better-sqlite3` major-version mismatch. |
