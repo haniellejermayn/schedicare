@@ -432,6 +432,18 @@ export default function CasePage() {
           </h1>
           <Chip tone={st.tone}>{st.label}</Chip>
           <div className="ml-auto flex items-center gap-3">
+            {grouped.caseLevel.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setCaseLogOpen(true)}
+                className="rounded-full border border-line bg-white px-3 py-1 text-[12px] font-bold text-ink hover:border-strong"
+              >
+                Case log
+                <span className="ml-1 text-muted">
+                  ({grouped.caseLevel.length})
+                </span>
+              </button>
+            )}
             <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-semibold text-muted">
               <input
                 type="checkbox"
@@ -874,20 +886,6 @@ export default function CasePage() {
             )}
           </div>
         </div>
-      )}
-
-      {/* Case log — button */}
-      {grouped.caseLevel.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setCaseLogOpen(true)}
-          className="flex w-full items-center gap-2 rounded-card border border-line bg-white px-3 py-2 text-[13px] font-bold text-ink hover:border-strong"
-        >
-          Case log
-          <span className="ml-auto text-[12px] text-muted">
-            {grouped.caseLevel.length}
-          </span>
-        </button>
       )}
 
       <Modal
