@@ -134,7 +134,6 @@ export const toolGetAffected: ToolDef = {
         startUtc: a.startUtc,
         when: fmtWhen(a.startUtc),
         status: a.status,
-        staffPriority: p.staffPriority,
         prefDayPart: p.prefDayPart,
         notes: p.notes,
         noShows: hist.filter((h) => h.kind === "no_show").length,
@@ -213,7 +212,6 @@ export const toolGetWaitlist: ToolDef = {
           type: w.type,
           dayPart: w.dayPart,
           addedAt: w.addedAt,
-          staffPriority: w.staffPriority,
           preferredDoctorId: w.doctorId,
         };
       });

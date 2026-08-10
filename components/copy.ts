@@ -97,8 +97,17 @@ export function kindLabel(kind: string): string {
 /** Remove implementation labels while retaining the staff-facing explanation. */
 export function plainPriorityReason(reason: string): string {
   return reason
+    .replace(/\bstaff[- ]flagged\b/gi, "")
     .replace(/\s*\(\s*staffPriority\s*=\s*\d+\s*\)/gi, "")
     .replace(/\s*\bstaffPriority\s*=\s*\d+\b/gi, "")
+    .replace(/\bstaff priority\s*(?:is|:|=)?\s*(?:normal|elevated|high|\d+)?\b/gi, "")
+    .replace(/\bpriorityRank\s*(?:=|:)?\s*\d+\b/gi, "")
+    .replace(/\b(?:score|rank)\s*(?:=|:)?\s*\d+(?:\.\d+)?\b/gi, "")
+    .replace(/\bfollow_up\b/gi, "follow-up")
+    .replace(/(?:\s*[;,]\s*){2,}/g, "; ")
+    .replace(/[;,]\s*\./g, ".")
+    .replace(/\s+([,.;])/g, "$1")
+    .replace(/^[\s,;·—-]+/, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

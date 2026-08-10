@@ -10,7 +10,21 @@ export const runtime = "nodejs";
 
 export async function GET() {
   boot();
-  const patients = db.select().from(schema.patients).orderBy(asc(schema.patients.name)).all();
+  const patients = db
+    .select({
+      id: schema.patients.id,
+      clinicId: schema.patients.clinicId,
+      name: schema.patients.name,
+      email: schema.patients.email,
+      phone: schema.patients.phone,
+      prefDayPart: schema.patients.prefDayPart,
+      preferredDoctorId: schema.patients.preferredDoctorId,
+      notes: schema.patients.notes,
+      createdAt: schema.patients.createdAt,
+    })
+    .from(schema.patients)
+    .orderBy(asc(schema.patients.name))
+    .all();
   return json({ patients });
 }
 
@@ -32,7 +46,6 @@ export async function POST(req: Request) {
       email,
       phone,
       prefDayPart: "any",
-      staffPriority: 0,
       createdAt: demoNowIso(),
     })
     .returning()

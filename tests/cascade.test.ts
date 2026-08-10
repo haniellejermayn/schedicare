@@ -352,7 +352,6 @@ describe("flagship cascade (end-to-end)", () => {
     expect(s.rebooked).toBe(5); // Teresa, Camille, Andres, Jose + Miguel's replan (his superseded first offer doesn't double-count)
     expect(s.confirmed).toBe(5);
     expect(s.declinedOrCallback).toBeGreaterThanOrEqual(1); // Grace
-    expect(s.minutesRecovered).toBeGreaterThanOrEqual(120);
 
     // 10) Audit trail: staff decisions + executor effects are all present.
     const audit = db.select().from(schema.auditLog).all();

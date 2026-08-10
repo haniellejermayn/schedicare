@@ -37,6 +37,7 @@ import { getDoctor, getPatient } from "@/agents/tools";
 import { replanSingle, replanWithConstraintSet } from "./steps";
 import { negotiationTurn } from "./negotiation";
 import { findSlotsForConstraints } from "@/core/constraintMatching";
+import { RESCHEDULE_MIN_NOTICE_MINUTES } from "@/core/scheduling";
 import {
   getOrCreateNegotiation,
   recordOfferOutcome,
@@ -572,10 +573,6 @@ async function route(
         maybeResolveCase(caseId);
         break;
       }
-      db.update(schema.recommendations)
-        .set({ outcome: "superseded" })
-        .where(eq(schema.recommendations.id, rec.id))
-        .run();
       // Replan targets the appointment the offer created (or the original if
       // execution created none); a synthetic assessment item keeps the
       // standard pipeline working for this one patient.
@@ -645,6 +642,7 @@ async function route(
           originalDoctorId: meta2.doctorId ?? appt?.doctorId,
           horizonDays: 14,
           limit: 1,
+          minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
         });
         if (nego.turn >= 1 || matching.length === 0) {
           await negotiationTurn({

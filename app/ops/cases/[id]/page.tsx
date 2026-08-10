@@ -148,9 +148,6 @@ function SummaryLine({ s, state }: { s: any; state: string }) {
     s.rebooked - s.confirmed > 0 &&
       `${s.rebooked - s.confirmed} waiting to hear back`,
     s.declinedOrCallback > 0 && `${s.declinedOrCallback} to call`,
-    state === "resolved" &&
-      s.minutesRecovered > 0 &&
-      `${s.minutesRecovered} care minutes saved`,
   ].filter(Boolean);
   return <p className="text-[13px] text-muted">{bits.join(" · ")}</p>;
 }
@@ -190,23 +187,19 @@ function buildPatients(recs: any[], convs: any[]) {
       activeRec = p.recs.find((r) => r.id === p.conv.currentRecommendationId);
     }
     if (!activeRec) {
-      activeRec = p.recs.find((r) => r.status === "proposed") ?? p.recs[0] ?? null;
+      activeRec = [...p.recs]
+        .reverse()
+        .find((r) => r.outcome !== "superseded" && !r.supersededBy) ?? null;
     }
     return { ...p, activeRec };
   });
 }
 
 function needsDecision(rec: any): boolean {
-  return (
-    !!rec &&
-    (rec.status === "proposed" ||
-      rec.outcome === "superseded" ||
-      rec.outcome === "needs_human")
-  );
+  return !!rec && rec.status === "proposed";
 }
 
 function statusTitle(rec: any): string {
-  if (rec.outcome === "superseded") return "Counter-offer — needs your review";
   const oc = outcomeLabel(rec);
   if (oc.label === "Confirmed") return "Confirmed";
   if (oc.label.startsWith("Declined")) return "Declined — needs a call";

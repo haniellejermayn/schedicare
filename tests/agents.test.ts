@@ -53,7 +53,8 @@ describe("agent runtime (fallback mode)", () => {
     expect(items).toHaveLength(6);
     expect(items[0].patientName).toBe("Camille Ocampo"); // urgent first
     const teresa = items.find((i) => i.patientName === "Teresa Navarro")!;
-    expect(teresa.priorityRank).toBeLessThanOrEqual(2); // post-op continuity + staff priority
+    const firstRoutine = items.findIndex((i) => i.type === "routine");
+    expect(teresa.priorityRank).toBeLessThanOrEqual(firstRoutine); // follow-up continuity precedes routine visits
     expect(res.output.severity).toMatch(/high|critical/);
     for (let i = 1; i < items.length; i++)
       expect(items[i].priorityRank).toBeGreaterThanOrEqual(
@@ -63,14 +64,18 @@ describe("agent runtime (fallback mode)", () => {
 });
 
 describe("staff-facing agent copy", () => {
-  it("removes internal staffPriority assignments", () => {
+  it("removes unsupported priority provenance and implementation labels", () => {
     const reason = plainPriorityReason(
       "Staff-flagged urgent appointment (staffPriority=1) with confirmed status.",
     );
-    expect(reason).toBe(
-      "Staff-flagged urgent appointment with confirmed status.",
-    );
+    expect(reason).toBe("urgent appointment with confirmed status.");
     expect(reason).not.toContain("staffPriority");
+
+    expect(
+      plainPriorityReason(
+        "follow_up appointment; staff priority elevated; priorityRank=2; score 44.",
+      ),
+    ).toBe("follow-up appointment.");
   });
 
   it("labels constraint extraction in plain language", () => {

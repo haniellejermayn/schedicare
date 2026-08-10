@@ -429,12 +429,11 @@ function DemoData() {
       {m && (
         <Card className="p-4">
           <h3 className="text-[15px] font-bold text-ink">Today so far</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
               ["Cases handled", m.cases?.total ?? 0],
               ["Waiting for review", m.recommendations?.proposed ?? 0],
               ["Offers sent", m.recommendations?.executed ?? 0],
-              ["Care minutes saved", m.minutesRecovered ?? 0],
             ].map(([label, v]) => (
               <div key={label as string}>
                 <p className="tnum text-[22px] font-bold text-ink">

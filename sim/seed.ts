@@ -70,7 +70,6 @@ interface PatientSeed {
   key: string;
   prefDayPart?: "am" | "pm" | "any";
   preferredDoctorId?: string;
-  staffPriority?: number;
   notes?: string;
 }
 
@@ -80,7 +79,6 @@ const NAMED: PatientSeed[] = [
     key: "teresa.navarro",
     name: "Teresa Navarro",
     prefDayPart: "am",
-    staffPriority: 2,
     notes: "Post-op knee follow-up series with Dr. Santos.",
     preferredDoctorId: SANTOS,
   },
@@ -102,7 +100,6 @@ const NAMED: PatientSeed[] = [
     key: "camille.ocampo",
     name: "Camille Ocampo",
     prefDayPart: "any",
-    staffPriority: 1,
   },
   {
     id: "pat_miguel",
@@ -317,7 +314,6 @@ export function seed(
         phone: `+63 917 ${String(1000000 + patients.indexOf(p) * 137).slice(0, 3)} ${String(2000 + patients.indexOf(p) * 61).slice(0, 4)}`,
         prefDayPart: p.prefDayPart ?? "any",
         preferredDoctorId: p.preferredDoctorId ?? null,
-        staffPriority: p.staffPriority ?? 0,
         notes: p.notes ?? null,
         createdAt: now,
       })),
@@ -945,7 +941,6 @@ export function seed(
         type: "routine",
         dayPart: "am",
         addedAt: addDays(new Date(utc(demoDay, "08:00")), -18).toISOString(),
-        staffPriority: 0,
         status: "waiting",
       },
       {
@@ -956,7 +951,6 @@ export function seed(
         type: "routine",
         dayPart: "any",
         addedAt: addDays(new Date(utc(demoDay, "08:00")), -10).toISOString(),
-        staffPriority: 0,
         status: "waiting",
       },
       {
@@ -967,7 +961,6 @@ export function seed(
         type: "follow_up",
         dayPart: "pm",
         addedAt: addDays(new Date(utc(demoDay, "08:00")), -12).toISOString(),
-        staffPriority: 0,
         status: "waiting",
       },
       {
@@ -978,7 +971,6 @@ export function seed(
         type: "routine",
         dayPart: "pm",
         addedAt: addDays(new Date(utc(demoDay, "08:00")), -3).toISOString(),
-        staffPriority: 0,
         status: "waiting",
       },
     ])

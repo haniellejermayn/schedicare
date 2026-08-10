@@ -90,7 +90,7 @@ diagrammed in [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md).
 ## Verification
 
 ```bash
-npm run typecheck && npm test   # 79 tests across 10 suites
+npm run typecheck && npm test   # 95 tests across 10 suites
 npm run build                   # production build
 npm run eval:constraints        # extraction vs deterministic baseline
 ```
@@ -127,7 +127,7 @@ core/           Slot engine, validators, constraints, ranking, negotiations, cas
 integrations/   Google Calendar/Gmail providers, simulated twins, OAuth, MCP transport
 worker/         Event queue, pipeline steps, executor, reply handling + triage, negotiation runner, daily sweep
 sim/            Deterministic seed + reply personas
-tests/          10 suites, 79 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
+tests/          10 suites, 95 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
 eval/           Constraint corpus (66 labeled replies) + baseline scorer + metric harness
 docs/           Setup guides, runbook, agentic workflow, evaluation, security & scope
 ```

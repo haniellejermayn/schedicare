@@ -22,7 +22,12 @@ import {
   type SchedulingConstraintSet,
 } from "@/core/constraints";
 import { audit } from "@/core/audit";
-import { getCase, transitionCase, updateCaseMeta } from "@/core/cases";
+import {
+  escalateCase,
+  getCase,
+  transitionCase,
+  updateCaseMeta,
+} from "@/core/cases";
 import {
   RESCHEDULE_MIN_NOTICE_MINUTES,
   validatePlacementNow,
@@ -467,6 +472,7 @@ export async function commsStep(
   }
 
   let created = 0;
+  const createdIds: string[] = [];
   for (const plan of plans) {
     if (!plan.options.length || plan.chosenOptionId === "none") {
       timeline(
@@ -485,7 +491,8 @@ export async function commsStep(
       (d) => d.appointmentId === plan.appointmentId,
     );
     const appt = getAppt(plan.appointmentId);
-    db.insert(schema.recommendations)
+    const inserted = db
+      .insert(schema.recommendations)
       .values({
         caseId,
         appointmentId: plan.appointmentId,
@@ -517,8 +524,10 @@ export async function commsStep(
         },
         createdAt: new Date().toISOString(),
       })
-      .run();
+      .returning({ id: schema.recommendations.id })
+      .get();
     created += 1;
+    createdIds.push(inserted.id);
     timeline(
       caseId,
       "comms",
@@ -528,9 +537,18 @@ export async function commsStep(
       { appointmentId: plan.appointmentId },
     );
   }
+  if (created === 0) {
+    escalateCase(
+      caseId,
+      "orchestrator",
+      "No valid replacement remains — review the patient's constraints or follow up directly.",
+    );
+    await pace();
+    return "No recommendation created — staff follow-up required";
+  }
   if (opts?.replanOf) {
     db.update(schema.recommendations)
-      .set({ outcome: "superseded" })
+      .set({ outcome: "superseded", supersededBy: createdIds[0] })
       .where(eq(schema.recommendations.id, opts.replanOf))
       .run();
   }
@@ -682,7 +700,6 @@ export async function waitlistStep(caseId: string): Promise<string> {
       type: w.type,
       dayPart: w.dayPart as any,
       addedAt: w.addedAt,
-      staffPriority: w.staffPriority,
       preferredDoctorId: w.doctorId,
       history: patientHistory(w.patientId),
     };

@@ -6,9 +6,9 @@ into one.
 
 ## Non-clinical by construction
 
-- **Priority inputs are operational only:** appointment type, staff-entered
-  priority, continuity notes (e.g. "post-op"), waiting time, attendance
-  history. Agent system prompts forbid inferring urgency from symptoms; the
+- **Priority inputs are operational only:** appointment type, continuity notes
+  (e.g. "post-op"), waiting time, and appointment timing. Agent system prompts
+  forbid inferring urgency from symptoms; the
   deterministic fallbacks contain no clinical logic at all.
 - **Inbound reply guard (`guardReply`, runs before any model):** medical
   content (symptoms, meds, vitals like "160/100", ER mentions), anger/legal

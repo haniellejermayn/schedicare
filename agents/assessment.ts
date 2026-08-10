@@ -55,12 +55,10 @@ function deterministicAssessment(input: AssessmentInput): AssessmentResult {
     const tags: string[] = [];
     if ((p.notes ?? "").toLowerCase().includes("post-op"))
       tags.push("post-op continuity");
-    if (p.staffPriority === 2) tags.push("staff priority: high");
-    else if (p.staffPriority === 1) tags.push("staff priority: elevated");
     if (a.type === "urgent") tags.push("urgent visit");
     if (hist.filter((h) => h.kind === "no_show").length > 0)
       tags.push("prior no-show");
-    const sortKey = TYPE_WEIGHT[a.type] * 100 + p.staffPriority * 10;
+    const sortKey = TYPE_WEIGHT[a.type] * 100;
     return { a, p, tags, sortKey };
   });
   enriched.sort(
@@ -68,10 +66,6 @@ function deterministicAssessment(input: AssessmentInput): AssessmentResult {
   );
   const items = enriched.map((e, i) => {
     const reasons: string[] = [];
-    if (e.p.staffPriority > 0)
-      reasons.push(
-        `staff priority ${e.p.staffPriority === 2 ? "high" : "elevated"}`,
-      );
     if (e.tags.includes("post-op continuity"))
       reasons.push("post-op follow-up needs continuity");
     if (e.a.type === "urgent") reasons.push("urgent appointment type");
@@ -90,7 +84,7 @@ function deterministicAssessment(input: AssessmentInput): AssessmentResult {
   const n = items.length;
   const severity: AssessmentResult["severity"] =
     n >= 8 ? "critical" : n >= 4 ? "high" : n >= 2 ? "medium" : "low";
-  const summary = `${input.doctorName} is out on ${input.date} (${input.reason}). ${n} upcoming appointment${n === 1 ? "" : "s"} affected — ${items.filter((i) => i.type === "follow_up").length} follow-up, ${items.filter((i) => i.type === "urgent").length} urgent, ${items.filter((i) => i.type === "routine").length} routine. Recovery ordered by staff priority, continuity needs, and visit type; no clinical judgment applied.`;
+  const summary = `${input.doctorName} is out on ${input.date} (${input.reason}). ${n} upcoming appointment${n === 1 ? "" : "s"} affected — ${items.filter((i) => i.type === "follow_up").length} follow-up, ${items.filter((i) => i.type === "urgent").length} urgent, ${items.filter((i) => i.type === "routine").length} routine. Recovery ordered by visit type, timing, and continuity needs; no clinical judgment applied.`;
   return { severity, summary, items };
 }
 
@@ -100,8 +94,9 @@ export const assessmentAgent: AgentDef<AssessmentInput, AssessmentResult> = {
   system: `You are SchediCare's Disruption Assessment agent for a single outpatient clinic.
 Given a doctor's emergency unavailability, identify every affected appointment and produce an OPERATIONAL priority order.
 Hard rules:
-- You are not a clinician. NEVER infer clinical urgency from symptoms or perform triage. Priority may use ONLY: appointment type, staff-entered priority, follow-up continuity needs (e.g. post-op notes), patient waiting duration, time until appointment, doctor availability, and the number of affected appointments.
+- You are not a clinician. NEVER infer clinical urgency from symptoms or perform triage. Priority may use ONLY: appointment type, follow-up continuity needs (e.g. post-op notes), patient waiting duration, time until appointment, doctor availability, and the number of affected appointments.
 - Describe urgency and impact ONLY — never prescribe the recovery action (which doctor, which day, which slot, or "should be seen today/first thing"). Ranking and staff decide that downstream; priorityReason and summary must not recommend placements.
+- Write priorityReason and summary in concise staff-facing language. Never mention schema fields, numeric enum values, ranks, scores, model behavior, or implementation details.
 - Use get_affected_appointments for ground truth; do not invent appointments.
 - Severity guide: 1 affected = low, 2-3 = medium, 4-7 = high, 8+ = critical.
 - Finish by calling submit_result with every affected appointment ranked (priorityRank starts at 1).`,
@@ -115,7 +110,7 @@ Hard rules:
   resultSchema: AssessmentResultSchema,
   maxSteps: 6,
   buildPrompt: (i) =>
-    `Doctor ${i.doctorName} (${i.doctorId}) has emergency unavailability on ${i.date}. Reason given: "${i.reason}". Assess the disruption for case ${i.caseId}: list affected appointments, rank recovery priority with a one-line reason each, tag notable context (post-op continuity, staff priority, urgent), set severity, and summarize in 2-3 sentences.`,
+    `Doctor ${i.doctorName} (${i.doctorId}) has emergency unavailability on ${i.date}. Reason given: "${i.reason}". Assess the disruption for case ${i.caseId}: list affected appointments, rank recovery priority with a concise non-technical reason each, tag notable context (post-op continuity or urgent visit type), set severity, and summarize in 2-3 sentences.`,
   fallback: async (i) => deterministicAssessment(i),
 };
 

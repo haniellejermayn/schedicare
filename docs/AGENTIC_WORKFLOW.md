@@ -69,20 +69,33 @@ The negotiation model has only three actions:
 Code rejects unknown slots or constraint fields, prevents asking the same question twice,
 and forces escalation after three patient-facing rounds.
 
-## Who does what
+## Who does what, and why
 
-| Component | Owner | Actual role |
+| Component | Boundary | Design purpose |
 |---|---|---|
-| Case sequencing and routing | ⬜ Code | LangGraph reads the persisted case state and selects plan, gate, execute, watch, or end |
-| Slot availability, conflicts, capacity, rules | ⬜ Code | Produces and revalidates feasible placements |
-| Ranking and cross-patient deduplication | ⬜ Code | Makes repeatable, explainable recovery choices |
-| First-contact offers | ⬜ Code | Standard template; no model prose |
-| Assessment, scheduling search selection, risk explanation | 🟦 AI with deterministic fallback | Supporting judgment; useful but not the core differentiator |
-| Reply constraint extraction | 🟦 AI | Primary semantic capability |
-| Constraint validation, triage, and memory diff | ⬜ Code | Decides whether automation may continue |
-| Negotiation move | 🟦 AI | Chooses within a closed, guarded action set |
-| Approval of offers and questions | 🟨 Staff | Required before consequential outbound actions |
-| Calendar and mail effects | ⬜ Executor | Runs only after approval and records the outcome |
+| Orchestrator | ⬜ Deterministic | LangGraph sequences persisted case states and human gates. Routing and authorization must be repeatable, so no model decides which lifecycle edge runs. |
+| Assessment | 🟦 AI with deterministic fallback | Condenses a multi-patient disruption into an operational brief ordered by visit type, timing, and continuity. AI reduces staff reading effort; it performs no clinical triage and is not required for correctness. |
+| Scheduling | 🟦 AI using ⬜ deterministic tools | Chooses useful searches when constraints vary. The slot engine—not the model—produces and revalidates every time against rules, conflicts, buffers, and hard capacity caps. |
+| Recovery | 🟦 AI over ⬜ deterministic ranking | Packages the code-ranked options into an understandable recommendation. Code owns the order so equivalent cases remain consistent; AI contributes explanation only. |
+| Constraint extractor | 🟦 AI followed by ⬜ validation | Converts English, Tagalog, and Taglish replies into structured scheduling constraints. This is the primary semantic capability; code validates, canonicalizes, and selects the safe routing lane. |
+| Negotiator | 🟦 Bounded AI inside ⬜ guards | Chooses whether to offer validated slots, ask one clarification, or hand off. Code restricts candidate keys, fields, repeated questions, and the three-turn budget. |
+| Communications | Mixed | Templates own enumerable first-contact and confirmation messages; AI drafts genuinely open-ended counter-offer language. Lint and staff approval apply before anything is sent. |
+| Risk | 🟦 AI over ⬜ deterministic scoring | Code calculates attendance-risk scores and bands; AI provides a factor-grounded attention summary. It is a supporting capability, not an authority over scheduling. |
+| Executor | ⬜ Deterministic | Revalidates and performs approved Calendar and mail effects. Models cannot write to external systems directly. |
+| Staff | 🟨 Human authority | Approves, modifies, rejects, or manually handles every consequential recommendation. |
+
+The system is deliberately hybrid rather than fully LLM-controlled. Models are useful
+where meaning is open-ended; state transitions, policy, calculations, slot validity, and
+external writes are enumerable and therefore stay in code. This keeps equivalent cases
+repeatable and prevents probabilistic text generation from becoming operational authority.
+
+## Activity summaries
+
+The case timeline is one persisted audit stream used by the staff feed, technical trace,
+and evaluation. Its summaries are concise captions for human observability: they do not
+feed routing, slot validation, ranking, or execution, and they are not hidden
+chain-of-thought. The default view omits tool/runtime detail; **Technical detail** exposes
+the recorded agent mode, tool calls, results, and actor labels when an engineer needs them.
 
 ## Memory design
 

@@ -33,6 +33,7 @@ import {
   updateNegotiation,
 } from "@/core/negotiations";
 import type { Slot } from "@/core/types";
+import { RESCHEDULE_MIN_NOTICE_MINUTES } from "@/core/scheduling";
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
 
@@ -444,6 +445,18 @@ describe("constraint search against the seeded engine", () => {
       .set({ state: "planning" })
       .where(eq(schema.cases.id, c.id))
       .run();
+    db.insert(schema.recommendations)
+      .values({
+        id: "rec_previous",
+        caseId: c.id,
+        appointmentId: appt.id,
+        patientId: appt.patientId,
+        kind: "reschedule",
+        payload: { patientName: "Miguel Torres" },
+        status: "executed",
+        outcome: "sent",
+      })
+      .run();
 
     await replanWithConstraintSet(c.id, {
       appointmentId: appt.id,
@@ -467,11 +480,124 @@ describe("constraint search against the seeded engine", () => {
       .select()
       .from(schema.recommendations)
       .where(eq(schema.recommendations.caseId, c.id))
-      .get()!;
+      .all()
+      .find((entry) => entry.status === "proposed")!;
     expect((recommendation.payload as any).options).toHaveLength(1);
     expect((recommendation.payload as any).options[0].startUtc).toBe(
       chosen.startUtc,
     );
+    const previous = db
+      .select()
+      .from(schema.recommendations)
+      .where(eq(schema.recommendations.id, "rec_previous"))
+      .get()!;
+    expect(previous.outcome).toBe("superseded");
+    expect(previous.supersededBy).toBe(recommendation.id);
+  });
+
+  it("escalates a zero-slot replan without creating an empty approval gate", async () => {
+    const { openCase, getCase } = await import("@/core/cases");
+    const { replanWithConstraintSet } = await import("@/worker/steps");
+    const appt = db
+      .select()
+      .from(schema.appointments)
+      .where(eq(schema.appointments.id, "appt_miguel"))
+      .get()!;
+    const set = emptyConstraintSet("counter_proposal");
+    db.delete(schema.appointments)
+      .where(eq(schema.appointments.id, "appt_camille"))
+      .run(); // expose a real pre-notice slot in the otherwise full morning
+    set.hard = {
+      allowedDates: [TODAY],
+      timeWindows: [{ end: "11:30" }],
+    };
+    set.confidence = 0.9;
+    set.summary = "Today before 11:30 AM.";
+    expect(
+      await findSlotsForConstraints({
+        set,
+        type: appt.type as any,
+        originalDoctorId: appt.doctorId,
+        ignoreAppointmentId: appt.id,
+        horizonDays: 14,
+      }),
+    ).not.toHaveLength(0);
+    expect(
+      await findSlotsForConstraints({
+        set,
+        type: appt.type as any,
+        originalDoctorId: appt.doctorId,
+        ignoreAppointmentId: appt.id,
+        horizonDays: 14,
+        minimumNoticeMinutes: RESCHEDULE_MIN_NOTICE_MINUTES,
+      }),
+    ).toHaveLength(0);
+
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "medium",
+      title: "zero-slot counter regression",
+      meta: {
+        doctorId: appt.doctorId,
+        assessment: {
+          severity: "medium",
+          summary: "one patient",
+          items: [
+            {
+              appointmentId: appt.id,
+              patientId: appt.patientId,
+              patientName: "Miguel Torres",
+              type: appt.type,
+              startUtc: appt.startUtc,
+              priorityRank: 1,
+              priorityReason: "Patient requested an earlier time today.",
+              tags: ["counter-proposal"],
+            },
+          ],
+        },
+      },
+    });
+    db.update(schema.cases)
+      .set({ state: "planning" })
+      .where(eq(schema.cases.id, c.id))
+      .run();
+    db.insert(schema.recommendations)
+      .values({
+        id: "rec_zero_previous",
+        caseId: c.id,
+        appointmentId: appt.id,
+        patientId: appt.patientId,
+        kind: "reschedule",
+        payload: { patientName: "Miguel Torres" },
+        status: "executed",
+        outcome: "sent",
+      })
+      .run();
+
+    await replanWithConstraintSet(c.id, {
+      appointmentId: appt.id,
+      supersededRecId: "rec_zero_previous",
+      set,
+      note: "Requested today before 11:30 AM",
+    });
+
+    expect(getCase(c.id).state).toBe("escalated");
+    expect(
+      db
+        .select()
+        .from(schema.recommendations)
+        .where(eq(schema.recommendations.caseId, c.id))
+        .all()
+        .filter((entry) => entry.status === "proposed"),
+    ).toHaveLength(0);
+    const previous = db
+      .select()
+      .from(schema.recommendations)
+      .where(eq(schema.recommendations.id, "rec_zero_previous"))
+      .get()!;
+    expect(previous.outcome).toBe("sent");
+    expect(previous.supersededBy).toBeNull();
   });
 });
 

@@ -40,10 +40,10 @@ diagram (Diagram 2) as a backup slide for Q&A.
 
 **Say:** Our "tree" is honestly a gated graph — and that's deliberate.
 There's no LLM supervisor: orchestration is a deterministic state machine
-(LangGraph checkpointed threads; edges route on database state). Four LLM
-specialists sit at the open-ended joints — assessment, slot-search
-narration, continuation drafting (replies to what a patient said), and
-reply understanding. First-contact mail is deliberately template-rendered:
+(LangGraph checkpointed threads; edges route on database state). Specialist
+models sit only at open-ended joints: summarizing disruption context, choosing
+useful searches, explaining code-ranked options, understanding free-text
+replies, and choosing a bounded negotiation move. First-contact mail is deliberately template-rendered:
 we drafted with the model, extended the template until it covered the
 space, then demoted the model — enumeration succeeded, so the model keeps
 only the open-ended half. Every path out of
@@ -65,9 +65,10 @@ diffs. No vector store — by design.
 _Stack:_ Next.js 14 + TS strict · Drizzle/SQLite · LangGraph · Claude
 Sonnet 4.6 on Bedrock · Gmail + Google Calendar (simulated twins).
 
-**Say (pick one beat):** The scheduling agent never searches slots — it only
-chooses which searches to run; slots come verbatim from the engine. That's
-the pattern everywhere: the model proposes, code disposes.
+**Say (pick one beat):** Assessment compresses many affected visits for staff;
+scheduling chooses searches but receives every time verbatim from the engine;
+recovery explains a deterministic ranking. These supporting agents improve
+comprehension without becoming authorities: the model proposes, code disposes.
 
 ## 5 · Observability & failure handling — 1:15
 
@@ -77,7 +78,9 @@ toggle ON (tool calls + arguments visible) next to the same view OFF
 
 **Say:** Every tool call, argument, transition, and decision lands on a
 per-case timeline — plain secretary language by default, full technical
-trace behind a toggle — plus an actor-attributed audit log, and a
+trace behind a toggle. The summaries are audit captions for people, not
+chain-of-thought and not inputs to routing, ranking, validation, or execution.
+The same events also feed an actor-attributed audit log and a
 `why-not-resolved` script that prints exactly what blocks any case.
 Failure modes are designed, not hoped: if Bedrock is down, every agent
 degrades to a deterministic fallback with the same schemas — degrading to
@@ -115,7 +118,7 @@ it is one).
 
 **Slide:** Measured: **34% → 100%** reply-understanding vs a rules baseline
 on a 66-case Taglish dev corpus (_dev-set figure; frozen held-out set is
-the next step_) · 79 automated tests · every action gated. Projected:
+the next step_) · 95 automated tests · every action gated. Projected:
 recovery latency, staff minutes per disruption, after-hours coverage.
 Future: SMS, call-log, and appointment-email intake — **integrations, not
 redesigns**; the extractor consumes text, the gates consume
@@ -175,6 +178,18 @@ Fields for the provided template:
   constraints and explains the result, but deterministic scoring orders valid
   slots so like cases rank alike. The weights are auditable factor by factor,
   and staff Modify is the override.
+- **Why use agents at all, and why not make the whole system an LLM?** Models
+  help where enumeration fails: compressing context, interpreting free text,
+  and phrasing the next bounded move. Code owns states, slot validity, ranking,
+  policy guards, and external writes because those must be repeatable and
+  testable; Assessment and Recovery can fall back to deterministic playbooks.
+- **Why does scheduling need an LLM?** It can choose useful tool searches as
+  semantic constraints grow, but it is not required to validate or invent a
+  time. Fixed cases use the deterministic fallback, and every returned slot
+  still comes from and is rechecked by the scheduling engine.
+- **How does doctor capacity affect ranking?** It does not reward an empty day.
+  Load is neutral below 80%, then receives only a small penalty near the hard
+  cap, so patient preference, continuity, visit type, and timing remain primary.
 - **How do urgent, routine, and follow-up affect appointment times?** The
   appointment type selects each doctor's allowed windows and visit duration;
   every result still enforces workdays, buffers, daily caps, calendar

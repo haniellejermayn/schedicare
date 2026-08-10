@@ -195,9 +195,9 @@ and health check (a readiness path, not the active integration).
    confirm" 2 hours before a visit is front-desk phone territory; the sweep
    targets tomorrow-and-later bookings inside the 36-hour window. This also
    keeps the boot queue focused (Paolo) instead of five overlapping nudges.
-4. **Assessment priority: visit type outranks staff priority.** Camille's
-   same-day urgent outranks Teresa's post-op staff-priority flag, matching the
-   product narrative; both remain top-2.
+4. **Assessment priority is operational and attributable.** Visit type,
+   timing, and continuity notes determine the order; the earlier seeded
+   `staffPriority` flag was removed because staff had no workflow to set it.
 5. **A superseded execution doesn't count as a recovery.** Miguel's first
    (countered) offer is excluded from the scoreboard's `rebooked` so the
    metric reflects patients actually recovered (5/6 + 1 phone callback), not
