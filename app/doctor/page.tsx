@@ -599,6 +599,7 @@ export default function DoctorPage() {
                       <button
                         key={w}
                         disabled={!rulesDraft}
+                        aria-pressed={on}
                         onClick={() =>
                           setRulesDraft((d: any) => ({
                             ...d,
@@ -610,12 +611,12 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-line bg-surface-strong text-ink/60"
+                            ? "border-line bg-ink text-white"
                             : "border-line bg-surface-alt text-muted",
                           rulesDraft && "cursor-pointer",
                         )}
                       >
-                        {w}
+                        {on ? `✓ ${w}` : w}
                       </button>
                     );
                   })}
@@ -701,7 +702,7 @@ export default function DoctorPage() {
                       return (
                         <div
                           key={t}
-                          className="rounded-card border border-line bg-surface-alt p-4" // Removed inline borderColor style, added border-line
+                          className="rounded-card border border-line bg-surface-alt p-4"
                         >
                           <div className="flex items-center justify-between">
                             <span
