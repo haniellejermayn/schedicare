@@ -231,7 +231,7 @@ export default function CasePage() {
   const [tab, setTab] = useState<Tab>("activity");
   const [tech, setTech] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [caseOpen, setCaseOpen] = useState(true);
+  const [caseLogOpen, setCaseLogOpen] = useState(false);
   const [busyAll, setBusyAll] = useState(false);
   const [busyPatient, setBusyPatient] = useState<string | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
@@ -258,8 +258,7 @@ export default function CasePage() {
       r.status !== "proposed" && r.outcome !== "superseded" && !r.supersededBy,
   );
   const activity = useMemo(
-    () =>
-      (tech ? feed.items : feed.items.filter(isPlainEntry)).slice().reverse(),
+    () => (tech ? feed.items : feed.items.filter(isPlainEntry)).slice().reverse(),
     [feed.items, tech],
   );
 
@@ -877,29 +876,18 @@ export default function CasePage() {
         </div>
       )}
 
-      {/* Case log — moved to page bottom, matching case-detail-ref.html */}
+      {/* Case log — button */}
       {grouped.caseLevel.length > 0 && (
-        <div className="case-log rounded-card border border-line bg-white">
-          <button
-            type="button"
-            onClick={() => setCaseOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-[13px] font-bold text-ink"
-            aria-expanded={caseOpen}
-          >
-            Case log
-            <span className="ml-auto text-[12px] text-muted">
-              {grouped.caseLevel.length}
-            </span>
-            <span className="text-muted">{caseOpen ? "▾" : "▸"}</span>
-          </button>
-          {caseOpen && (
-            <ol className="relative ml-1.5 h-72 space-y-0 overflow-y-auto border-l border-line px-3 pb-2.5 thin-scroll">
-              {grouped.caseLevel.map((it) => (
-                <ActivityRow key={it.id} it={it} tech={tech} />
-              ))}
-            </ol>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => setCaseLogOpen(true)}
+          className="flex w-full items-center gap-2 rounded-card border border-line bg-white px-3 py-2 text-[13px] font-bold text-ink hover:border-strong"
+        >
+          Case log
+          <span className="ml-auto text-[12px] text-muted">
+            {grouped.caseLevel.length}
+          </span>
+        </button>
       )}
 
       <Modal
@@ -966,6 +954,36 @@ export default function CasePage() {
           Use this after you&apos;ve sorted it out by phone or in person. The
           record stays in Done.
         </p>
+      </Modal>
+
+      {/* Case log modal */}
+      <Modal
+        open={caseLogOpen}
+        onClose={() => setCaseLogOpen(false)}
+        title="Case log"
+      >
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-[12px] font-semibold text-muted">
+            Technical detail
+          </span>
+          <button
+            type="button"
+            onClick={() => setTech((v) => !v)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-[12px] font-bold",
+              tech
+                ? "border-accent bg-accent-soft text-accent"
+                : "border-line bg-white text-ink",
+            )}
+          >
+            {tech ? "On" : "Off"}
+          </button>
+        </div>
+        <ol className="relative ml-1.5 h-72 space-y-0 overflow-y-auto border-l border-line px-3 pb-2.5 thin-scroll">
+          {grouped.caseLevel.map((it) => (
+            <ActivityRow key={it.id} it={it} tech={tech} />
+          ))}
+        </ol>
       </Modal>
 
       {/* Follow-up modal */}
