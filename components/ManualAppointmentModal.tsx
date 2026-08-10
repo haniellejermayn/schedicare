@@ -1,11 +1,109 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { usePoll } from "@/lib/usePoll";
 import { fmtWhenManila, jfetch, typeLabel } from "@/lib/format";
 import { Button, Empty, Modal, Spinner } from "@/components/ui";
 
 const TYPES = ["routine", "follow_up", "urgent"] as const;
+
+function SearchSelect({
+  items,
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+}: {
+  items: Array<{ id: string; label: string }>;
+  value: string;
+  onChange: (id: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = items.find((i) => i.id === value);
+
+  const filtered = query.trim()
+    ? items.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()))
+    : items;
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [open]);
+
+  function handleInputChange(e: ChangeEvent<HTMLInputElement>) {
+    setQuery(e.target.value);
+    setOpen(true);
+  }
+
+  function select(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function handleInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && open && filtered.length > 0) {
+      select(filtered[0].id);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative mt-1">
+      <input
+        type="text"
+        value={open ? query : selected?.label ?? ""}
+        onChange={handleInputChange}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleInputKeyDown}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        className="w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink placeholder:text-muted outline-none focus:border-accent"
+      />
+      {open && (
+        <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-auto rounded-ctl border border-line bg-white py-1 shadow-lg">
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-[13px] text-muted">No matches</li>
+          ) : (
+            filtered.map((i) => (
+              <li key={i.id}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    select(i.id);
+                  }}
+                  className="block w-full px-3 py-2 text-left text-[13px] text-ink hover:bg-accent-soft focus:bg-accent-soft focus:outline-none"
+                >
+                  {i.label}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function ManualAppointmentModal({
   open,
@@ -100,15 +198,23 @@ export function ManualAppointmentModal({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-[12px] font-bold text-muted">
           Patient
-          <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
-            {patients.map((patient: any) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
-          </select>
+          <SearchSelect
+            items={patients.map((patient: any) => ({ id: patient.id, label: patient.name }))}
+            value={patientId}
+            onChange={setPatientId}
+            placeholder="Select patient"
+            ariaLabel="Patient"
+          />
         </label>
         <label className="text-[12px] font-bold text-muted">
           Doctor
-          <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
-            {doctors.map((doctor: any) => <option key={doctor.id} value={doctor.id}>{doctor.name}</option>)}
-          </select>
+          <SearchSelect
+            items={doctors.map((doctor: any) => ({ id: doctor.id, label: doctor.name }))}
+            value={doctorId}
+            onChange={setDoctorId}
+            placeholder="Select doctor"
+            ariaLabel="Doctor"
+          />
         </label>
       </div>
 
