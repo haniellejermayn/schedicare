@@ -842,7 +842,7 @@ export default function DoctorPage() {
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={morningPct} color="#5C7D90">
+                          <Ring percent={100} color="#5C7D90">
                             <span className="font-display text-2xl font-bold text-ink">
                               {morningMax || "—"}
                             </span>
@@ -855,7 +855,7 @@ export default function DoctorPage() {
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={afternoonPct} color="#5C7D90">
+                          <Ring percent={100} color="#5C7D90">
                             <span className="font-display text-2xl font-bold text-ink">
                               {afternoonMax || "—"}
                             </span>
@@ -868,7 +868,7 @@ export default function DoctorPage() {
                           </p>
                         </div>
                         <div className="rounded-card border border-line bg-surface-alt p-4 text-center">
-                          <Ring percent={bufferPct} color="#A0791F">
+                          <Ring percent={100} color="#A0791F">
                             <span className="font-display text-2xl font-bold text-ink">
                               {bufferMin || "—"}
                               <span className="ml-1 text-xs font-normal text-muted">
