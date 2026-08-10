@@ -335,7 +335,21 @@ export function ManualAppointmentModal({
       </div>
 
       <label className="mt-3 block text-[12px] font-bold text-muted">
-        Valid date and time
+        <span className="flex items-center justify-between">
+          <span>Valid date and time</span>
+          <span>
+            <button
+              type="button"
+              onClick={() => {
+                setMonthDate(new Date());
+                setExpandedOpen(true);
+              }}
+              className="text-[12px] font-semibold text-accent hover:underline"
+            >
+              Pick a date
+            </button>
+          </span>
+        </span>
         {availableDates.length === 0 ? (
           <div className="mt-1"><Empty>No open slots for this doctor and type.</Empty></div>
         ) : (
@@ -396,18 +410,6 @@ export function ManualAppointmentModal({
                 aria-label="Next dates"
               >
                 ›
-              </button>
-            </div>
-            <div className="mt-1 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setMonthDate(new Date());
-                  setExpandedOpen(true);
-                }}
-                className="text-[12px] font-semibold text-accent hover:underline"
-              >
-                Pick a date
               </button>
             </div>
             {selectedDay && (

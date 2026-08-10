@@ -351,7 +351,19 @@ export default function BookPage() {
           ))}
         </div>
 
-        <p className="mt-3 text-[12px] font-bold text-muted">Available times</p>
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-[12px] font-bold text-muted">Available times</p>
+          <button
+            type="button"
+            onClick={() => {
+              setMonthDate(new Date());
+              setExpandedOpen(true);
+            }}
+            className="text-[12px] font-semibold text-accent hover:underline"
+          >
+            Pick a date
+          </button>
+        </div>
 
         {availableDates.length === 0 ? (
           <Empty className="mt-1.5">No open slots for this doctor and type.</Empty>
@@ -409,18 +421,6 @@ export default function BookPage() {
                 aria-label="Next dates"
               >
                 ›
-              </button>
-            </div>
-            <div className="mt-1 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setMonthDate(new Date());
-                  setExpandedOpen(true);
-                }}
-                className="text-[12px] font-semibold text-accent hover:underline"
-              >
-                Pick a date
               </button>
             </div>
             {selectedDay && (
