@@ -611,8 +611,8 @@ export default function DoctorPage() {
                         className={cn(
                           "flex-1 rounded-lg border py-2 text-center text-sm font-semibold transition",
                           on
-                            ? "border-[#3F6F52] bg-[#3F6F52] text-white"
-                            : "border-line bg-surface-alt text-muted",
+                            ? "border-[#5B8C6E] bg-[#5B8C6E] text-white"
+                            : "border-line bg-surface-alt text-[#5B8C6E]/40",
                           rulesDraft && "cursor-pointer",
                         )}
                       >
