@@ -7,8 +7,6 @@ import { Button, Empty, Modal, Spinner } from "@/components/ui";
 
 const TYPES = ["routine", "follow_up", "urgent"] as const;
 
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-
 function toDayKey(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila",
@@ -20,14 +18,6 @@ function toDayKey(date: Date): string {
   const m = parts.find((p) => p.type === "month")?.value ?? "";
   const d = parts.find((p) => p.type === "day")?.value ?? "";
   return `${y}-${m}-${d}`;
-}
-
-function monthLabel(date: Date): string {
-  return date.toLocaleDateString("en-PH", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Manila",
-  });
 }
 
 function SearchSelect({
@@ -159,11 +149,8 @@ export function ManualAppointmentModal({
     return m;
   }, [slots]);
 
-  const [monthDate, setMonthDate] = useState<Date>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [showAllDates, setShowAllDates] = useState(false);
 
   useEffect(() => {
     if (!patientId && patients[0]) setPatientId(patients[0].id);
@@ -204,38 +191,8 @@ export function ManualAppointmentModal({
   }, [selectedDay, slotMap]);
 
   const today = toDayKey(new Date());
-
-  const monthCells = useMemo(() => {
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    const firstOfMonth = new Date(year, month, 1);
-    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    const cells: { date: Date; inMonth: boolean; day: string }[] = [];
-
-    // Previous month days
-    const prevMonthDays = new Date(year, month, 0).getDate();
-    for (let i = startOffset - 1; i >= 0; i--) {
-      const d = new Date(year, month, -i);
-      cells.push({ date: d, inMonth: false, day: toDayKey(d) });
-    }
-
-    // Current month days
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, month, d);
-      cells.push({ date, inMonth: true, day: toDayKey(date) });
-    }
-
-    // Fill remaining cells to complete a 42-cell grid
-    const total = 42;
-    while (cells.length < total) {
-      const last = cells[cells.length - 1].date;
-      const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
-      cells.push({ date: next, inMonth: false, day: toDayKey(next) });
-    }
-    return cells;
-  }, [monthDate]);
+  const availableDates = Object.keys(slotMap).filter((d) => d >= today).sort();
+  const visibleDates = showAllDates ? availableDates : availableDates.slice(0, 5);
 
   async function addPatient() {
     setBusy(true);
@@ -344,84 +301,57 @@ export function ManualAppointmentModal({
 
       <label className="mt-3 block text-[12px] font-bold text-muted">
         Valid date and time
-        {slots.length === 0 ? (
+        {availableDates.length === 0 ? (
           <div className="mt-1"><Empty>No open slots for this doctor and type.</Empty></div>
         ) : (
           <div className="mt-1 rounded-card border border-line bg-white p-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-bold text-ink">{monthLabel(monthDate)}</span>
-              <div className="flex gap-1 text-[13px] text-muted">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMonthDate(
-                      new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1),
-                    )
-                  }
-                  className="cursor-pointer hover:text-ink"
-                  aria-label="Previous month"
-                >
-                  &lt;
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMonthDate(
-                      new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1),
-                    )
-                  }
-                  className="cursor-pointer hover:text-ink"
-                  aria-label="Next month"
-                >
-                  &gt;
-                </button>
-              </div>
-            </div>
-            <div className="mt-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-muted">
-              {DAY_LABELS.map((d, i) => (
-                <div key={i}>{d}</div>
-              ))}
-            </div>
-            <div className="mt-0.5 grid grid-cols-7 gap-0.5">
-              {monthCells.map((cell, idx) => {
-                const hasSlots = Boolean(slotMap[cell.day]?.length);
-                const isSelected = cell.day === selectedDay;
-                const isOutside = !cell.inMonth;
-                const isPast = cell.day < today;
-                const isDisabled = isPast || (!hasSlots && !isOutside);
+            <div className="grid grid-cols-5 gap-1">
+              {visibleDates.map((day) => {
+                const dateObj = new Date(`${day}T00:00:00+08:00`);
+                const weekday = dateObj.toLocaleDateString("en-US", {
+                  weekday: "short",
+                  timeZone: "Asia/Manila",
+                });
+                const dayNum = dateObj.toLocaleDateString("en-US", {
+                  day: "numeric",
+                  timeZone: "Asia/Manila",
+                });
+                const isSelected = selectedDay === day;
                 return (
                   <button
-                    key={`${cell.day}-${idx}`}
+                    key={day}
                     type="button"
-                    disabled={isDisabled}
-                    onClick={
-                      !isDisabled
-                        ? () => {
-                            setSelectedDay(cell.day);
-                            setSlot("");
-                          }
-                        : undefined
-                    }
+                    onClick={() => {
+                      setSelectedDay(day);
+                      setSlot("");
+                    }}
                     className={[
-                      "flex h-7 items-center justify-center rounded border text-[11px] font-medium transition",
-                      isOutside ? "border-transparent text-muted/40" : "border-transparent text-ink",
-                      isDisabled ? "cursor-not-allowed text-muted/30" : "",
-                      hasSlots && !isOutside && !isSelected && !isDisabled
-                        ? "font-bold text-accent hover:bg-accent-soft"
-                        : "",
-                      isSelected && !isDisabled ? "border-accent bg-accent-soft text-accent" : "",
+                      "rounded border px-1 py-1 text-center text-[10px] font-bold transition",
+                      isSelected
+                        ? "border-accent bg-accent-soft text-accent"
+                        : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                      !isSelected ? "text-muted" : "",
                     ].join(" ")}
                   >
-                    {cell.date.getDate()}
+                    <span className="block">{weekday}</span>
+                    <span className="tnum block text-[12px] leading-none">{dayNum}</span>
                   </button>
                 );
               })}
             </div>
-            {selectedDay && slotMap[selectedDay]?.length ? (
+            {availableDates.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAllDates((v) => !v)}
+                className="mt-1 text-[12px] font-semibold text-accent hover:underline"
+              >
+                {showAllDates ? "Show fewer dates" : `Show ${availableDates.length - 5} more dates`}
+              </button>
+            )}
+            {selectedDay && (
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {slotMap[selectedDay]
-                  .slice(0, 6)
-                  .map((s: any) => (
+                {selectedDay && slotMap[selectedDay]?.length ? (
+                  slotMap[selectedDay].slice(0, 6).map((s: any) => (
                     <button
                       key={s.startUtc}
                       type="button"
@@ -435,10 +365,11 @@ export function ManualAppointmentModal({
                     >
                       {fmtTimeManila(s.startUtc)}
                     </button>
-                  ))}
+                  ))
+                ) : (
+                  <p className="text-[11px] text-muted">No slots on this day</p>
+                )}
               </div>
-            ) : (
-              selectedDay && <p className="mt-1 text-[11px] text-muted">No slots</p>
             )}
           </div>
         )}

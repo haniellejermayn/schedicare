@@ -36,14 +36,6 @@ function toDayKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function monthLabel(date: Date): string {
-  return date.toLocaleDateString("en-PH", {
-    month: "long",
-    year: "numeric",
-    timeZone: "Asia/Manila",
-  });
-}
-
 export default function BookPage() {
   const { data: patientsData } = usePoll<any>("/api/patients", 30000);
   const patients = patientsData?.patients ?? [];
@@ -77,10 +69,7 @@ export default function BookPage() {
 
   const [picked, setPicked] = useState<any | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [monthDate, setMonthDate] = useState<Date>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  const [showAllDates, setShowAllDates] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
@@ -102,53 +91,6 @@ export default function BookPage() {
       return available[0];
     });
   }, [slotMap]);
-
-  useEffect(() => {
-    if (selectedDay) {
-      const d = new Date(`${selectedDay}T00:00:00+08:00`);
-      setMonthDate((prev) => {
-        if (
-          prev.getFullYear() === d.getFullYear() &&
-          prev.getMonth() === d.getMonth()
-        ) {
-          return prev;
-        }
-        return new Date(d.getFullYear(), d.getMonth(), 1);
-      });
-    }
-  }, [selectedDay]);
-
-  const monthCells = useMemo(() => {
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    const firstOfMonth = new Date(year, month, 1);
-    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    const cells: { date: Date; inMonth: boolean; day: string }[] = [];
-
-    // Previous month days
-    const prevMonthDays = new Date(year, month, 0).getDate();
-    for (let i = startOffset - 1; i >= 0; i--) {
-      const d = new Date(year, month, -i);
-      cells.push({ date: d, inMonth: false, day: toDayKey(d) });
-    }
-
-    // Current month days
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, month, d);
-      cells.push({ date, inMonth: true, day: toDayKey(date) });
-    }
-
-    // Fill remaining cells to complete a 42-cell grid
-    const total = 42;
-    while (cells.length < total) {
-      const last = cells[cells.length - 1].date;
-      const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
-      cells.push({ date: next, inMonth: false, day: toDayKey(next) });
-    }
-    return cells;
-  }, [monthDate]);
 
   async function book() {
     if (!picked) return;
@@ -203,8 +145,10 @@ export default function BookPage() {
     patients.find((p: any) => p.id === patientId)?.name ?? ""
   ).split(" ")[0];
 
-  const selectedSlots = selectedDay ? slotMap[selectedDay] ?? [] : [];
   const today = toDayKey(new Date());
+  const selectedSlots = selectedDay ? slotMap[selectedDay] ?? [] : [];
+  const availableDates = Object.keys(slotMap).filter((d) => d >= today).sort();
+  const visibleDates = showAllDates ? availableDates : availableDates.slice(0, 5);
 
   return (
     <div className="mx-auto max-w-[430px] space-y-3">
@@ -373,111 +317,69 @@ export default function BookPage() {
 
         <p className="mt-3 text-[12px] font-bold text-muted">Available times</p>
 
-        {/* Calendar + Time slots */}
-        <div className="mt-1.5">
-          <div className="flex items-center justify-between rounded-card border border-line bg-white p-3">
-            <span className="text-[13px] font-bold text-ink">
-              {monthLabel(monthDate)}
-            </span>
-            <div className="flex gap-2 text-[13px] text-muted">
-              <button
-                onClick={() =>
-                  setMonthDate(
-                    new Date(
-                      monthDate.getFullYear(),
-                      monthDate.getMonth() - 1,
-                      1,
-                    ),
-                  )
-                }
-                className="cursor-pointer hover:text-ink"
-                aria-label="Previous month"
-              >
-                &lt;
-              </button>
-              <button
-                onClick={() =>
-                  setMonthDate(
-                    new Date(
-                      monthDate.getFullYear(),
-                      monthDate.getMonth() + 1,
-                      1,
-                    ),
-                  )
-                }
-                className="cursor-pointer hover:text-ink"
-                aria-label="Next month"
-              >
-                &gt;
-              </button>
+        {availableDates.length === 0 ? (
+          <Empty className="mt-1.5">No open slots for this doctor and type.</Empty>
+        ) : (
+          <div className="mt-1.5 rounded-card border border-line bg-white p-2">
+            <div className="grid grid-cols-5 gap-1">
+              {visibleDates.map((day) => {
+                const dateObj = new Date(`${day}T00:00:00+08:00`);
+                const weekday = dateObj.toLocaleDateString("en-US", {
+                  weekday: "short",
+                  timeZone: "Asia/Manila",
+                });
+                const dayNum = dateObj.toLocaleDateString("en-US", {
+                  day: "numeric",
+                  timeZone: "Asia/Manila",
+                });
+                const isSelected = selectedDay === day;
+                return (
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDay(day)}
+                    className={cn(
+                      "flex flex-col items-center rounded-card border py-1.5 text-[11px] font-bold transition",
+                      isSelected
+                        ? "border-accent bg-accent-soft text-accent"
+                        : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                      !isSelected ? "text-muted" : "",
+                    )}
+                  >
+                    <span>{weekday}</span>
+                    <span className="tnum text-[13px] leading-none">{dayNum}</span>
+                  </button>
+                );
+              })}
             </div>
+            {availableDates.length > 5 && (
+              <button
+                onClick={() => setShowAllDates((v) => !v)}
+                className="mt-1 text-[12px] font-semibold text-accent hover:underline"
+              >
+                {showAllDates ? "Show fewer dates" : `Show ${availableDates.length - 5} more dates`}
+              </button>
+            )}
+            {selectedDay && (
+              <div className="mt-2">
+                {selectedSlots.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {selectedSlots.slice(0, 8).map((s: any) => (
+                      <button
+                        key={s.startUtc}
+                        onClick={() => setPicked(s)}
+                        className="tnum rounded-full border border-line bg-white px-3 py-1.5 text-[12px] font-bold text-ink hover:border-accent hover:bg-accent-soft"
+                      >
+                        {fmtTimeManila(s.startUtc)}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <Empty>No open slots for this day.</Empty>
+                )}
+              </div>
+            )}
           </div>
-
-          <div className="mt-2 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-muted">
-            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-              <div key={i}>{d}</div>
-            ))}
-          </div>
-
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {monthCells.map((cell, idx) => {
-              const hasSlots = Boolean(slotMap[cell.day]);
-              const isSelected = cell.day === selectedDay;
-              const isOutside = !cell.inMonth;
-              const isPast = cell.day < today;
-              const isBlocked = isPast || (!hasSlots && !isOutside);
-              return (
-                <button
-                  key={`${cell.day}-${idx}`}
-                  onClick={!isBlocked ? () => setSelectedDay(cell.day) : undefined}
-                  disabled={isBlocked}
-                  className={cn(
-                    "flex h-8 items-center justify-center rounded border text-[12px] font-medium transition",
-                    isOutside
-                      ? "border-transparent text-muted/40"
-                      : "border-transparent text-ink",
-                    isBlocked
-                      ? "cursor-not-allowed text-muted/30"
-                      : "",
-                    hasSlots && !isOutside && !isSelected && !isBlocked
-                      ? "font-bold text-accent hover:bg-accent-soft"
-                      : "",
-                    isSelected && !isBlocked && "border-accent bg-accent-soft text-accent",
-                  )}
-                >
-                  {cell.date.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mt-3">
-          {selectedDay ? (
-            <>
-              <p className="text-[12px] font-bold text-ink">
-                {fmtDayManila(`${selectedDay}T00:00:00+08:00`)}
-              </p>
-              {selectedSlots.length > 0 ? (
-                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                  {selectedSlots.slice(0, 8).map((s: any) => (
-                    <button
-                      key={s.startUtc}
-                      onClick={() => setPicked(s)}
-                      className="tnum rounded-full border border-line bg-white px-3 py-1.5 text-[12px] font-bold text-ink hover:border-accent hover:bg-accent-soft"
-                    >
-                      {fmtTimeManila(s.startUtc)}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <Empty>No open slots for this day.</Empty>
-              )}
-            </>
-          ) : (
-            <Empty>No open slots match — try another doctor or type.</Empty>
-          )}
-        </div>
+        )}
       </Card>
 
       <p className="pb-6 text-center text-[11px] leading-relaxed text-muted">
