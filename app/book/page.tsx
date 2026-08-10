@@ -69,7 +69,9 @@ export default function BookPage() {
 
   const [picked, setPicked] = useState<any | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [showAllDates, setShowAllDates] = useState(false);
+  const [dateOffset, setDateOffset] = useState(0);
+  const [expandedOpen, setExpandedOpen] = useState(false);
+  const [monthDate, setMonthDate] = useState(() => new Date());
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
@@ -148,7 +150,41 @@ export default function BookPage() {
   const today = toDayKey(new Date());
   const selectedSlots = selectedDay ? slotMap[selectedDay] ?? [] : [];
   const availableDates = Object.keys(slotMap).filter((d) => d >= today).sort();
-  const visibleDates = showAllDates ? availableDates : availableDates.slice(0, 5);
+  const pageSize = 5;
+  const visibleDates = availableDates.slice(dateOffset, dateOffset + pageSize);
+  const canPrev = dateOffset > 0;
+  const canNext = dateOffset + pageSize < availableDates.length;
+
+  const availableDateSet = useMemo(() => new Set(availableDates), [availableDates]);
+
+  const monthCells = useMemo(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startOffset = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: { day: string; date: Date; inMonth: boolean }[] = [];
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      cells.push({ day: toDayKey(d), date: d, inMonth: false });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      cells.push({ day: toDayKey(date), date, inMonth: true });
+    }
+    const total = 42;
+    while (cells.length < total) {
+      const last = cells[cells.length - 1].date;
+      const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+      cells.push({ day: toDayKey(next), date: next, inMonth: false });
+    }
+    return cells;
+  }, [monthDate]);
+
+  useEffect(() => {
+    setDateOffset((prev) => Math.min(prev, Math.max(0, availableDates.length - pageSize)));
+  }, [availableDates.length]);
 
   return (
     <div className="mx-auto max-w-[430px] space-y-3">
@@ -321,44 +357,72 @@ export default function BookPage() {
           <Empty className="mt-1.5">No open slots for this doctor and type.</Empty>
         ) : (
           <div className="mt-1.5 rounded-card border border-line bg-white p-2">
-            <div className="grid grid-cols-5 gap-1">
-              {visibleDates.map((day) => {
-                const dateObj = new Date(`${day}T00:00:00+08:00`);
-                const weekday = dateObj.toLocaleDateString("en-US", {
-                  weekday: "short",
-                  timeZone: "Asia/Manila",
-                });
-                const dayNum = dateObj.toLocaleDateString("en-US", {
-                  day: "numeric",
-                  timeZone: "Asia/Manila",
-                });
-                const isSelected = selectedDay === day;
-                return (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    className={cn(
-                      "flex flex-col items-center rounded-card border py-1.5 text-[11px] font-bold transition",
-                      isSelected
-                        ? "border-accent bg-accent-soft text-accent"
-                        : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
-                      !isSelected ? "text-muted" : "",
-                    )}
-                  >
-                    <span>{weekday}</span>
-                    <span className="tnum text-[13px] leading-none">{dayNum}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {availableDates.length > 5 && (
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setShowAllDates((v) => !v)}
-                className="mt-1 text-[12px] font-semibold text-accent hover:underline"
+                type="button"
+                onClick={() => setDateOffset((prev) => Math.max(0, prev - pageSize))}
+                disabled={!canPrev}
+                className="rounded border border-line px-1.5 py-1 text-[13px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Previous dates"
               >
-                {showAllDates ? "Show fewer dates" : `Show ${availableDates.length - 5} more dates`}
+                ‹
               </button>
-            )}
+              <div className="grid flex-1 grid-cols-5 gap-1">
+                {visibleDates.map((day) => {
+                  const dateObj = new Date(`${day}T00:00:00+08:00`);
+                  const weekday = dateObj.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    timeZone: "Asia/Manila",
+                  });
+                  const dayNum = dateObj.toLocaleDateString("en-US", {
+                    day: "numeric",
+                    timeZone: "Asia/Manila",
+                  });
+                  const isSelected = selectedDay === day;
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDay(day)}
+                      className={cn(
+                        "flex flex-col items-center rounded-card border py-1.5 text-[11px] font-bold transition",
+                        isSelected
+                          ? "border-accent bg-accent-soft text-accent"
+                          : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                        !isSelected ? "text-muted" : "",
+                      )}
+                    >
+                      <span>{weekday}</span>
+                      <span className="tnum text-[13px] leading-none">{dayNum}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setDateOffset((prev) =>
+                    Math.min(prev + pageSize, Math.max(0, availableDates.length - pageSize)),
+                  )
+                }
+                disabled={!canNext}
+                className="rounded border border-line px-1.5 py-1 text-[13px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Next dates"
+              >
+                ›
+              </button>
+            </div>
+            <div className="mt-1 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setMonthDate(new Date());
+                  setExpandedOpen(true);
+                }}
+                className="text-[12px] font-semibold text-accent hover:underline"
+              >
+                Pick a date
+              </button>
+            </div>
             {selectedDay && (
               <div className="mt-2">
                 {selectedSlots.length > 0 ? (
@@ -442,6 +506,77 @@ export default function BookPage() {
             the clinic — patients on the waitlist may be offered it.
           </p>
         )}
+      </Modal>
+
+      {/* Expanded calendar picker */}
+      <Modal
+        open={expandedOpen}
+        onClose={() => setExpandedOpen(false)}
+        title="Pick a date"
+      >
+        <div className="p-1">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() =>
+                setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))
+              }
+              className="rounded border border-line px-2 py-1 text-[13px] text-muted hover:text-ink"
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+            <span className="text-[13px] font-bold text-ink">
+              {monthDate.toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))
+              }
+              className="rounded border border-line px-2 py-1 text-[13px] text-muted hover:text-ink"
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+          <div className="mt-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-muted">
+            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+              <div key={i}>{d}</div>
+            ))}
+          </div>
+          <div className="mt-0.5 grid grid-cols-7 gap-0.5">
+            {monthCells.map((cell, idx) => {
+              const isAvailable = availableDateSet.has(cell.day) && cell.day >= today;
+              const isSelected = selectedDay === cell.day;
+              const isDisabled = !cell.inMonth || !isAvailable;
+              return (
+                <button
+                  key={`${cell.day}-${idx}`}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    setSelectedDay(cell.day);
+                    setPicked(null);
+                    setExpandedOpen(false);
+                  }}
+                  className={[
+                    "flex h-8 items-center justify-center rounded text-[12px] font-medium transition",
+                    !cell.inMonth ? "text-muted/30" : "text-ink",
+                    isSelected ? "bg-accent-soft font-bold text-accent" : "",
+                    isAvailable && !isSelected ? "hover:bg-accent-soft" : "",
+                    isDisabled ? "cursor-not-allowed opacity-40" : "",
+                  ].join(" ")}
+                >
+                  {cell.date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </Modal>
     </div>
   );
