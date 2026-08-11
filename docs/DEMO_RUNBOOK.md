@@ -3,7 +3,7 @@
 Target: 3 minutes inside a 10-minute presentation. This run is intentionally
 live: Claude on Bedrock, Gmail replies, and Google Calendar writes.
 
-## Pre-flight
+## Pre-flight and live staging
 
 Do this before the room opens, not during the presentation.
 
@@ -21,16 +21,25 @@ Do this before the room opens, not during the presentation.
 2. Set `DEMO_PATIENT_EMAIL` to a patient inbox you control that is **different
    from the clinic Gmail account connected through OAuth**. The three patients
    use plus aliases of this inbox, so one second account is enough.
-3. Run `npm run demo`. This clean profile includes only the flagship scenario
-   and opens no background sweep cases. Then
-   open **Settings → Connections**. Verify Claude, Google Calendar, and Gmail.
-   Map both doctors to the intended live demo
-   calendar. The status chip must say **Actual replies only · 3s polling**.
-4. In **Settings → Demo & data**, press **Reset demo data**. Reset clears the
-   workflow but preserves Google OAuth and both doctor-calendar mappings.
-5. Clear old SchediCare events from the dedicated Google demo calendar if you
-   rehearsed earlier. Reset cannot safely delete external events it no longer
-   tracks.
+3. Run `npm run demo`. This profile includes only the flagship scenario and
+   opens no background sweep cases.
+4. Manually clear old SchediCare `[HOLD]` and out-of-office events from both
+   dedicated Google demo calendars. Reset cannot safely delete external events
+   it no longer tracks.
+5. In **Settings → Demo & data**, press **Reset demo data**. Reset clears the
+   local workflow while preserving Google OAuth and doctor-calendar mappings.
+6. Restore or confirm both doctor mappings in **Settings → Connections**, then
+   verify Claude, Google Calendar, and Gmail **after the reset**. Confirm the UI
+   reports the intended live mode and **Actual replies only · 3s polling**.
+7. Shortly before the presentation, trigger Dr. Santos's unavailability through
+   the normal Doctor workflow. Let Assessment → Scheduling → Recovery finish
+   normally, then confirm the case is at `awaiting_approval` / **Needs your
+   review** with three recommendations visible.
+
+This is live demo staging, not cached or fabricated output. The normal live
+workflow processed the disruption immediately beforehand; the presentation
+starts at its human approval boundary so model latency does not consume the
+three-minute audience segment. Do not approve any recommendation while staging.
 
 The seed uses the current Manila time. Once the clinic day has begun, the
 showcase disruption is placed on Dr. Santos's next working day, ensuring all
@@ -44,18 +53,15 @@ part of the normal flagship run.
 
 ## Three-minute story
 
-### 0:00–0:25 — Trigger
+### 0:00–0:40 — Open the prepared case and show the gate
 
-Open **Doctor → This week**, point to the three upcoming Santos visits, then
-press **I can't come in…**. The showcase date is preselected; confirm the
-family-emergency reason and open **Front desk**. Say:
+Begin in **Front desk** with the prepared case already at **Needs your review**.
+Point to the three affected Santos visits and the completed agent activity. Say:
 
 > Dr. Santos is unexpectedly unavailable. The system has three patients to
 > recover, but it cannot contact anyone until staff approve.
 
-### 0:25–1:05 — Show agent work and the gate
-
-Open the new case. Point to the three recommendations and briefly toggle
+Point to the three recommendations and briefly toggle
 **Technical detail** to show the agent/tool trace. Emphasize:
 
 - Claude interprets the disruption and later extracts meaning from real replies.
@@ -66,7 +72,7 @@ Open the new case. Point to the three recommendations and briefly toggle
 Approve all three suggestions. This creates live `[HOLD]` events in the mapped
 Google Calendar and sends three real Gmail messages.
 
-### 1:05–2:20 — Three real reply paths
+### 0:40–2:20 — Three real reply paths
 
 From the separate patient inbox, reply on each conversation:
 
@@ -108,7 +114,7 @@ Close with:
 | Symptom | Safe move |
 |---|---|
 | Claude verify fails | Restart after fixing the Bedrock key/region/model; do not claim a live AI run. |
-| Gmail or Calendar verify fails | Reconnect Google and verify again before resetting. |
+| Gmail or Calendar verify fails | Reconnect Google, reset if needed, then verify again after the final reset. |
 | No reply appears after 10 seconds | Confirm the reply came from the separate patient account and the worker terminal is running. |
-| Worker stopped | Run `npm run worker`; queued work resumes from SQLite. |
-| Demo state is dirty | Reset demo data, then remove leftover SchediCare events from the dedicated Google calendar. |
+| Worker stopped | If the event is still pending, restart with `npm run worker`. If it was already claimed as `processing`, the queue has no stale-claim recovery: reset, clean any external residue, and stage the case again. |
+| Demo state is dirty | Remove leftover SchediCare events from the dedicated Google calendars, reset demo data, then verify integrations again. |

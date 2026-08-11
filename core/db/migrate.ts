@@ -122,6 +122,7 @@ const TABLES = [
   "case_timeline",
   "agent_runs",
   "recommendations",
+  "negotiations",
   "messages",
   "audit_log",
   "oauth_tokens",

@@ -50,13 +50,16 @@ reply timing):
 | `resume_case` (final staff decision)    | `resumeCase()` → gate falls through to execute                   |
 | `simulate_reply` / `patient_reply`      | insert/read inbound, `handlePatientReply()`, then `resumeCase()` |
 
-`resumeCase()` no-ops when the thread has no pending interrupt, so late events
-against finished cases are harmless.
+`resumeCase()` resumes a pending gate/watch interrupt when one exists. If a
+human action revived a non-terminal case after its prior graph run ended, it
+starts a fresh run on the same thread and routes from the persisted case state;
+resolved or escalated cases no-op.
 
-## Agents on LangChain
+## Agents on the provider-neutral runtime
 
-The per-agent Gemini function-calling loop now runs on
-`@langchain/google` (`agents/runtime/gemini.ts`): domain tools plus a
+The per-agent tool loop runs through the configured provider: Claude on Amazon
+Bedrock (primary) or Gemini through `@langchain/google`. Both paths expose
+domain tools plus a
 `submit_result` tool whose schema is the agent's Zod result schema; the result
 is validated with the same schema the deterministic fallback satisfies. Any
 live failure still degrades visibly to the fallback — the graph shape is

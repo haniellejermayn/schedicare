@@ -11,10 +11,13 @@ human decision.
 Design principle: **authority scales with verifiability.** Everything
 repeatable and checkable is deterministic code — the slot engine, validators,
 ranking, the case state machine, reply triage, and the negotiation guards.
-LLMs sit only at the open-ended joints: interpreting a disruption, extracting
-a patient's free-text constraints, choosing the next negotiation move,
-drafting prose. Model output flows through validators and a staff gate before
-anything happens.
+LLMs support disruption assessment, read-only slot-search orchestration, and
+recovery explanations, and provide the core semantic value in free-text
+constraint extraction and bounded negotiation. First-contact offers and
+confirmation acknowledgments in the doctor-disruption flow are deterministic
+templates. Models draft open-ended continuations and clarifications, plus the
+confirmation, preventive, and waitlist outreach flows. Model output flows
+through validators and a staff gate before anything consequential happens.
 
 ## Quickstart
 
@@ -90,7 +93,7 @@ diagrammed in [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md).
 ## Verification
 
 ```bash
-npm run typecheck && npm test   # 95 tests across 10 suites
+npm run typecheck && npm test   # 106 tests across 11 suites
 npm run build                   # production build
 npm run eval:constraints        # extraction vs deterministic baseline
 ```
@@ -127,7 +130,7 @@ core/           Slot engine, validators, constraints, ranking, negotiations, cas
 integrations/   Google Calendar/Gmail providers, simulated twins, OAuth, MCP transport
 worker/         Event queue, pipeline steps, executor, reply handling + triage, negotiation runner, daily sweep
 sim/            Deterministic seed + reply personas
-tests/          10 suites, 95 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
+tests/          11 suites, 106 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
 eval/           Constraint corpus (66 labeled replies) + baseline scorer + metric harness
 docs/           Setup guides, runbook, agentic workflow, evaluation, security & scope
 ```

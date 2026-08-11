@@ -1,10 +1,10 @@
 # Negotiation Loop — Design
 
-Status: design approved pending review · Target: post-extraction batches
+Status: implemented in the current reply pipeline
 
-## Problem
+## Motivation
 
-Today the reply pipeline is one-shot per turn. A simple counter triggers an
+Before the negotiation loop, the reply pipeline was one-shot per turn. A simple counter triggered an
 immediate replan; a compound one stops (correctly) at the constraint editor;
 but nothing _pursues a resolution across turns_:
 
@@ -115,8 +115,9 @@ conversation-local merge.
 
 Phase A (this build):
 
-- Turn 1 simple counter → today's fast path (replanSingle), and a negotiation
-  row is CREATED to start counting turns.
+- Turn 1 simple rich counter → the deterministic constraint-search fast path
+  (`replanWithConstraintSet`), and a negotiation row is created to count turns.
+  The legacy fallback classifier continues to use `replanSingle`.
 - Negotiation policy engages on: turn ≥ 2 for the same appointment · any
   zero-slot search result · the turn after a staff-approved compound set from
   the constraint editor.
@@ -125,12 +126,11 @@ Phase A (this build):
 Phase B (optional, post-demo): unify turn 1 into the loop (policy's
 first-turn choice reproduces replanSingle when slots exist).
 
-## Risk hook
+## Future risk hook
 
-The policy input includes the patient's no-show risk band. A high-risk
-patient's negotiation can legitimately favor confirmation-oriented phrasing
-or earlier escalation to a phone call — this turns the existing deterministic
-risk feature into an input of the agentic layer.
+The policy schema can accept a patient's no-show risk band, but the current
+negotiation caller does not supply it. Wiring that signal into negotiation is a
+post-demo extension, not current behavior.
 
 ## Demo beats this unlocks
 

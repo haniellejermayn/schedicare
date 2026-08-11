@@ -1,6 +1,7 @@
 # Google Workspace setup (live Calendar + Gmail)
 
-Live mode makes **real** calendar events and **real** email drafts. Use a
+Live mode makes **real** calendar events and sends **real** email after staff
+approval. Use a
 throwaway/demo Google account — never a production clinic account.
 
 ## 1. Google Cloud project + OAuth client (~5 minutes)
@@ -24,7 +25,7 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/api/oauth/callback
 
 ## 2. Connect the account
 
-Restart web + worker, open **/integrations**, press **Connect Google**, and
+Restart web + worker, open **Settings → Connections**, press **Connect Google**, and
 approve the three scopes. SchediCare requests the minimum:
 
 - `calendar.events` — create/read/delete events on the mapped calendars
@@ -39,7 +40,7 @@ them.
 
 Create two calendars in Google Calendar (e.g. *Dr. Santos* and *Dr. Reyes*),
 copy each **Calendar ID** (calendar Settings → *Integrate calendar*), and paste
-them into **/integrations → Doctor → calendar mapping**. Keeping the `sim-`
+them into **Settings → Connections → Doctor calendar mapping**. Keeping the `sim-`
 ids leaves that doctor on the simulated provider.
 
 Press **Verify** on the Calendar and Gmail cards — you should see event counts
@@ -54,7 +55,8 @@ DEMO_PATIENT_EMAIL=you@gmail.com
 ```
 
 and re-run `npm run setup`. Every patient becomes a **plus-alias** of that
-address — Teresa is `you+teresa@gmail.com`, Miguel `you+miguel@gmail.com`, and
+address — Teresa is `you+teresa.navarro@gmail.com`, Miguel
+`you+miguel.torres@gmail.com`, and
 so on. Gmail delivers all aliases to your single inbox, and because each offer
 lives on its own thread, replying from your inbox routes the answer back to the
 right patient automatically. Left empty, patients get `@riverside-demo.example`
@@ -62,15 +64,16 @@ addresses (only usable with the simulated provider).
 
 ## 5. How live mail behaves (the safety rails)
 
-- Agents produce **drafts only**, and only after staff approve the
-  recommendation. Each recommendation card then shows *"Gmail draft is ready —
-  nothing goes to the patient until you press Send."*
-- The worker polls **known thread ids** every 20 s for replies (no inbox-wide
+- Agents produce patient copy behind the staff approval gate. After approval,
+  the executor creates and sends the Gmail draft; a retained draft is shown
+  only when sending fails.
+- The worker polls **known thread ids** at `GMAIL_POLL_MS` (3 s in the live
+  demo) for replies (no inbox-wide
   reading), dedupes on message id, runs the reply guard, then the interpret →
   route → replan loop — identical to the simulated path.
-- Any Calendar/Gmail failure marks the service unhealthy and degrades that
-  component to its simulated twin, labeled, without stopping the case
-  (see FALLBACK_MODE.md).
+- Calendar reads/creates and Gmail draft creation have labeled simulated
+  fallbacks. A Gmail send failure retains the draft and requires staff recovery
+  rather than risking a duplicate send (see FALLBACK_MODE.md).
 
 ## Troubleshooting
 
@@ -79,5 +82,5 @@ addresses (only usable with the simulated provider).
 - **403 `access_denied`** — add your account under *Test users*.
 - **Events not visible** — you mapped a calendar the connected account can't
   write to; use calendars owned by that account.
-- **No replies detected** — reply in the same thread (normal "Reply"), give the
-  20 s poll a moment, and check the worker log.
+- **No replies detected** — reply in the same thread (normal "Reply"), allow at
+  least one configured polling interval, and check the worker log.

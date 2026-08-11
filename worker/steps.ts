@@ -1,13 +1,13 @@
 /**
  * Case-pipeline steps. Each step reads/writes case meta so data flows between
- * agents server-side. The live Orchestrator (Gemini) sequences these as tools;
- * Presentation Resilience Mode runs the exact same functions in a fixed order.
+ * agents server-side. LangGraph sequences these steps; each specialist uses the
+ * configured live provider or its schema-compatible deterministic fallback.
  * No step performs external writes — that is exclusively the executor's job,
  * behind the staff approval gate.
  */
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/core/db/client";
-import { demoToday, fmtWhen, sleep } from "@/core/clock";
+import { demoNowIso, demoToday, fmtWhen, sleep } from "@/core/clock";
 import { env } from "@/core/env";
 import { timeline } from "@/core/timeline";
 import { findSlotsForConstraints } from "@/core/constraintMatching";
@@ -49,6 +49,7 @@ import {
 } from "@/agents/recovery";
 import {
   bannedContentLint,
+  honorificFromNotes,
   runCommsDraft,
   type CommsDraftResult,
   type DraftItem,
@@ -380,7 +381,69 @@ export async function commsStep(
     (p: any) =>
       !opts?.onlyAppointmentId || p.appointmentId === opts.onlyAppointmentId,
   );
-  if (plans.length === 0) throw new Error("commsStep: no plans to draft for");
+  const assessedItems = (assessment?.items ?? []).filter(
+    (item: any) =>
+      !opts?.onlyAppointmentId || item.appointmentId === opts.onlyAppointmentId,
+  );
+  if (assessedItems.length === 0)
+    throw new Error("commsStep: no assessed items to represent");
+  const plansByAppointment = new Map(
+    plans.map((plan: any) => [plan.appointmentId, plan]),
+  );
+  let manualOutcomes = 0;
+  const manualRecommendationIds: string[] = [];
+  for (const item of assessedItems) {
+    const plan: any = plansByAppointment.get(item.appointmentId);
+    if (plan?.options?.length && plan.chosenOptionId !== "none") continue;
+    const appt = getAppt(item.appointmentId);
+    const reason =
+      plan?.rationale ??
+      `No recovery plan was returned for ${item.patientName}; staff follow-up is required.`;
+    db.update(schema.appointments)
+      .set({ needsCallback: true })
+      .where(eq(schema.appointments.id, item.appointmentId))
+      .run();
+    const inserted = db
+      .insert(schema.recommendations)
+      .values({
+        caseId,
+        appointmentId: item.appointmentId,
+        patientId: item.patientId,
+        kind: "callback",
+        status: "executed",
+        outcome: "needs_human",
+        executedAt: demoNowIso(),
+        payload: {
+          appointmentId: item.appointmentId,
+          patientId: item.patientId,
+          patientName: item.patientName,
+          priorityRank: item.priorityRank,
+          priorityReason: item.priorityReason,
+          from: {
+            doctorId: appt.doctorId,
+            doctorName: getDoctor(appt.doctorId).name,
+            startUtc: appt.startUtc,
+            when: fmtWhen(appt.startUtc),
+          },
+          rationale: reason,
+          manualReason: "no_valid_replacement",
+        },
+        explanation: reason,
+        createdAt: demoNowIso(),
+      })
+      .returning({ id: schema.recommendations.id })
+      .get();
+    manualRecommendationIds.push(inserted.id);
+    manualOutcomes += 1;
+    timeline(
+      caseId,
+      "recovery",
+      "escalation",
+      `No valid replacement for ${item.patientName} — staff follow-up required`,
+      reason,
+      { appointmentId: item.appointmentId },
+    );
+  }
 
   const items: DraftItem[] = [];
   for (const plan of plans) {
@@ -411,6 +474,7 @@ export async function commsStep(
     items.push({
       patientId: it.patientId,
       patientName: it.patientName,
+      honorific: honorificFromNotes(getPatient(it.patientId).notes),
       appointmentId: plan.appointmentId,
       replyRegister: (Object.values(m.constraintsByAppt ?? {}) as any[])
         .filter((entry: any) => entry.patientId === it.patientId)
@@ -475,13 +539,6 @@ export async function commsStep(
   const createdIds: string[] = [];
   for (const plan of plans) {
     if (!plan.options.length || plan.chosenOptionId === "none") {
-      timeline(
-        caseId,
-        "recovery",
-        "escalation",
-        `No valid options for appointment ${plan.appointmentId} — staff attention needed`,
-        plan.rationale,
-      );
       continue;
     }
     const it = (assessment?.items ?? []).find(
@@ -538,13 +595,21 @@ export async function commsStep(
     );
   }
   if (created === 0) {
+    if (opts?.replanOf && manualRecommendationIds[0])
+      db.update(schema.recommendations)
+        .set({
+          outcome: "superseded",
+          supersededBy: manualRecommendationIds[0],
+        })
+        .where(eq(schema.recommendations.id, opts.replanOf))
+        .run();
     escalateCase(
       caseId,
       "orchestrator",
       "No valid replacement remains — review the patient's constraints or follow up directly.",
     );
     await pace();
-    return "No recommendation created — staff follow-up required";
+    return `${manualOutcomes || assessedItems.length} patient outcome(s) require staff follow-up`;
   }
   if (opts?.replanOf) {
     db.update(schema.recommendations)
@@ -558,7 +623,7 @@ export async function commsStep(
       caseId,
       "awaiting_approval",
       "orchestrator",
-      `${created} recommendation${created === 1 ? "" : "s"} ready — nothing is sent or written until staff approve.`,
+      `${created} recommendation${created === 1 ? "" : "s"} ready${manualOutcomes ? `; ${manualOutcomes} patient${manualOutcomes === 1 ? "" : "s"} require staff follow-up` : ""} — nothing is sent or written until staff approve.`,
     );
   await pace();
   return `${created} recommendation(s) awaiting staff approval`;

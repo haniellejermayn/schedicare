@@ -15,6 +15,16 @@ export const SIGNOFF = `Warm regards,\n${CLINIC_NAME}\n(02) 8641 0117`;
 export const REPLY_REGISTERS = ["english", "taglish", "tagalog"] as const;
 export type ReplyRegister = (typeof REPLY_REGISTERS)[number];
 
+/** Read only an explicitly recorded salutation; never infer one from a name. */
+export function honorificFromNotes(
+  notes: string | null | undefined,
+): "Ma'am" | "Sir" | undefined {
+  const value = notes
+    ?.match(/\bPreferred salutation:\s*(Ma'am|Sir)\b/i)?.[1]
+    ?.toLowerCase();
+  return value === "ma'am" ? "Ma'am" : value === "sir" ? "Sir" : undefined;
+}
+
 /** Conservative register signal; drafting receives only this enum, not reply text. */
 export function detectReplyRegister(body: string): ReplyRegister {
   const words = body.toLowerCase().match(/[a-zÀ-ÿ]+/g) ?? [];
@@ -81,6 +91,7 @@ export { normalizeMailBody } from "@/lib/mailText";
 export const DraftItemSchema = z.object({
   patientId: z.string(),
   patientName: z.string(),
+  honorific: z.enum(["Ma'am", "Sir"]).optional(),
   appointmentId: z.string().optional(),
   replyRegister: z.enum(REPLY_REGISTERS).optional(),
   context: z.object({
@@ -159,6 +170,7 @@ function template(
 ): { subject: string; body: string } {
   const c = item.context;
   const first = item.patientName.split(" ")[0];
+  const taglishGreeting = `Hello po ${item.honorific ? `${item.honorific} ` : ""}${first}`;
   // A cross-doctor offer must say so explicitly (P0 copy rule): name the
   // covering arrangement and keep the "wait for your usual doctor" door open
   // — as an invitation only, since the template holds no date for it.
@@ -174,17 +186,30 @@ function template(
   switch (purpose) {
     case "reschedule_offer":
       if (c.reason === "counter") {
+        if (item.replyRegister === "taglish") {
+          const doctor = shortDoctorName(c.proposedDoctorName ?? c.doctorName);
+          const usualDoctor = shortDoctorName(c.doctorName);
+          const taglishWaitOption = crossDoctor
+            ? c.sameDoctorAlt
+              ? ` If mas gusto n'yo po kay ${usualDoctor}, ang closest available schedule niya ay ${taglishWhen(c.sameDoctorAlt)}. Let us know po kung alin ang mas okay sa inyo.`
+              : ` If mas gusto n'yo po maghintay for ${usualDoctor}, just let us know po.`
+            : "";
+          return {
+            subject: standardSubject("reschedule_offer", c),
+            body: `${taglishGreeting},\n\nThank you po sa reply. Available po si ${doctor} sa ${taglishWhen(c.proposedWhen)}. Okay po ba ito sa inyo?${taglishWaitOption}\n\n${SIGNOFF}`,
+          };
+        }
         const slotLine = crossDoctor
           ? `${longWhen(c.proposedWhen)} is open with ${c.proposedDoctorName}, who is covering for ${c.doctorName}`
           : `${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
         return {
           subject: standardSubject("reschedule_offer", c),
-          body: `Hi ${first},\n\nThanks for letting us know! We checked with your preference in mind — ${slotLine}. Will that work for you?${waitOption}\n\n${SIGNOFF}`,
+          body: `Hi ${first},\n\nThanks for letting us know. ${slotLine}. Would that work for you?${waitOption}\n\n${SIGNOFF}`,
         };
       }
       return {
         subject: standardSubject("reschedule_offer", c),
-        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${longWhen(c.originalWhen)}. We're very sorry for the inconvenience.\n\nThe earliest good match we found for you is on ${longWhen(c.proposedWhen)}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know if this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${longWhen(c.originalWhen)}. We're very sorry for the inconvenience.\n\nWe can offer you ${longWhen(c.proposedWhen)}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know if this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
       };
     case "confirm_nudge":
       return {
@@ -194,12 +219,12 @@ function template(
     case "preventive":
       return {
         subject: standardSubject("preventive", c),
-        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply saying so helps us hold your slot.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply to confirm would help us plan.\n\n${SIGNOFF}`,
       };
     case "waitlist_offer":
       return {
         subject: standardSubject("waitlist_offer", c),
-        body: `Hi ${first},\n\nGood news: a slot just opened on ${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and you're first on our waitlist for it.\n\nReply within the day if you'd like to take it, or tell us you'd rather wait — you won't lose your place on the list.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nGood news: a slot just opened on ${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and we'd like to offer it to you from our waitlist.\n\nIf you'd like it, please let us know. If not, you'll keep your place on the waitlist.\n\n${SIGNOFF}`,
       };
     case "cancel_ack":
       return {
@@ -207,6 +232,21 @@ function template(
         body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${longWhen(c.originalWhen)}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
       };
   }
+}
+
+function shortDoctorName(name: string | undefined): string {
+  if (!name) return "the doctor";
+  const parts = name.trim().split(/\s+/);
+  return /^Dr\.?$/i.test(parts[0] ?? "") && parts.length > 1
+    ? `Dr. ${parts.at(-1)}`
+    : name;
+}
+
+/** Patient-facing Taglish date: "Sat Aug 15 · 8:00 AM" -> "Saturday, August 15 nang 8:00 AM". */
+function taglishWhen(when: string | undefined): string {
+  const expanded = longWhen(when);
+  const m = expanded.match(/^([A-Za-z]+) (\d{1,2}) \(([A-Za-z]+)\), (.+)$/);
+  return m ? `${m[3]}, ${m[1]} ${m[2]} nang ${m[4]}` : expanded;
 }
 
 /**
@@ -248,6 +288,11 @@ export function confirmationAckTemplate(i: {
  */
 const BANNED =
   /(diagnos\w*|dosage|\bmg\b|prescri\w*|take your medication|stop taking|side effects?|symptom)/i;
+const PATIENT_TITLE = /\b(?:ma['’]?am|sir|mrs?|ms)\b\.?/gi;
+
+function titleKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z]/g, "");
+}
 
 export function bannedContentLint(
   purpose: DraftPurpose,
@@ -256,13 +301,41 @@ export function bannedContentLint(
 ): { result: CommsDraftResult; warnings: string[] } {
   const warnings: string[] = [];
   const drafts = result.drafts.map((d) => {
-    const item = items.find((i) => i.patientId === d.patientId);
+    const patientItems = items.filter((i) => i.patientId === d.patientId);
+    const item = d.appointmentId
+      ? patientItems.find((i) => i.appointmentId === d.appointmentId)
+      : patientItems.length === 1
+        ? patientItems[0]
+        : undefined;
     // Subjects are never model-authored: standardize every draft's subject
     // deterministically (one shape, stable thread base).
     const subject = standardSubject(purpose, item?.context ?? {});
-    if (BANNED.test(d.subject) || BANNED.test(d.body)) {
+    const taglishMismatch =
+      item?.replyRegister === "taglish" &&
+      (d.body.match(
+        /\b(po|salamat|pwede|namin|kayo|ito|iyon|okay lang|sa inyo)\b/gi,
+      ) ?? []).length < 2;
+    const titles = (d.body.match(PATIENT_TITLE) ?? []).map(titleKey);
+    const expectedTitle = item?.honorific
+      ? titleKey(item.honorific)
+      : undefined;
+    const salutationMismatch = !!item &&
+      (expectedTitle
+        ? !titles.includes(expectedTitle) ||
+          titles.some((title) => title !== expectedTitle)
+        : titles.length > 0);
+    if (
+      BANNED.test(d.subject) ||
+      BANNED.test(d.body) ||
+      taglishMismatch ||
+      salutationMismatch
+    ) {
       warnings.push(
-        `Draft for ${item?.patientName ?? d.patientId} contained clinical language and was replaced with the standard template.`,
+        salutationMismatch
+          ? `Draft for ${item?.patientName ?? d.patientId} used an unsupported or missing salutation and was replaced with the standard template.`
+          : taglishMismatch
+          ? `Draft for ${item?.patientName ?? d.patientId} did not match the patient's Taglish register and was replaced with the standard template.`
+          : `Draft for ${item?.patientName ?? d.patientId} contained clinical language and was replaced with the standard template.`,
       );
       const safe = item ? template(purpose, item) : { subject, body: "" };
       return { ...d, subject, body: safe.body };
@@ -287,8 +360,9 @@ Hard rules:
 - PRIVACY: the doctor's personal reason is never shared with patients. Say only "an unexpected emergency" or "is unexpectedly unavailable" — even if a specific reason appears anywhere in the context or conversation.
 - End every email with EXACTLY this sign-off block, nothing else after it:
 ${SIGNOFF}
-- Match only the supplied replyRegister enum. english: warm, plain English. taglish: use an English base with familiar Filipino words and at most one or two natural uses of "po". tagalog: conversational Filipino, never stiff or ceremonial. Never imitate slang, anger, misspellings, or excessive informality.
+- Match only the supplied replyRegister enum. english: warm, plain English. taglish: natural Filipino clinic communication with a simple English/Taglish base and natural uses of "po"; prefer phrases such as "Thank you po sa reply", "Available po", and "Okay po ba ito sa inyo?" over translated-sounding Filipino. Use the supplied honorific only when present; never infer Ma'am or Sir from a name. tagalog: conversational Filipino, never stiff or ceremonial. Never imitate slang, anger, misspellings, or excessive informality.
 - Avoid overly formal Tagalog such as "ipinababatid", "makipag-ugnayan", and "kung inyong nanaisin".
+- When asking whether another doctor is acceptable, use: "If okay po sa inyo, pwede po namin kayo i-assign sa ibang doctor na available. Just let us know po."
 - FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally — invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.
 - CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,
@@ -300,7 +374,7 @@ ${SIGNOFF}
     i.items
       .map(
         (it) =>
-          `- ${it.patientName} (${it.patientId}${it.appointmentId ? `, appt ${it.appointmentId}` : ""}, replyRegister=${it.replyRegister ?? "english"}): ${JSON.stringify(it.context)}`,
+          `- ${it.patientName} (${it.patientId}${it.appointmentId ? `, appt ${it.appointmentId}` : ""}, replyRegister=${it.replyRegister ?? "english"}, honorific=${it.honorific ?? "none — use a neutral greeting and do not infer one"}): ${JSON.stringify(it.context)}`,
       )
       .join("\n"),
   fallback: async (i) => ({

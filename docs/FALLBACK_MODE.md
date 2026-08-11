@@ -5,29 +5,29 @@ stub — it is the same pipeline on deterministic components:
 
 | Layer | Live | Resilience |
 |---|---|---|
-| Agents | Gemini function calling | Deterministic playbooks emitting the **same Zod schemas** |
+| Agents | Claude on Bedrock (primary) or Gemini function calling | Deterministic playbooks emitting the **same Zod schemas** |
 | Calendar | Google Calendar API | `SimulatedCalendarProvider` (SQLite table, same interface) |
-| Mail | Gmail (drafts → explicit Send) | `SimulatedMailProvider` (auto-send + scripted patient personas) |
+| Mail | Gmail (staff approval → draft + send) | `SimulatedMailProvider` (same approval boundary, auto-send + scripted patient personas) |
 | Replies | Real inbound Gmail, polled | Personas reply in 4–8s (Teresa/Camille/Andres/Jose accept, Miguel counters then accepts, Grace/Dennis stay silent, Rosa takes the waitlist offer) |
 
 ## How the mode is chosen (`core/status.ts` + `integrations/factory.ts`)
 
-Per component, live is used only when configured **and** currently healthy;
-otherwise the simulated twin is picked and the reason recorded. Any live
-failure at call time marks that service unhealthy, retries once on the
-simulated twin, and the pipeline continues — the case feed shows the
-degradation instead of an error page. A successful later call marks it healthy
-again. `FALLBACK_ENABLED=false` disables the safety net (errors surface raw);
-Admin → **Force Resilience Mode** pins the fallback regardless of health, which
+Per component, live is used when configured, connected, not forced into
+resilience mode, and not marked unhealthy. The Settings live badge additionally
+requires a successful verification. Agent failures, Calendar reads/creates,
+and Gmail draft creation have labeled fallbacks; Gmail send failures retain the
+live draft for staff recovery rather than simulating a send and risking a
+duplicate. `FALLBACK_ENABLED=false` disables the agent safety net;
+Settings → **Demo & data → Force Resilience Mode** pins the fallback regardless of health, which
 is also the presenter's kill-switch drill.
 
 ## What the audience sees
 
 - Header pill: **Live Agentic Mode** (green) vs **Presentation Resilience
-  Mode** (amber, blinking dot), with hover/`/integrations` reasons.
+  Mode** (amber, blinking dot), with reasons in **Settings → Connections**.
 - Every simulated effect is labeled *Simulated* in the feed, timeline, and
   toasts. Nothing pretends to be live.
-- Agent-feed entries note "Gemini reasoning live" vs "Deterministic mode — …".
+- Agent-feed entries identify the configured live provider vs "Deterministic mode — …".
 
 ## Guarantees
 

@@ -321,7 +321,11 @@ export default function CasePage() {
       }
       const oc = outcomeLabel(rec);
       if (oc.label === "Confirmed") confirmed++;
-      else if (oc.label.startsWith("Declined")) toCall++;
+      else if (
+        oc.label.startsWith("Declined") ||
+        oc.label === "Needs a person"
+      )
+        toCall++;
       else if (oc.label === "Message sent" || oc.label === "Waiting for reply")
         waitingOnPatient++;
     }

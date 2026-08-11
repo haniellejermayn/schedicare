@@ -17,6 +17,17 @@ import { handlePatientReply } from "@/worker/replies";
 import { fmtWhen } from "@/core/clock";
 import { longWhen } from "@/agents/comms";
 import { getCase } from "@/core/cases";
+import {
+  maybeResolveCase,
+  openCase,
+  transitionCase,
+} from "@/core/cases";
+import { commsStep } from "@/worker/steps";
+import {
+  getNegotiation,
+  getOrCreateNegotiation,
+  recordOfferedSlot,
+} from "@/core/negotiations";
 import { caseScoreboard } from "@/lib/metrics";
 import { POST as decidePOST } from "@/app/api/recommendations/[id]/decision/route";
 import { POST as unavailablePOST } from "@/app/api/doctor/[id]/unavailable/route";
@@ -313,6 +324,11 @@ describe("flagship cascade (end-to-end)", () => {
     for (const o of rp.options) expect(hhmm(o.startUtc) >= "16:00").toBe(true);
 
     // 8) Approve the replan, execute, Miguel accepts → resolved.
+    getOrCreateNegotiation({
+      caseId: c.id,
+      appointmentId: replan.appointmentId!,
+      patientId: replan.patientId!,
+    });
     expect(
       (await decide(replan.id, { action: "approve" })).body.transitioned,
     ).toBe(true);
@@ -324,6 +340,9 @@ describe("flagship cascade (end-to-end)", () => {
     );
     const final = getCase(c.id);
     expect(final.state).toBe("resolved");
+    expect(getNegotiation(c.id, replan.appointmentId!)?.status).toBe(
+      "resolved",
+    );
 
     // Miguel's chain: original → offer1 (superseded) → offer2 (confirmed).
     const finalReplan = recsFor(c.id).find((r) => r.id === replan.id)!
@@ -370,7 +389,7 @@ describe("flagship cascade (end-to-end)", () => {
     ).toBe(true);
   }, 60000);
 
-  it("cancellation → waitlist backfill: Rosa is offered Liza-style vacated slots", async () => {
+  it("cancellation → waitlist backfill ignores a deferred reply, then accepts a clear reply", async () => {
     // Cancel Maria's Wednesday follow-up through the normal patient path.
     const { PATCH } = await import("@/app/api/appointments/[id]/route");
     const res = await PATCH(jreq({ action: "cancel" }), {
@@ -391,10 +410,25 @@ describe("flagship cascade (end-to-end)", () => {
     // Approve → executes → offer sent → accept → scheduled.
     await decide(rec.id, { action: "approve" });
     await pump();
+    await injectReply(c.id, rec.id, "Okay po, I'll check muna.");
+    const deferred = db
+      .select()
+      .from(schema.waitlist)
+      .where(eq(schema.waitlist.id, "wl_nica"))
+      .get()!;
+    expect(deferred.status).toBe("offered");
+    expect(
+      db
+        .select()
+        .from(schema.recommendations)
+        .where(eq(schema.recommendations.id, rec.id))
+        .get()?.outcome,
+    ).toBe("needs_human");
+
     await injectReply(
       c.id,
       rec.id,
-      "Yes! I'll take the earlier slot, thank you so much!",
+      "Okay po.",
     );
     const wl = db
       .select()
@@ -404,4 +438,229 @@ describe("flagship cascade (end-to-end)", () => {
     expect(wl.status).toBe("scheduled");
     expect(getCase(c.id).state).toBe("resolved");
   }, 30000);
+
+  it("represents a missing recovery plan and blocks resolution until staff handles it", async () => {
+    const c = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "medium",
+      title: "partial no-slot regression",
+      meta: {
+        doctorId: "doc_santos",
+        assessment: {
+          severity: "medium",
+          summary: "Two patients affected.",
+          items: [
+            {
+              appointmentId: "appt_camille",
+              patientId: "pat_camille",
+              patientName: "Camille Ocampo",
+              type: "urgent",
+              startUtc: "2026-08-10T02:40:00.000Z",
+              priorityRank: 1,
+              priorityReason: "urgent appointment type",
+              tags: ["urgent visit"],
+            },
+            {
+              appointmentId: "appt_grace",
+              patientId: "pat_grace",
+              patientName: "Grace Villanueva",
+              type: "routine",
+              startUtc: "2026-08-10T01:50:00.000Z",
+              priorityRank: 2,
+              priorityReason: "scheduled visit",
+              tags: [],
+            },
+          ],
+        },
+        plans: [
+          {
+            appointmentId: "appt_camille",
+            chosenOptionId: "opt_camille",
+            rationale: "Validated replacement available.",
+            options: [
+              {
+                id: "opt_camille",
+                doctorId: "doc_reyes",
+                doctorName: "Dr. Marco Reyes",
+                startUtc: "2026-08-11T00:30:00.000Z",
+                endUtc: "2026-08-11T01:00:00.000Z",
+                day: "2026-08-11",
+                block: "am",
+                score: 50,
+                dots: 3,
+                chips: [{ label: "Next available day", pts: 20 }],
+                rank: 1,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    transitionCase(c.id, "assessing", "orchestrator", "test");
+    transitionCase(c.id, "planning", "orchestrator", "test");
+
+    await commsStep(c.id);
+    expect(getCase(c.id).state).toBe("awaiting_approval");
+    const recs = recsFor(c.id);
+    expect(recs).toHaveLength(2);
+    const grace = recs.find((r) => r.patientId === "pat_grace")!;
+    expect(grace.kind).toBe("callback");
+    expect(grace.status).toBe("executed");
+    expect(grace.outcome).toBe("needs_human");
+    expect((grace.payload as any).manualReason).toBe("no_valid_replacement");
+    expect(
+      db
+        .select()
+        .from(schema.appointments)
+        .where(eq(schema.appointments.id, "appt_grace"))
+        .get()?.needsCallback,
+    ).toBe(true);
+    const scoreboard = caseScoreboard(c.id);
+    expect(scoreboard.affected).toBe(2);
+    expect(scoreboard.executed).toBe(0);
+    expect(scoreboard.rebooked).toBe(0);
+    expect(scoreboard.declinedOrCallback).toBe(1);
+    const { GET: opsSummaryGET } = await import("@/app/api/ops/summary/route");
+    const opsSummary = await (await opsSummaryGET()).json();
+    expect(
+      opsSummary.toCall.some(
+        (item: any) =>
+          item.patientName === "Grace Villanueva" && item.caseId === c.id,
+      ),
+    ).toBe(true);
+
+    const camille = recs.find((r) => r.patientId === "pat_camille")!;
+    db.update(schema.recommendations)
+      .set({ status: "executed", outcome: "accepted" })
+      .where(eq(schema.recommendations.id, camille.id))
+      .run();
+    transitionCase(c.id, "executing", "staff:test", "approved valid offer");
+    transitionCase(c.id, "resolving", "executor", "tracking outcomes");
+    expect(maybeResolveCase(c.id)).toBe(false);
+    expect(getCase(c.id).state).toBe("resolving");
+
+    db.update(schema.recommendations)
+      .set({ outcome: "handled" })
+      .where(eq(schema.recommendations.id, grace.id))
+      .run();
+    expect(maybeResolveCase(c.id)).toBe(true);
+    expect(getCase(c.id).state).toBe("resolved");
+
+    // A failed Calendar confirmation must leave this appointment's
+    // negotiation—and a sibling thread for the same patient—active.
+    const failureCase = openCase({
+      clinicId: "clinic_riverside",
+      type: "doctor_emergency",
+      severity: "medium",
+      title: "terminal negotiation failure regression",
+      meta: { doctorId: "doc_santos" },
+    });
+    transitionCase(failureCase.id, "assessing", "orchestrator", "test");
+    transitionCase(failureCase.id, "planning", "orchestrator", "test");
+    transitionCase(
+      failureCase.id,
+      "awaiting_approval",
+      "orchestrator",
+      "test",
+    );
+    transitionCase(failureCase.id, "executing", "staff:test", "test");
+    transitionCase(failureCase.id, "resolving", "executor", "test");
+    const miguelAppt = db
+      .select()
+      .from(schema.appointments)
+      .where(eq(schema.appointments.id, "appt_miguel"))
+      .get()!;
+    db.update(schema.appointments)
+      .set({
+        status: "booked",
+        source: "schedicare",
+        calendarEventId: "missing-calendar-event",
+      })
+      .where(eq(schema.appointments.id, miguelAppt.id))
+      .run();
+    const active = getOrCreateNegotiation({
+      caseId: failureCase.id,
+      appointmentId: miguelAppt.id,
+      patientId: miguelAppt.patientId,
+    });
+    const sibling = getOrCreateNegotiation({
+      caseId: failureCase.id,
+      appointmentId: "appt_miguel_sibling",
+      patientId: miguelAppt.patientId,
+    });
+    recordOfferedSlot(active, {
+      doctorId: miguelAppt.doctorId,
+      startUtc: miguelAppt.startUtc,
+      label: fmtWhen(miguelAppt.startUtc),
+    });
+    recordOfferedSlot(sibling, {
+      doctorId: "doc_reyes",
+      startUtc: "2026-08-15T01:00:00.000Z",
+      label: "Saturday 9:00 AM",
+    });
+    db.insert(schema.recommendations)
+      .values({
+        id: "rec_calendar_failure",
+        caseId: failureCase.id,
+        appointmentId: miguelAppt.id,
+        patientId: miguelAppt.patientId,
+        kind: "reschedule",
+        status: "executed",
+        outcome: "pending",
+        payload: {
+          appointmentId: miguelAppt.id,
+          createdAppointmentId: miguelAppt.id,
+          patientId: miguelAppt.patientId,
+          patientName: "Miguel Torres",
+          type: miguelAppt.type,
+          executedOptionId: "opt_calendar_failure",
+          options: [
+            {
+              id: "opt_calendar_failure",
+              doctorId: miguelAppt.doctorId,
+              doctorName: "Dr. Elena Santos",
+              startUtc: miguelAppt.startUtc,
+              endUtc: miguelAppt.endUtc,
+            },
+          ],
+        },
+      })
+      .run();
+    db.insert(schema.messages)
+      .values({
+        caseId: failureCase.id,
+        recommendationId: "rec_calendar_failure",
+        appointmentId: miguelAppt.id,
+        patientId: miguelAppt.patientId,
+        direction: "outbound",
+        subject: "Appointment offer",
+        body: "Offered appointment",
+        status: "sent",
+        provider: "simulated",
+      })
+      .run();
+    await injectReply(
+      failureCase.id,
+      "rec_calendar_failure",
+      "Yes, that works for me.",
+    );
+    expect(getNegotiation(failureCase.id, miguelAppt.id)?.status).toBe(
+      "active",
+    );
+    expect(
+      (getNegotiation(failureCase.id, miguelAppt.id)?.offeredSlots as any[])
+        .at(-1)?.outcome,
+    ).toBe("offered");
+    expect(
+      getNegotiation(failureCase.id, "appt_miguel_sibling")?.status,
+    ).toBe("active");
+    expect(
+      db
+        .select()
+        .from(schema.recommendations)
+        .where(eq(schema.recommendations.id, "rec_calendar_failure"))
+        .get()?.outcome,
+    ).toBe("needs_human");
+  });
 });

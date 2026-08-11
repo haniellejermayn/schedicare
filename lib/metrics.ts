@@ -16,11 +16,20 @@ export interface Scoreboard {
 export function caseScoreboard(caseId: string): Scoreboard {
   const recs = db.select().from(schema.recommendations).where(eq(schema.recommendations.caseId, caseId)).all();
   const substantive = recs.filter((r) => r.kind === "reschedule" || r.kind === "waitlist_fill");
+  const affected = recs.filter(
+    (r) =>
+      (r.kind === "reschedule" ||
+        r.kind === "waitlist_fill" ||
+        r.kind === "callback") &&
+      r.outcome !== "superseded",
+  );
   const s: Scoreboard = {
-    affected: substantive.filter((r) => r.outcome !== "superseded").length,
+    affected: affected.length,
     proposed: recs.filter((r) => r.status === "proposed").length,
     approved: recs.filter((r) => r.status === "approved" || r.status === "modified").length,
-    executed: recs.filter((r) => r.status === "executed").length,
+    executed: recs.filter(
+      (r) => r.status === "executed" && r.kind !== "callback",
+    ).length,
     rebooked: 0,
     confirmed: 0,
     declinedOrCallback: 0,
@@ -41,6 +50,9 @@ export function caseScoreboard(caseId: string): Scoreboard {
     }
     if (r.outcome === "needs_human" || r.status === "rejected") s.declinedOrCallback += 1;
   }
+  s.declinedOrCallback += affected.filter(
+    (r) => r.kind === "callback" && r.outcome === "needs_human",
+  ).length;
   return s;
 }
 
@@ -72,7 +84,9 @@ export function adminMetrics(): AdminMetrics {
     },
     recommendations: {
       proposed: recs.filter((r) => r.status === "proposed").length,
-      executed: recs.filter((r) => r.status === "executed").length,
+      executed: recs.filter(
+        (r) => r.status === "executed" && r.kind !== "callback",
+      ).length,
       accepted: recs.filter((r) => r.outcome === "accepted").length,
       declined: recs.filter((r) => r.outcome === "declined").length,
       needsHuman: recs.filter((r) => r.outcome === "needs_human").length,

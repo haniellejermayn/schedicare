@@ -67,7 +67,7 @@ export type RuntimeMode = {
 
 /**
  * Effective runtime mode, recomputed from configuration + recorded health.
- * "Live Agentic Mode" requires Gemini to be configured and healthy; provider
+ * "Live Agentic Mode" requires the configured AI provider to be healthy; provider
  * degradation is reported per service and flips the overall banner.
  */
 export function runtimeMode(): RuntimeMode {

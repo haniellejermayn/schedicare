@@ -66,7 +66,10 @@ export async function GET() {
       .where(eq(schema.recommendations.caseId, c.id))
       .all();
     for (const r of recs.filter(
-      (x) => x.kind === "reschedule" || x.kind === "waitlist_fill",
+      (x) =>
+        x.kind === "reschedule" ||
+        x.kind === "waitlist_fill" ||
+        x.kind === "callback",
     )) {
       const payload = r.payload as any;
       const name =
@@ -97,7 +100,10 @@ export async function GET() {
       if (r.outcome === "needs_human")
         toCall.push({
           patientName: name,
-          reason: "reply needs a person",
+          reason:
+            r.kind === "callback"
+              ? "no valid replacement — staff follow-up needed"
+              : "reply needs a person",
           caseId: c.id,
         });
       else if (r.status === "rejected" && payload?.flagForCall !== false)

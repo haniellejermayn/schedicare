@@ -446,7 +446,7 @@ function DemoData() {
           {m.agentRuns && (
             <p className="mt-3 text-[12px] text-muted">
               System runs: {m.agentRuns.total} ({m.agentRuns.live ?? 0} with
-              Gemini, {m.agentRuns.fallback ?? 0} on built-in playbooks,{" "}
+              the live model, {m.agentRuns.fallback ?? 0} on built-in playbooks,{" "}
               {m.agentRuns.errors ?? 0} errors)
             </p>
           )}

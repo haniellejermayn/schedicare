@@ -30,6 +30,7 @@ import {
   guardPolicyAction,
   recordOfferOutcome,
   recordOfferedSlot,
+  resolveActiveNegotiations,
   updateNegotiation,
 } from "@/core/negotiations";
 import type { Slot } from "@/core/types";
@@ -495,8 +496,8 @@ describe("constraint search against the seeded engine", () => {
     expect(previous.supersededBy).toBe(recommendation.id);
   });
 
-  it("escalates a zero-slot replan without creating an empty approval gate", async () => {
-    const { openCase, getCase } = await import("@/core/cases");
+  it("escalates a zero-slot replan with one resolvable callback outcome", async () => {
+    const { openCase, getCase, maybeResolveCase } = await import("@/core/cases");
     const { replanWithConstraintSet } = await import("@/worker/steps");
     const appt = db
       .select()
@@ -596,8 +597,22 @@ describe("constraint search against the seeded engine", () => {
       .from(schema.recommendations)
       .where(eq(schema.recommendations.id, "rec_zero_previous"))
       .get()!;
-    expect(previous.outcome).toBe("sent");
-    expect(previous.supersededBy).toBeNull();
+    const callback = db
+      .select()
+      .from(schema.recommendations)
+      .where(eq(schema.recommendations.caseId, c.id))
+      .all()
+      .find((entry) => entry.kind === "callback")!;
+    expect(callback.outcome).toBe("needs_human");
+    expect(previous.outcome).toBe("superseded");
+    expect(previous.supersededBy).toBe(callback.id);
+
+    db.update(schema.recommendations)
+      .set({ outcome: "handled" })
+      .where(eq(schema.recommendations.id, callback.id))
+      .run();
+    expect(maybeResolveCase(c.id, "staff")).toBe(true);
+    expect(getCase(c.id).state).toBe("resolved");
   });
 });
 
@@ -962,6 +977,71 @@ describe("negotiation state + policy guard", () => {
     expect((after.offeredSlots as any[])[0].outcome).toBe("declined");
     updateNegotiation(row.id, { turn: 2, lastAction: "offer_slots" });
     expect(getNegotiation("case_x", "appt_x")!.turn).toBe(2);
+  });
+
+  it("resolves only the terminal appointment, records its outcome, and reset removes the ledger", () => {
+    const active = getOrCreateNegotiation({
+      caseId: "case_terminal",
+      appointmentId: "appt_terminal",
+      patientId: "pat_terminal",
+    });
+    const sibling = getOrCreateNegotiation({
+      caseId: "case_terminal",
+      appointmentId: "appt_other",
+      patientId: "pat_terminal",
+    });
+    recordOfferedSlot(active, {
+      doctorId: "doc_santos",
+      startUtc: "2026-08-15T00:00:00.000Z",
+      label: "Saturday 8:00 AM",
+    });
+    recordOfferedSlot(sibling, {
+      doctorId: "doc_reyes",
+      startUtc: "2026-08-16T01:00:00.000Z",
+      label: "Sunday 9:00 AM",
+    });
+    resolveActiveNegotiations(
+      "case_terminal",
+      "appt_terminal",
+      "pat_terminal",
+      "confirmed",
+      "patient accepted",
+    );
+    expect(getNegotiation("case_terminal", "appt_terminal")?.status).toBe(
+      "resolved",
+    );
+    expect(getNegotiation("case_terminal", "appt_terminal")?.lastReason).toBe(
+      "patient accepted",
+    );
+    expect(
+      (getNegotiation("case_terminal", "appt_terminal")?.offeredSlots as any[])
+        .at(-1)?.outcome,
+    ).toBe("confirmed");
+    expect(getNegotiation("case_terminal", "appt_other")?.status).toBe(
+      "active",
+    );
+    expect(
+      (getNegotiation("case_terminal", "appt_other")?.offeredSlots as any[])
+        .at(-1)?.outcome,
+    ).toBe("offered");
+
+    resolveActiveNegotiations(
+      "case_terminal",
+      "appt_other",
+      "pat_terminal",
+      "cancelled",
+      "patient cancelled",
+    );
+    expect(getNegotiation("case_terminal", "appt_other")?.status).toBe(
+      "resolved",
+    );
+    expect(
+      (getNegotiation("case_terminal", "appt_other")?.offeredSlots as any[])
+        .at(-1)?.outcome,
+    ).toBe("cancelled");
+
+    freshSeed();
+    expect(getNegotiation("case_terminal", active.appointmentId)).toBeUndefined();
   });
 
   it("forces escalation at the turn budget and on invalid references", () => {

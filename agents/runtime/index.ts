@@ -51,9 +51,9 @@ export function fallbackReasonNow(): string {
 }
 
 /**
- * Run one agent. Live Agentic Mode uses the Gemini function-calling loop; any
+ * Run one agent. Live Agentic Mode uses the configured provider's tool loop; any
  * live failure (network, quota, schema-invalid output twice, step cap) is
- * recorded, marks Gemini unhealthy, and — when FALLBACK_ENABLED — degrades
+ * recorded, marks that provider unhealthy, and — when FALLBACK_ENABLED — degrades
  * VISIBLY to the deterministic implementation with the same result shape.
  * If the fallback itself throws, the caller escalates the case.
  */

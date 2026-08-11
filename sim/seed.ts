@@ -94,6 +94,7 @@ const NAMED: PatientSeed[] = [
     key: "grace.villanueva",
     name: "Grace Villanueva",
     prefDayPart: "any",
+    notes: "Preferred salutation: Ma'am.",
   },
   {
     id: "pat_camille",

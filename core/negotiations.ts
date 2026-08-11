@@ -67,6 +67,46 @@ export function updateNegotiation(
     .run();
 }
 
+/** Close one active appointment negotiation after its terminal reply. */
+export function resolveActiveNegotiations(
+  caseId: string,
+  appointmentId: string,
+  patientId: string,
+  outcome: "confirmed" | "declined" | "cancelled",
+  reason: string,
+): void {
+  const row = db
+    .select()
+    .from(schema.negotiations)
+    .where(
+      and(
+        eq(schema.negotiations.caseId, caseId),
+        eq(schema.negotiations.appointmentId, appointmentId),
+        eq(schema.negotiations.patientId, patientId),
+        eq(schema.negotiations.status, "active"),
+      ),
+    )
+    .get();
+  if (!row) return;
+
+  const offeredSlots = [...((row.offeredSlots as any[]) ?? [])];
+  for (let i = offeredSlots.length - 1; i >= 0; i--) {
+    if (offeredSlots[i].outcome === "offered") {
+      offeredSlots[i] = { ...offeredSlots[i], outcome, note: reason };
+      break;
+    }
+  }
+  db.update(schema.negotiations)
+    .set({
+      status: "resolved",
+      lastReason: reason,
+      offeredSlots,
+      updatedAt: demoNowIso(),
+    })
+    .where(eq(schema.negotiations.id, row.id))
+    .run();
+}
+
 export function recordOfferedSlot(
   row: NegotiationRow,
   slot: { doctorId: string; startUtc: string; label: string },

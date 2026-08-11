@@ -5,9 +5,13 @@ import { z } from "zod";
 import {
   ruleClassifyReply,
   guardReply,
+  honorificFromNotes,
   detectReplyRegister,
   isClearOfferAcceptance,
   bannedContentLint,
+  commsDraftAgent,
+  rebuiltOfferDraft,
+  type DraftItem,
   type CommsDraftResult,
 } from "@/agents/comms";
 import { runAssessment } from "@/agents/assessment";
@@ -83,6 +87,198 @@ describe("staff-facing agent copy", () => {
   });
 });
 
+describe("patient-facing draft copy", () => {
+  const taglishItem = (honorific?: "Ma'am" | "Sir"): DraftItem => ({
+    patientId: "pat_grace",
+    patientName: "Grace Villanueva",
+    ...(honorific ? { honorific } : {}),
+    appointmentId: "appt_grace",
+    replyRegister: "taglish",
+    context: {
+      doctorName: "Dr. Elena Santos",
+      proposedDoctorName: "Dr. Elena Santos",
+      proposedWhen: "Sat Aug 15 · 8:00 AM",
+      reason: "counter",
+    },
+  });
+
+  it("replaces an English-only continuation with dynamic natural Taglish", () => {
+    const result: CommsDraftResult = {
+      drafts: [
+        {
+          patientId: "pat_grace",
+          appointmentId: "appt_grace",
+          subject: "ignored",
+          body: "Thanks for replying. Saturday morning is available. Does that work?",
+        },
+      ],
+    };
+    const linted = bannedContentLint(
+      "reschedule_offer",
+      [taglishItem("Ma'am")],
+      result,
+    );
+    expect(linted.warnings[0]).toMatch(/replaced with the standard template/);
+    expect(linted.result.drafts[0].body).toContain(
+      "Hello po Ma'am Grace,\n\nThank you po sa reply. Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?",
+    );
+
+    const second: DraftItem = {
+      ...taglishItem("Ma'am"),
+      appointmentId: "appt_grace_second",
+      context: {
+        doctorName: "Dr. Marco Reyes",
+        proposedDoctorName: "Dr. Marco Reyes",
+        proposedWhen: "Sun Aug 16 · 9:00 AM",
+        reason: "counter",
+      },
+    };
+    const twoAppointments = bannedContentLint(
+      "reschedule_offer",
+      [taglishItem("Ma'am"), second],
+      {
+        drafts: [
+          {
+            patientId: "pat_grace",
+            appointmentId: "appt_grace_second",
+            subject: "ignored",
+            body: "Thanks for replying. Sunday is available. Does that work?",
+          },
+          {
+            patientId: "pat_grace",
+            appointmentId: "appt_grace",
+            subject: "ignored",
+            body: "Thanks for replying. Saturday is available. Does that work?",
+          },
+        ],
+      },
+    ).result.drafts;
+    expect(twoAppointments[0].body).toContain(
+      "Available po si Dr. Reyes sa Sunday, August 16 nang 9:00 AM.",
+    );
+    expect(twoAppointments[0].body).not.toContain("Dr. Santos");
+    expect(twoAppointments[1].body).toContain(
+      "Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM.",
+    );
+  });
+
+  it("uses only an explicit honorific and never infers one from the name", () => {
+    expect(honorificFromNotes("Preferred salutation: Ma'am.")).toBe("Ma'am");
+    expect(honorificFromNotes("Preferred salutation: sir")).toBe("Sir");
+    expect(honorificFromNotes("Patient is named Miguel Torres.")).toBeUndefined();
+    expect(
+      commsDraftAgent.buildPrompt({
+        caseId: "case_copy",
+        purpose: "reschedule_offer",
+        items: [taglishItem("Ma'am")],
+      }),
+    ).toContain("honorific=Ma'am");
+    expect(
+      commsDraftAgent.buildPrompt({
+        caseId: "case_copy",
+        purpose: "reschedule_offer",
+        items: [{ ...taglishItem(), patientName: "Miguel Torres" }],
+      }),
+    ).toContain("honorific=none — use a neutral greeting and do not infer one");
+
+    const exactBody =
+      "Hello po Ma'am Grace,\n\nThank you po sa reply. Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?\n\nWarm regards,\nRiverside Family Clinic\n(02) 8641 0117";
+    const preserved = bannedContentLint(
+      "reschedule_offer",
+      [taglishItem("Ma'am")],
+      {
+        drafts: [
+          {
+            patientId: "pat_grace",
+            appointmentId: "appt_grace",
+            subject: "ignored",
+            body: exactBody,
+          },
+        ],
+      },
+    );
+    expect(preserved.warnings).toHaveLength(0);
+    expect(preserved.result.drafts[0].body).toBe(exactBody);
+    const englishOnly = (patientName: string): CommsDraftResult => ({
+      drafts: [
+        {
+          patientId: "pat_grace",
+          appointmentId: "appt_grace",
+          subject: "ignored",
+          body: `Thanks for replying, ${patientName}. Does that work?`,
+        },
+      ],
+    });
+    const withoutTitle = bannedContentLint(
+      "reschedule_offer",
+      [{ ...taglishItem(), patientName: "Miguel Torres" }],
+      englishOnly("Miguel"),
+    ).result.drafts[0].body;
+    expect(withoutTitle).toMatch(/^Hello po Miguel,/);
+    expect(withoutTitle).not.toContain("Sir Miguel");
+
+    const withTitle = bannedContentLint(
+      "reschedule_offer",
+      [{ ...taglishItem("Sir"), patientName: "Miguel Torres" }],
+      englishOnly("Miguel"),
+    ).result.drafts[0].body;
+    expect(withTitle).toMatch(/^Hello po Sir Miguel,/);
+
+    const unsupported = bannedContentLint(
+      "reschedule_offer",
+      [{ ...taglishItem(), patientName: "Miguel Torres" }],
+      {
+        drafts: [
+          {
+            patientId: "pat_grace",
+            appointmentId: "appt_grace",
+            subject: "ignored",
+            body: "Hello po Sir Miguel,\n\nThank you po sa reply. Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?",
+          },
+        ],
+      },
+    );
+    expect(unsupported.warnings[0]).toMatch(/unsupported or missing salutation/);
+    expect(unsupported.result.drafts[0].body).toMatch(/^Hello po Miguel,/);
+    expect(unsupported.result.drafts[0].body).not.toContain("Sir Miguel");
+
+    const wrongExplicitTitle = bannedContentLint(
+      "reschedule_offer",
+      [taglishItem("Ma'am")],
+      {
+        drafts: [
+          {
+            patientId: "pat_grace",
+            appointmentId: "appt_grace",
+            subject: "ignored",
+            body: "Hello po Ms. Grace,\n\nThank you po sa reply. Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?",
+          },
+        ],
+      },
+    ).result.drafts[0].body;
+    expect(wrongExplicitTitle).toMatch(/^Hello po Ma'am Grace,/);
+  });
+
+  it("offers the selected slot without claiming it is chronologically earliest", () => {
+    const draft = rebuiltOfferDraft({
+      patientId: "pat_camille",
+      patientName: "Camille Ocampo",
+      appointmentId: "appt_camille",
+      context: {
+        doctorName: "Dr. Elena Santos",
+        proposedDoctorName: "Dr. Elena Santos",
+        originalWhen: "Tue Aug 11 · 10:40 AM",
+        proposedWhen: "Wed Aug 12 · 9:30 AM",
+        reason: "unexpected_unavailability",
+      },
+    });
+    expect(draft.body).toContain(
+      "We can offer you August 12 (Wednesday), 9:30 AM.",
+    );
+    expect(draft.body).not.toMatch(/earliest|good match/i);
+  });
+});
+
 describe("reply classification (deterministic)", () => {
   it("short-circuits only unqualified acceptances of a concrete offer", () => {
     for (const reply of ["Yes, thank you!", "Okay po.", "That works for me."])
@@ -90,6 +286,7 @@ describe("reply classification (deterministic)", () => {
     for (const reply of [
       "Yes, but after 5 PM?",
       "Okay po, ibang doctor ba?",
+      "Okay po, I'll check muna.",
       "That works if it is Wednesday.",
     ])
       expect(isClearOfferAcceptance(reply), reply).toBe(false);

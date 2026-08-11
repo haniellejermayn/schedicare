@@ -41,7 +41,7 @@ import { RESCHEDULE_MIN_NOTICE_MINUTES } from "@/core/scheduling";
 import {
   getOrCreateNegotiation,
   recordOfferOutcome,
-  updateNegotiation,
+  resolveActiveNegotiations,
 } from "@/core/negotiations";
 import type { SchedulingConstraintSet } from "@/core/constraints";
 import {
@@ -78,9 +78,13 @@ export async function handlePatientReply(
     payload.executedOptionId ??
     payload.modifiedOptionId ??
     payload.chosenOptionId;
-  const offeredOption = (payload.options ?? []).find(
-    (option: any) => option.id === offeredOptionId,
-  );
+  const offeredOption =
+    (payload.options ?? []).find(
+      (option: any) => option.id === offeredOptionId,
+    ) ??
+    (rec?.kind === "waitlist_fill" && payload.slot?.startUtc
+      ? { ...payload.slot, doctorName: payload.doctorName }
+      : undefined);
   const hasConcreteOffer =
     (rec?.kind === "reschedule" || rec?.kind === "waitlist_fill") &&
     rec.status === "executed" &&
@@ -330,6 +334,8 @@ async function route(
   const payload = rec.payload as any;
   const targetApptId: string | undefined =
     payload.createdAppointmentId ?? payload.appointmentId;
+  const negotiationAppointmentId: string | undefined =
+    payload.appointmentId ?? msg.appointmentId;
 
   // Replies to a CLARIFICATION are negotiation moves, not offer decisions:
   // there is no held slot to confirm or release. Any substantive answer
@@ -478,6 +484,14 @@ async function route(
           .where(eq(schema.recommendations.id, rec.id))
           .run();
       }
+      if (negotiationAppointmentId)
+        resolveActiveNegotiations(
+          caseId,
+          negotiationAppointmentId,
+          msg.patientId,
+          "confirmed",
+          "patient accepted the offered appointment",
+        );
       break;
     }
     case "reject_offer":
@@ -526,6 +540,16 @@ async function route(
         .set({ outcome: "declined" })
         .where(eq(schema.recommendations.id, rec.id))
         .run();
+      if (negotiationAppointmentId)
+        resolveActiveNegotiations(
+          caseId,
+          negotiationAppointmentId,
+          msg.patientId,
+          interp.intent === "cancel" ? "cancelled" : "declined",
+          interp.intent === "cancel"
+            ? "patient cancelled the appointment"
+            : "patient declined the offered appointment",
+        );
       const m = (getCase(caseId).meta as any) ?? {};
       updateCaseMeta(caseId, {
         needsCallback: [
