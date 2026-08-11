@@ -1,11 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { usePoll } from "@/lib/usePoll";
-import { fmtWhenManila, jfetch, typeLabel } from "@/lib/format";
+import { fmtTimeManila, jfetch, typeLabel } from "@/lib/format";
 import { Button, Empty, Modal, Spinner } from "@/components/ui";
 
 const TYPES = ["routine", "follow_up", "urgent"] as const;
+
+function toDayKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  const d = parts.find((p) => p.type === "day")?.value ?? "";
+  return `${y}-${m}-${d}`;
+}
 
 function SearchSelect({
   items,
@@ -23,6 +36,7 @@ function SearchSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   const selected = items.find((i) => i.id === value);
 
@@ -76,11 +90,16 @@ function SearchSelect({
         aria-label={ariaLabel}
         role="combobox"
         aria-expanded={open}
+        aria-controls={listboxId}
         aria-autocomplete="list"
         className="w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink placeholder:text-muted outline-none focus:border-accent"
       />
       {open && (
-        <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-auto rounded-ctl border border-line bg-white py-1 shadow-lg">
+        <ul
+          id={listboxId}
+          role="listbox"
+          className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-auto rounded-ctl border border-line bg-white py-1 shadow-lg"
+        >
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-[13px] text-muted">No matches</li>
           ) : (
@@ -130,13 +149,106 @@ export function ManualAppointmentModal({
   const { data: slotData, refresh: refreshSlots } = usePoll<any>(slotUrl, 8000);
   const slots = slotData?.slots ?? [];
 
+  const slotMap = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    for (const s of slots) (m[s.day] ??= []).push(s);
+    return m;
+  }, [slots]);
+
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [dateOffset, setDateOffset] = useState(0);
+  const [expandedOpen, setExpandedOpen] = useState(false);
+  const [monthDate, setMonthDate] = useState(() => new Date());
+
   useEffect(() => {
     if (!patientId && patients[0]) setPatientId(patients[0].id);
   }, [patientId, patients]);
   useEffect(() => {
     if (!doctorId && doctors[0]) setDoctorId(doctors[0].id);
   }, [doctorId, doctors]);
-  useEffect(() => setSlot(""), [doctorId, type]);
+  useEffect(() => {
+    setSlot("");
+    setSelectedDay(null);
+  }, [doctorId, type]);
+
+  useEffect(() => {
+    const keys = Object.keys(slotMap);
+    if (keys.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    const today = toDayKey(new Date());
+    const available = keys.filter((k) => k >= today);
+    if (available.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    setSelectedDay((prev) => {
+      if (prev && available.includes(prev)) return prev;
+      return available[0];
+    });
+  }, [slotMap]);
+
+  useEffect(() => {
+    if (selectedDay && slot) {
+      const daySlots = slotMap[selectedDay] ?? [];
+      if (!daySlots.some((s: any) => s.startUtc === slot)) {
+        setSlot("");
+      }
+    }
+  }, [selectedDay, slotMap]);
+
+  const today = toDayKey(new Date());
+  const availableDates = Object.keys(slotMap).filter((d) => d >= today).sort();
+  const pageSize = 5;
+  const visibleDates = availableDates.slice(dateOffset, dateOffset + pageSize);
+  const canPrev = dateOffset > 0;
+  const canNext = dateOffset + pageSize < availableDates.length;
+
+  const availableDateSet = useMemo(() => new Set(availableDates), [availableDates]);
+
+  const monthCells = useMemo(() => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const first = new Date(year, month, 1);
+    const startOffset = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: { day: string; date: Date; inMonth: boolean }[] = [];
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      cells.push({ day: toDayKey(d), date: d, inMonth: false });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      cells.push({ day: toDayKey(date), date, inMonth: true });
+    }
+    const total = 42;
+    while (cells.length < total) {
+      const last = cells[cells.length - 1].date;
+      const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+      cells.push({ day: toDayKey(next), date: next, inMonth: false });
+    }
+    return cells;
+  }, [monthDate]);
+
+  useEffect(() => {
+    setDateOffset((prev) => Math.min(prev, Math.max(0, availableDates.length - pageSize)));
+  }, [availableDates.length]);
+
+  useEffect(() => {
+    if (!selectedDay) return;
+    const index = availableDates.indexOf(selectedDay);
+    if (index < 0) return;
+    setDateOffset((prev) =>
+      index < prev || index >= prev + pageSize
+        ? Math.min(
+            Math.max(0, index - Math.floor(pageSize / 2)),
+            Math.max(0, availableDates.length - pageSize),
+          )
+        : prev,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, availableDates.join(",")]);
 
   async function addPatient() {
     setBusy(true);
@@ -244,17 +356,181 @@ export function ManualAppointmentModal({
       </div>
 
       <label className="mt-3 block text-[12px] font-bold text-muted">
-        Valid date and time
-        {slots.length === 0 ? (
+        <span className="flex items-center justify-between">
+          <span>Valid date and time</span>
+          <span>
+            <button
+              type="button"
+              onClick={() => {
+                setMonthDate(new Date());
+                setExpandedOpen(true);
+              }}
+              className="text-[12px] font-semibold text-accent hover:underline"
+            >
+              Pick a date
+            </button>
+          </span>
+        </span>
+        {availableDates.length === 0 ? (
           <div className="mt-1"><Empty>No open slots for this doctor and type.</Empty></div>
         ) : (
-          <select value={slot} onChange={(e) => setSlot(e.target.value)} className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink">
-            <option value="">Select a time</option>
-            {slots.map((item: any) => <option key={item.startUtc} value={item.startUtc}>{fmtWhenManila(item.startUtc)}</option>)}
-          </select>
+          <div className="mt-1 rounded-card border border-line bg-white p-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setDateOffset((prev) => Math.max(0, prev - pageSize))}
+                disabled={!canPrev}
+                className="rounded border border-line px-1.5 py-1 text-[13px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Previous dates"
+              >
+                ‹
+              </button>
+              <div className="grid flex-1 grid-cols-5 gap-1">
+                {visibleDates.map((day) => {
+                  const dateObj = new Date(`${day}T00:00:00+08:00`);
+                  const weekday = dateObj.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    timeZone: "Asia/Manila",
+                  });
+                  const dayNum = dateObj.toLocaleDateString("en-US", {
+                    day: "numeric",
+                    timeZone: "Asia/Manila",
+                  });
+                  const isSelected = selectedDay === day;
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(day);
+                        setSlot("");
+                      }}
+                      className={[
+                        "rounded border px-1 py-1 text-center text-[10px] font-bold transition",
+                        isSelected
+                          ? "border-accent bg-accent-soft text-accent"
+                          : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                        !isSelected ? "text-muted" : "",
+                      ].join(" ")}
+                    >
+                      <span className="block">{weekday}</span>
+                      <span className="tnum block text-[12px] leading-none">{dayNum}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setDateOffset((prev) =>
+                    Math.min(prev + pageSize, Math.max(0, availableDates.length - pageSize)),
+                  )
+                }
+                disabled={!canNext}
+                className="rounded border border-line px-1.5 py-1 text-[13px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Next dates"
+              >
+                ›
+              </button>
+            </div>
+            {selectedDay && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {selectedDay && slotMap[selectedDay]?.length ? (
+                  slotMap[selectedDay].map((s: any) => (
+                    <button
+                      key={s.startUtc}
+                      type="button"
+                      onClick={() => setSlot(s.startUtc)}
+                      className={[
+                        "tnum rounded-full border px-2.5 py-1 text-[11px] font-bold transition",
+                        slot === s.startUtc
+                          ? "border-accent bg-accent-soft text-accent"
+                          : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                      ].join(" ")}
+                    >
+                      {fmtTimeManila(s.startUtc)}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-[11px] text-muted">No slots on this day</p>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </label>
       <p className="mt-1 text-[11px] text-muted">The selected time is checked again before the appointment is saved.</p>
+
+      {/* Expanded calendar picker */}
+      <Modal
+        open={expandedOpen}
+        onClose={() => setExpandedOpen(false)}
+        title="Pick a date"
+      >
+        <div className="p-1">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() =>
+                setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))
+              }
+              className="rounded border border-line px-2 py-1 text-[13px] text-muted hover:text-ink"
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+            <span className="text-[13px] font-bold text-ink">
+              {monthDate.toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))
+              }
+              className="rounded border border-line px-2 py-1 text-[13px] text-muted hover:text-ink"
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+          <div className="mt-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-muted">
+            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+              <div key={i}>{d}</div>
+            ))}
+          </div>
+          <div className="mt-0.5 grid grid-cols-7 gap-0.5">
+            {monthCells.map((cell, idx) => {
+              const isAvailable = availableDateSet.has(cell.day) && cell.day >= today;
+              const isSelected = selectedDay === cell.day;
+              const isDisabled = !cell.inMonth || !isAvailable;
+              return (
+                <button
+                  key={`${cell.day}-${idx}`}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => {
+                    setSelectedDay(cell.day);
+                    setSlot("");
+                    setExpandedOpen(false);
+                  }}
+                  className={[
+                    "flex h-8 items-center justify-center rounded text-[12px] font-medium transition",
+                    !cell.inMonth ? "text-muted/30" : "text-ink",
+                    isSelected ? "bg-accent-soft font-bold text-accent" : "",
+                    isAvailable && !isSelected ? "hover:bg-accent-soft" : "",
+                    isDisabled ? "cursor-not-allowed opacity-40" : "",
+                  ].join(" ")}
+                >
+                  {cell.date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
     </Modal>
   );
 }

@@ -108,6 +108,9 @@ Close with:
   correctly labelled outbound `SENT` and ignored by inbound polling.
 - Do not reset after approving offers unless you are prepared to clean the
   already-created Google Calendar events manually.
+- Do not use `dev:lan`, `/qr`, or a public tunnel in the flagship demo. The
+  mobile booking surface is outside the agent-recovery story, and this demo app
+  has no authentication boundary between patient and staff routes.
 
 ## Recovery
 

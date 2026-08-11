@@ -42,6 +42,14 @@ import { audit } from "@/core/audit";
 import { timeline } from "@/core/timeline";
 import { PERSONAS, personaReply } from "@/sim/personas";
 
+/**
+ * Drain the event queue. Dispatch failures abort the run (main() exits 1)
+ * rather than retrying like the production worker does: a dropped event means
+ * the scenario never completed, so every downstream metric in this run would
+ * be quietly understated. A failed eval is recoverable; a plausible-looking
+ * eval built on silently abandoned events is not. See the same reasoning in
+ * tests/helpers.ts.
+ */
 async function pump(max = 300): Promise<number> {
   let n = 0;
   for (let i = 0; i < max; i++) {
@@ -51,8 +59,11 @@ async function pump(max = 300): Promise<number> {
       await dispatchEvent(ev);
       completeEvent(ev.id);
     } catch (e) {
-      failEvent(ev.id, ev.attempts < 2);
-      if (ev.attempts >= 2) throw e;
+      failEvent(ev.id, false);
+      throw new Error(
+        `pump(): event ${ev.type} (${ev.id}) failed — ${String((e as Error)?.message ?? e)}`,
+        { cause: e },
+      );
     }
     n++;
   }

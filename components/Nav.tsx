@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/components/ui";
+import { Logo, cn } from "@/components/ui";
 
 const ROLES = [
   { href: "/doctor", label: "Doctor" },
@@ -14,7 +14,7 @@ export function Nav() {
   return (
     <header className="topnav">
       <div className="topnav-inner">
-        <span className="logo"><span></span></span>
+        <Logo size={24} />
         <span className="brand">SchediCare</span>
         <nav className="roles" aria-label="Switch role">
           {ROLES.map((r) => (
