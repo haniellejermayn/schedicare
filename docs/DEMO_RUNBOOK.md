@@ -21,17 +21,17 @@ Do this before the room opens, not during the presentation.
 2. Set `DEMO_PATIENT_EMAIL` to a patient inbox you control that is **different
    from the clinic Gmail account connected through OAuth**. The three patients
    use plus aliases of this inbox, so one second account is enough.
-3. Run `npm run demo`. This profile includes only the flagship scenario and
-   opens no background sweep cases.
-4. Manually clear old SchediCare `[HOLD]` and out-of-office events from both
-   dedicated Google demo calendars. Reset cannot safely delete external events
-   it no longer tracks.
-5. In **Settings → Demo & data**, press **Reset demo data**. Reset clears the
-   local workflow while preserving Google OAuth and doctor-calendar mappings.
-6. Restore or confirm both doctor mappings in **Settings → Connections**, then
-   verify Claude, Google Calendar, and Gmail **after the reset**. Confirm the UI
+3. In **Settings → Connections**, confirm both doctors are mapped to different
+   dedicated secondary Google demo calendars. Their IDs must end in
+   `@group.calendar.google.com`; never use `primary` or a personal calendar.
+4. Run `npm run demo`. It resets SQLite, deletes every existing event from the
+   two validated demo calendars, recreates the seeded appointments and busy
+   blocks there, then starts the web app and worker. This profile includes only
+   the flagship scenario and opens no background sweep cases.
+5. Verify Claude, Google Calendar, and Gmail **after `npm run demo` completes its
+   calendar sync**. Confirm the UI
    reports the intended live mode and **Actual replies only · 3s polling**.
-7. Shortly before the presentation, trigger Dr. Santos's unavailability through
+6. Shortly before the presentation, trigger Dr. Santos's unavailability through
    the normal Doctor workflow. Let Assessment → Scheduling → Recovery finish
    normally, then confirm the case is at `awaiting_approval` / **Needs your
    review** with three recommendations visible.
@@ -120,4 +120,4 @@ Close with:
 | Gmail or Calendar verify fails | Reconnect Google, reset if needed, then verify again after the final reset. |
 | No reply appears after 10 seconds | Confirm the reply came from the separate patient account and the worker terminal is running. |
 | Worker stopped | If the event is still pending, restart with `npm run worker`. If it was already claimed as `processing`, the queue has no stale-claim recovery: reset, clean any external residue, and stage the case again. |
-| Demo state is dirty | Remove leftover SchediCare events from the dedicated Google calendars, reset demo data, then verify integrations again. |
+| Demo state is dirty | Stop the app, confirm the dedicated calendar mappings, rerun `npm run demo`, then verify integrations again. |

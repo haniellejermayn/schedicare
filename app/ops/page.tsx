@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { usePoll } from "@/lib/usePoll";
 import { CASE_STATE } from "@/components/copy";
 import { ManualAppointmentModal } from "@/components/ManualAppointmentModal";
-import { WeekCalendar } from "@/components/WeekCalendar";
+import { WeekCalendar, weekDayKeys } from "@/components/WeekCalendar";
 
 type Filter = "review" | "working" | "done" | "schedule";
 
@@ -111,12 +111,7 @@ export default function FrontDeskPage() {
     const appts = (docData?.appointments ?? []).filter((a: any) =>
       ["booked", "confirmed"].includes(a.status),
     );
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(`${demoDay}T00:00:00+08:00`);
-      d.setDate(d.getDate() + i);
-      const key = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Manila",
-      }).format(d);
+    for (const key of weekDayKeys(demoDay)) {
       days[key] = appts.filter((a: any) => manilaDay(a.startUtc) === key);
     }
     return days;

@@ -7,7 +7,7 @@ import { APPT_STATUS, appointmentStatus } from "@/components/copy";
 
 /**
  * Weekly time-grid calendar for the Doctor page. Replaces the flat per-day
- * pill list with an actual Mon–Sat grid, so a doctor can see gaps, load, and
+ * pill list with an actual Sun–Sat grid, so a doctor can see gaps, load, and
  * clashes at a glance instead of reading rows.
  *
  * Hour range is a fixed 7am–7pm band. The `rules` prop is accepted so
@@ -32,6 +32,19 @@ const HOURS = Array.from(
   { length: HOUR_END - HOUR_START + 1 },
   (_, i) => HOUR_START + i,
 );
+
+/** Manila date keys for the containing Sunday-to-Saturday calendar week. */
+export function weekDayKeys(today: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) return [];
+  const current = new Date(`${today}T00:00:00Z`);
+  if (Number.isNaN(current.getTime())) return [];
+  current.setUTCDate(current.getUTCDate() - current.getUTCDay());
+  return Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date(current);
+    day.setUTCDate(day.getUTCDate() + offset);
+    return day.toISOString().slice(0, 10);
+  });
+}
 
 interface RuleWindows {
   windows?: Record<string, string[]>;
@@ -145,9 +158,14 @@ export function WeekCalendar({
   const { data: status } = usePoll<any>("/api/status", 30000);
   const [selected, setSelected] = useState<any | null>(null);
 
-  const days = useMemo(() => Object.keys(week).sort(), [week]);
+  const suppliedDays = useMemo(() => Object.keys(week).sort(), [week]);
   // Single-day mode renders roomier, card-like blocks on a taller hour scale.
-  const dayMode = days.length === 1;
+  const dayMode = suppliedDays.length === 1;
+  const days = useMemo(
+    () =>
+      dayMode ? suppliedDays : weekDayKeys(today).length ? weekDayKeys(today) : suppliedDays,
+    [dayMode, suppliedDays, today],
+  );
   const PX_PER_HOUR = dayMode ? 96 : 52;
   const GRID_HEIGHT = (HOUR_END - HOUR_START) * PX_PER_HOUR;
   const busyByDay = useMemo(() => groupBusyByDay(externalBusy), [externalBusy]);

@@ -15,7 +15,7 @@ import {
   cn,
 } from "@/components/ui";
 import { appointmentStatus } from "@/components/copy";
-import { WeekCalendar } from "@/components/WeekCalendar";
+import { WeekCalendar, weekDayKeys } from "@/components/WeekCalendar";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 type Tab = "today" | "week" | "rules";
@@ -275,12 +275,7 @@ export default function DoctorPage() {
   const week = useMemo(() => {
     const days: Record<string, any[]> = {};
     if (!demoDay) return days;
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(`${demoDay}T00:00:00+08:00`);
-      d.setDate(d.getDate() + i);
-      const key = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Manila",
-      }).format(d);
+    for (const key of weekDayKeys(demoDay)) {
       days[key] = operationalAppts.filter(
         (a: any) => manilaDay(a.startUtc) === key,
       );

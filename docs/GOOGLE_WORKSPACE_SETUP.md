@@ -43,6 +43,11 @@ copy each **Calendar ID** (calendar Settings → *Integrate calendar*), and past
 them into **Settings → Connections → Doctor calendar mapping**. Keeping the `sim-`
 ids leaves that doctor on the simulated provider.
 
+These must be dedicated secondary demo calendars whose IDs end in
+`@group.calendar.google.com`. `npm run demo` deliberately deletes **every event**
+from both mapped calendars before recreating the SQLite demo schedule. It refuses
+`primary`, account-calendar IDs, and a calendar shared by both doctors.
+
 Press **Verify** on the Calendar and Gmail cards — you should see event counts
 and your Gmail address.
 

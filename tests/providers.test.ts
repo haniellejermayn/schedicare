@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { seed } from "@/sim/seed";
 import { resetEnvCache } from "@/core/env";
 import { runtimeMode, setServiceHealth } from "@/core/status";
+import { syncMappedDemoCalendars } from "@/scripts/demoCalendarSync";
 
 describe("runtime status", () => {
   beforeEach(() => {
@@ -141,6 +142,112 @@ describe("demo reset integration persistence", () => {
 });
 
 describe("google providers with injected doubles (no network)", () => {
+  it("collects every paginated event id before clearing a Google calendar", async () => {
+    const deleted: string[] = [];
+    const fake = {
+      events: {
+        list: vi
+          .fn()
+          .mockResolvedValueOnce({
+            data: {
+              items: [{ id: "old_1" }, { id: "old_2" }],
+              nextPageToken: "page_2",
+            },
+          })
+          .mockResolvedValueOnce({
+            data: { items: [{ id: "old_3" }] },
+          }),
+        delete: vi.fn(async ({ eventId }: any) => {
+          deleted.push(eventId);
+          return { data: {} };
+        }),
+      },
+    };
+    const provider = new GoogleCalendarProvider(fake as any);
+
+    await expect(
+      provider.deleteAllEvents("doctor@group.calendar.google.com"),
+    ).resolves.toBe(3);
+    expect(deleted).toEqual(["old_1", "old_2", "old_3"]);
+    expect(fake.events.list).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ pageToken: "page_2" }),
+    );
+  });
+
+  it("clears dedicated mappings and mirrors active SQLite appointments", async () => {
+    db.update(schema.doctors)
+      .set({ calendarId: "santos@group.calendar.google.com" })
+      .where(eq(schema.doctors.id, "doc_santos"))
+      .run();
+    db.update(schema.doctors)
+      .set({ calendarId: "reyes@group.calendar.google.com" })
+      .where(eq(schema.doctors.id, "doc_reyes"))
+      .run();
+    seed("lite", { preserveIntegrations: true });
+
+    const cleared: string[] = [];
+    const created: any[] = [];
+    const fake = {
+      name: "google" as const,
+      deleteAllEvents: vi.fn(async (calendarId: string) => {
+        cleared.push(calendarId);
+        return 2;
+      }),
+      createEvent: vi.fn(async (event: any) => {
+        created.push(event);
+        return { ...event, id: `google_${created.length}`, status: "confirmed" };
+      }),
+    };
+
+    const result = await syncMappedDemoCalendars(fake as any);
+    const active = db
+      .select()
+      .from(schema.appointments)
+      .all()
+      .filter((appointment) =>
+        ["booked", "confirmed"].includes(appointment.status),
+      );
+
+    expect(new Set(cleared)).toEqual(
+      new Set([
+        "santos@group.calendar.google.com",
+        "reyes@group.calendar.google.com",
+      ]),
+    );
+    expect(result.appointmentsCreated).toBe(active.length);
+    expect(result.busyBlocksCreated).toBe(2);
+    expect(created).toHaveLength(active.length + 2);
+    expect(
+      db
+        .select()
+        .from(schema.appointments)
+        .all()
+        .filter((appointment) =>
+          ["booked", "confirmed"].includes(appointment.status),
+        )
+        .every((appointment) => appointment.calendarEventId?.startsWith("google_")),
+    ).toBe(true);
+  });
+
+  it("refuses to clear a primary or non-dedicated calendar", async () => {
+    db.update(schema.doctors)
+      .set({ calendarId: "primary" })
+      .where(eq(schema.doctors.id, "doc_santos"))
+      .run();
+    seed("lite", { preserveIntegrations: true });
+    const fake = {
+      name: "google" as const,
+      deleteAllEvents: vi.fn(),
+      createEvent: vi.fn(),
+    };
+
+    await expect(syncMappedDemoCalendars(fake as any)).rejects.toThrow(
+      /dedicated secondary Google calendar/i,
+    );
+    expect(fake.deleteAllEvents).not.toHaveBeenCalled();
+  });
+
   it("calendar provider maps create/list/delete through the API client", async () => {
     const store: any[] = [];
     const fake = {

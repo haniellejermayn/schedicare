@@ -29,7 +29,11 @@ npm run worker             # terminal 2 — agent worker
 npm run demo:cascade       # trigger it by CLI (or use “I can't come in” in Doctor)
 ```
 
-`npm run demo` seeds the three-patient world and starts web + worker together.
+`npm run demo` seeds the three-patient world, mirrors active appointments into
+the mapped dedicated Google demo calendars, and starts web + worker together.
+Before mirroring, it deletes every existing event from those dedicated calendars;
+for safety it refuses `primary` or any mapping that is not a secondary calendar
+ID ending in `@group.calendar.google.com`.
 With `DEMO_NOW=now`, data is anchored around the current Manila time and the
 afternoon showcase uses Dr. Santos's next working day. An ISO `DEMO_NOW` keeps
 tests and reproducible offline runs deterministic. Demo reset preserves Google
@@ -130,7 +134,7 @@ core/           Slot engine, validators, constraints, ranking, negotiations, cas
 integrations/   Google Calendar/Gmail providers, simulated twins, OAuth, MCP transport
 worker/         Event queue, pipeline steps, executor, reply handling + triage, negotiation runner, daily sweep
 sim/            Deterministic seed + reply personas
-tests/          11 suites, 112 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
+tests/          12 suites, 116 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
 eval/           Constraint corpus (66 labeled replies) + baseline scorer + metric harness
 docs/           Setup guides, runbook, agentic workflow, evaluation, security & scope
 ```
