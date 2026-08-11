@@ -209,7 +209,10 @@ export async function findSlotsForConstraints(
       }),
     }))
     .sort(
-      (a, b) => b.pts - a.pts || a.slot.startUtc.localeCompare(b.slot.startUtc),
+      (a, b) =>
+        a.slot.day.localeCompare(b.slot.day) ||
+        b.pts - a.pts ||
+        a.slot.startUtc.localeCompare(b.slot.startUtc),
     );
 
   return input.limit ? scored.slice(0, input.limit) : scored;

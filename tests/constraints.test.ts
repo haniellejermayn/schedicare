@@ -295,7 +295,7 @@ describe("constraint search against the seeded engine", () => {
     freshSeed();
   });
 
-  it("every returned slot satisfies the compound set, sorted by soft points", async () => {
+  it("every returned slot satisfies the compound set, with earliest days first", async () => {
     const results = await findSlotsForConstraints({
       set: compoundSet(),
       type: "routine",
@@ -308,10 +308,39 @@ describe("constraint search against the seeded engine", () => {
       expect(s.day).not.toBe("2026-08-14");
       expect(hhmm(s.startUtc) >= "14:00").toBe(true);
     }
-    for (let i = 1; i < results.length; i++)
-      expect(results[i - 1].pts).toBeGreaterThanOrEqual(results[i].pts);
-    expect(results[0].slot.doctorId).toBe("doc_santos"); // preference ranks first
+    for (let i = 1; i < results.length; i++) {
+      expect(results[i - 1].slot.day <= results[i].slot.day).toBe(true);
+      if (results[i - 1].slot.day === results[i].slot.day)
+        expect(results[i - 1].pts).toBeGreaterThanOrEqual(results[i].pts);
+    }
     expect(results.some((r) => r.slot.doctorId !== "doc_santos")).toBe(true); // but does not gate
+  });
+
+  it("prefers the earliest valid afternoon over a better-matching later Saturday", async () => {
+    const set = emptyConstraintSet("counter_proposal");
+    set.hard.requireSameDoctor = true;
+    set.hard.timeWindows = [{ start: "12:00" }];
+    set.soft.preferredDaysOfWeek = [6];
+    set.soft.preferredTimeWindows = [{ start: "15:00", end: "16:00" }];
+    set.confidence = 0.95;
+    set.summary = "Afternoons, preferably Saturday around 3 PM.";
+
+    const results = await findSlotsForConstraints({
+      set,
+      type: "routine",
+      originalDoctorId: "doc_santos",
+      ignoreAppointmentId: "appt_miguel",
+      fromDay: "2026-08-10",
+      horizonDays: 14,
+    });
+
+    expect(results[0].slot.day).toBe("2026-08-10");
+    expect(
+      results.some(
+        (result) =>
+          result.slot.day > results[0].slot.day && result.pts > results[0].pts,
+      ),
+    ).toBe(true);
   });
 
   it("requiredDoctorId narrows the search to that doctor only", async () => {

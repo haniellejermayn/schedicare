@@ -180,7 +180,7 @@ function template(
     c.proposedDoctorName !== c.doctorName;
   const waitOption = crossDoctor
     ? c.sameDoctorAlt
-      ? ` If you'd rather stay with ${c.doctorName}, their closest opening is ${longWhen(c.sameDoctorAlt)} — just reply and tell us which you prefer.`
+      ? ` If you'd rather stay with ${c.doctorName}, their closest opening is ${longWhen(c.sameDoctorAlt)}. Just reply and tell us which you prefer.`
       : ` If you'd rather wait for ${c.doctorName}'s next opening instead, just tell us and we'll arrange it.`
     : "";
   switch (purpose) {
@@ -214,12 +214,12 @@ function template(
     case "confirm_nudge":
       return {
         subject: standardSubject("confirm_nudge", c),
-        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help — or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help. Or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
       };
     case "preventive":
       return {
         subject: standardSubject("preventive", c),
-        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all — reply with what suits you better and we'll move it. If it still works, a quick reply to confirm would help us plan.\n\n${SIGNOFF}`,
+        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all. Reply with what suits you better and we'll move it. If it still works, a quick reply to confirm would help us plan.\n\n${SIGNOFF}`,
       };
     case "waitlist_offer":
       return {
@@ -277,7 +277,7 @@ export function confirmationAckTemplate(i: {
   const first = i.patientName.split(" ")[0];
   return {
     subject: standardSubject("booking_ack", { when: i.when }),
-    body: `Hi ${first},\n\nAll set — we've reserved ${longWhen(i.when)} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
+    body: `Hi ${first},\n\nYou're all set. Your appointment is confirmed for ${longWhen(i.when)} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
   };
 }
 
@@ -301,6 +301,10 @@ export function bannedContentLint(
 ): { result: CommsDraftResult; warnings: string[] } {
   const warnings: string[] = [];
   const drafts = result.drafts.map((d) => {
+    const body = d.body.replace(
+      /\s*—\s*([A-Za-z])/g,
+      (_match, next: string) => `. ${next.toUpperCase()}`,
+    ).replace(/—/g, ",");
     const patientItems = items.filter((i) => i.patientId === d.patientId);
     const item = d.appointmentId
       ? patientItems.find((i) => i.appointmentId === d.appointmentId)
@@ -312,10 +316,10 @@ export function bannedContentLint(
     const subject = standardSubject(purpose, item?.context ?? {});
     const taglishMismatch =
       item?.replyRegister === "taglish" &&
-      (d.body.match(
+      (body.match(
         /\b(po|salamat|pwede|namin|kayo|ito|iyon|okay lang|sa inyo)\b/gi,
       ) ?? []).length < 2;
-    const titles = (d.body.match(PATIENT_TITLE) ?? []).map(titleKey);
+    const titles = (body.match(PATIENT_TITLE) ?? []).map(titleKey);
     const expectedTitle = item?.honorific
       ? titleKey(item.honorific)
       : undefined;
@@ -326,7 +330,7 @@ export function bannedContentLint(
         : titles.length > 0);
     if (
       BANNED.test(d.subject) ||
-      BANNED.test(d.body) ||
+      BANNED.test(body) ||
       taglishMismatch ||
       salutationMismatch
     ) {
@@ -340,7 +344,7 @@ export function bannedContentLint(
       const safe = item ? template(purpose, item) : { subject, body: "" };
       return { ...d, subject, body: safe.body };
     }
-    return { ...d, subject };
+    return { ...d, subject, body };
   });
   return { result: { drafts }, warnings };
 }
@@ -353,18 +357,19 @@ export const commsDraftAgent: AgentDef<CommsDraftInput, CommsDraftResult> = {
 Voice: warm, plain, brief (under 140 words), apologetic when the clinic caused the change. Filipino patients, English is fine.
 Hard rules:
 - Scheduling logistics ONLY. Never any medical advice, symptom talk, diagnoses, medication or dosage language.
-- Never invent times, doctors, or promises — use exactly the times given in the context.
-- The doctor's specific reason (family emergency, illness, etc.) is PRIVATE to the clinic: patients are told only "an unexpected emergency" or "is unexpectedly unavailable" — never the detail, even when the context includes it.
+- Never invent times, doctors, or promises. Use exactly the times given in the context.
+- Never use em dashes in patient-facing copy. Use a period, comma, or short new sentence instead.
+- The doctor's specific reason (family emergency, illness, etc.) is PRIVATE to the clinic: patients are told only "an unexpected emergency" or "is unexpectedly unavailable". Never reveal the detail, even when the context includes it.
 - Availability wording: state an exact number of open slots only when it is 5 or fewer (where the number helps the patient decide); otherwise use qualitative phrasing ("we have several openings on weekday afternoons"). Large exact counts are internal and never reach the patient.
-- Cross-doctor offers must SAY SO: when the proposed doctor differs from the patient's usual doctor (context.doctorName), name the arrangement plainly — "with Dr. Reyes, who is covering for Dr. Santos" — and offer the alternative of waiting for their usual doctor (an invitation to reply; NEVER name a date for it that wasn't provided).
-- PRIVACY: the doctor's personal reason is never shared with patients. Say only "an unexpected emergency" or "is unexpectedly unavailable" — even if a specific reason appears anywhere in the context or conversation.
+- Cross-doctor offers must SAY SO: when the proposed doctor differs from the patient's usual doctor (context.doctorName), name the arrangement plainly, for example "with Dr. Reyes, who is covering for Dr. Santos", and offer the alternative of waiting for their usual doctor. This is an invitation to reply; NEVER name a date for it that wasn't provided.
+- PRIVACY: the doctor's personal reason is never shared with patients. Say only "an unexpected emergency" or "is unexpectedly unavailable", even if a specific reason appears anywhere in the context or conversation.
 - End every email with EXACTLY this sign-off block, nothing else after it:
 ${SIGNOFF}
 - Match only the supplied replyRegister enum. english: warm, plain English. taglish: natural Filipino clinic communication with a simple English/Taglish base and natural uses of "po"; prefer phrases such as "Thank you po sa reply", "Available po", and "Okay po ba ito sa inyo?" over translated-sounding Filipino. Use the supplied honorific only when present; never infer Ma'am or Sir from a name. tagalog: conversational Filipino, never stiff or ceremonial. Never imitate slang, anger, misspellings, or excessive informality.
-- Avoid overly formal Tagalog such as "ipinababatid", "makipag-ugnayan", and "kung inyong nanaisin".
+- Avoid translated constructions such as "Nakuha po namin ang inyong", "Salamat po sa inyong tugon", or repeated "ang inyong" phrasing. Use short, everyday clinic language instead, such as "Thank you po sa reply" or "Noted po". Also avoid overly formal Tagalog such as "ipinababatid", "makipag-ugnayan", and "kung inyong nanaisin".
 - When asking whether another doctor is acceptable, use: "If okay po sa inyo, pwede po namin kayo i-assign sa ibang doctor na available. Just let us know po."
-- FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally — invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.
-- CONTINUATION (context.reason === "counter" — the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, NO re-introducing the situation — they know it. Under 80 words.
+- FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally. Invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.
+- CONTINUATION (context.reason === "counter"; the patient already replied and this answers them): write like the front desk continuing a conversation. Briefly acknowledge what they told us, state the new time plainly, and ask if it works ("Will that work for you?"). NO reply instructions ("reply YES", "you can reply with…"), NO emoji, NO headers or bullet lists, and NO re-introducing the situation. They know it. Under 80 words.
 - One draft per item, matching patientId/appointmentId. Finish with submit_result.`,
   tools: [toolToday],
   resultSchema: CommsDraftResultSchema,
@@ -374,7 +379,7 @@ ${SIGNOFF}
     i.items
       .map(
         (it) =>
-          `- ${it.patientName} (${it.patientId}${it.appointmentId ? `, appt ${it.appointmentId}` : ""}, replyRegister=${it.replyRegister ?? "english"}, honorific=${it.honorific ?? "none — use a neutral greeting and do not infer one"}): ${JSON.stringify(it.context)}`,
+          `- ${it.patientName} (${it.patientId}${it.appointmentId ? `, appt ${it.appointmentId}` : ""}, replyRegister=${it.replyRegister ?? "english"}, honorific=${it.honorific ?? "none; use a neutral greeting and do not infer one"}): ${JSON.stringify(it.context)}`,
       )
       .join("\n"),
   fallback: async (i) => ({

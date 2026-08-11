@@ -130,7 +130,7 @@ core/           Slot engine, validators, constraints, ranking, negotiations, cas
 integrations/   Google Calendar/Gmail providers, simulated twins, OAuth, MCP transport
 worker/         Event queue, pipeline steps, executor, reply handling + triage, negotiation runner, daily sweep
 sim/            Deterministic seed + reply personas
-tests/          11 suites, 106 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
+tests/          11 suites, 111 tests — incl. cascade E2E, LangGraph lifecycle, constraints + negotiation guards
 eval/           Constraint corpus (66 labeled replies) + baseline scorer + metric harness
 docs/           Setup guides, runbook, agentic workflow, evaluation, security & scope
 ```

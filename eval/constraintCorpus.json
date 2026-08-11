@@ -1,5 +1,5 @@
 {
-  "note": "Constraint-extraction eval corpus. Anchored to DEMO_NOW = Monday 2026-08-10 (Asia/Manila): Tue=11 Wed=12 Thu=13 Fri=14 Sat=15 Sun=16, next Mon=17. Every `expected` is a partial SchedulingConstraintSet (core/constraints.ts). Labeling conventions: morning={end:12:00}, afternoon={start:12:00}, after lunch={start:13:00}; bare weekday mention → allowedDaysOfWeek (ISO 1=Mon…7=Sun); explicit or resolvable date → allowedDates; 'from X onwards' → earliestDate; 'this week only' → latestDate; approximate times ('mga 8:30', 'around 3') → a soft one-hour window starting at the stated time; references to the original booking ('same time') → unresolved=true; named-doctor insistence ('lang talaga', 'only') → hard.requiredDoctorId, polite preference → soft.preferredDoctorId; unnamed 'keep my doctor' → soft.preferSameDoctor, refusal of a new doctor → hard.requireSameDoctor. Weeks run Monday-Sunday ('next week' from Mon 2026-08-10 = 2026-08-17..2026-08-23); preference-strength language ('would be best', 'works better', 'if possible', 'sana', 'ideally') → soft fields; 'skip <period>' → excludedDates for that period literally; availability remarks ('wide open') → soft. guard=true means the message must reach a human regardless of extraction (clinical content, anger). Doctor roster for labels: doc_santos = Dr. Elena Santos, doc_reyes = Dr. Marco Reyes.",
+  "note": "Constraint-extraction eval corpus. Anchored to DEMO_NOW = Monday 2026-08-10 (Asia/Manila): Tue=11 Wed=12 Thu=13 Fri=14 Sat=15 Sun=16, next Mon=17. Every `expected` is a partial SchedulingConstraintSet (core/constraints.ts). Labeling conventions: morning={end:12:00}, afternoon={start:12:00}, after lunch={start:13:00}; a weekday stated as the only availability → allowedDaysOfWeek (ISO 1=Mon…7=Sun), while a weekday offered alongside a broader alternative → preferredDaysOfWeek; explicit or resolvable date → allowedDates; 'from X onwards' → earliestDate; 'this week only' → latestDate; approximate times ('mga 8:30', 'around 3') → a soft one-hour window starting at the stated time; references to the original booking ('same time') → unresolved=true; named-doctor insistence ('lang talaga', 'only') → hard.requiredDoctorId, polite preference → soft.preferredDoctorId; unnamed 'keep my doctor' → soft.preferSameDoctor, refusal of a new doctor → hard.requireSameDoctor. Weeks run Monday-Sunday ('next week' from Mon 2026-08-10 = 2026-08-17..2026-08-23); preference-strength language ('would be best', 'works better', 'if possible', 'sana', 'ideally') → soft fields; 'skip <period>' → excludedDates for that period literally; availability remarks ('wide open') → soft. guard=true means the message must reach a human regardless of extraction (clinical content, anger). Doctor roster for labels: doc_santos = Dr. Elena Santos, doc_reyes = Dr. Marco Reyes.",
   "cases": [
     {
       "id": "a1",
@@ -651,6 +651,25 @@
           ]
         },
         "evidence": ["hard.allowedDates[0]", "soft.preferredTimeWindows[0]"]
+      }
+    },
+    {
+      "id": "t6c",
+      "category": "taglish",
+      "body": "Okay lang po ba if Saturday around 3pm po? Or anytime afternoon?",
+      "expected": {
+        "intent": "counter_proposal",
+        "hard": {
+          "timeWindows": [
+            { "start": "12:00" }
+          ]
+        },
+        "soft": {
+          "preferredDaysOfWeek": [6],
+          "preferredTimeWindows": [
+            { "start": "15:00", "end": "16:00" }
+          ]
+        }
       }
     },
     {

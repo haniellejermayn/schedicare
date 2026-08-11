@@ -10,11 +10,14 @@ import {
   isClearOfferAcceptance,
   bannedContentLint,
   commsDraftAgent,
+  confirmationAckTemplate,
   rebuiltOfferDraft,
   type DraftItem,
   type CommsDraftResult,
 } from "@/agents/comms";
 import { runAssessment } from "@/agents/assessment";
+import { constraintExtractorAgent } from "@/agents/constraintExtractor";
+import { recoveryAgent } from "@/agents/recovery";
 import { db, schema } from "@/core/db/client";
 import { eq } from "drizzle-orm";
 import { plainPriorityReason } from "@/components/copy";
@@ -179,7 +182,7 @@ describe("patient-facing draft copy", () => {
         purpose: "reschedule_offer",
         items: [{ ...taglishItem(), patientName: "Miguel Torres" }],
       }),
-    ).toContain("honorific=none — use a neutral greeting and do not infer one");
+    ).toContain("honorific=none; use a neutral greeting and do not infer one");
 
     const exactBody =
       "Hello po Ma'am Grace,\n\nThank you po sa reply. Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?\n\nWarm regards,\nRiverside Family Clinic\n(02) 8641 0117";
@@ -257,6 +260,61 @@ describe("patient-facing draft copy", () => {
       },
     ).result.drafts[0].body;
     expect(wrongExplicitTitle).toMatch(/^Hello po Ma'am Grace,/);
+  });
+
+  it("grounds Miguel's Sir salutation in explicit seeded data", () => {
+    freshSeed();
+    const patient = db
+      .select({ notes: schema.patients.notes })
+      .from(schema.patients)
+      .where(eq(schema.patients.id, "pat_miguel"))
+      .get();
+    expect(honorificFromNotes(patient?.notes)).toBe("Sir");
+  });
+
+  it("instructs live drafts to use conversational Taglish without em dashes", () => {
+    expect(commsDraftAgent.system).toContain(
+      'Avoid translated constructions such as "Nakuha po namin ang inyong"',
+    );
+    expect(commsDraftAgent.system).toMatch(/Never use em dashes/i);
+    expect(constraintExtractorAgent.system).toMatch(
+      /a weekday offered alongside a broader alternative/i,
+    );
+    expect(recoveryAgent.system).toMatch(
+      /Never claim that a delay is clinically or medically acceptable/i,
+    );
+  });
+
+  it("removes em dashes from model drafts without replacing dynamic content", () => {
+    const body =
+      "Hello po Grace,\n\nThank you po sa reply — available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?";
+    const linted = bannedContentLint("reschedule_offer", [taglishItem()], {
+      drafts: [
+        {
+          patientId: "pat_grace",
+          appointmentId: "appt_grace",
+          subject: "ignored",
+          body,
+        },
+      ],
+    });
+    expect(linted.warnings).toHaveLength(0);
+    expect(linted.result.drafts[0].body).not.toContain("—");
+    expect(linted.result.drafts[0].body).toContain(
+      "Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM.",
+    );
+  });
+
+  it("confirms a booked appointment without calling it reserved or using an em dash", () => {
+    const draft = confirmationAckTemplate({
+      patientName: "Camille Ocampo",
+      when: "Thu Aug 13 · 9:30 AM",
+      doctorName: "Dr. Elena Santos",
+    });
+    expect(draft.body).toContain(
+      "You're all set. Your appointment is confirmed for August 13 (Thursday), 9:30 AM with Dr. Elena Santos.",
+    );
+    expect(draft.body).not.toMatch(/reserved|—/i);
   });
 
   it("offers the selected slot without claiming it is chronologically earliest", () => {

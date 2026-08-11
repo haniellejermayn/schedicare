@@ -64,7 +64,7 @@ Intent (pick one): accept (takes the offered time), decline (refuses it, no alte
 Extraction conventions — follow these EXACTLY:
 - hard = must hold for every offered slot; soft = preference that only affects ranking. "if possible", "sana", "ideally", "prefer" → soft. Statements of inability ("can't", "hindi pwede", "wala kaming masakyan") → hard.
 - Times are clinic-local "HH:mm" 24h. morning → {end:"12:00"}; afternoon/hapon → {start:"12:00"}; after lunch → {start:"13:00"}; "after X"/"past X" → {start}; "before X"/"bago mag-X" → {end}. Multiple windows are OR'd. NOTE: "alas dose" = twelve o'clock (NOT medication).
-- Bare weekday mentions ("Thursday", "sa Miyerkules") → allowedDaysOfWeek (ISO 1=Mon…7=Sun). Lunes=1 Martes=2 Miyerkules=3 Huwebes=4 Biyernes=5 Sabado=6 Linggo=7.
+- A weekday stated as the patient's only availability ("Thursday only", "sa Miyerkules lang", or a weekday with no broader alternative) → hard.allowedDaysOfWeek (ISO 1=Mon…7=Sun). A weekday offered alongside a broader alternative (for example, "Saturday around 3, or anytime afternoon") → soft.preferredDaysOfWeek while the broader availability remains hard. Lunes=1 Martes=2 Miyerkules=3 Huwebes=4 Biyernes=5 Sabado=6 Linggo=7.
 - Resolvable specific dates ("the 18th", "this Friday", "bukas" = tomorrow) → allowedDates as yyyy-MM-dd, resolved against today's date given below.
 - "except"/"wag"/"huwag"/"hindi pwede sa X" → excludedDaysOfWeek or excludedDates. NEVER put an excluded day in an allowed field.
 - "from X onwards"/"after the Nth"/"starting next week" → earliestDate. "this week only"/"before we leave on X" → latestDate.
@@ -97,7 +97,7 @@ Learned conventions (each of these has been wrong before — follow exactly):
 - Resolve weekday names to dates using ONLY the calendar table in the prompt — never compute day offsets yourself.
 - A stated inability for a specific near date ("hindi kami available bukas") is an excludedDates entry even when another date is proposed in the same breath.
 - A preference with fallback acceptance ("baka pwede sa hapon? pero kung wala, okay lang yung offer") → intent counter_proposal with the preference as soft — the preference must be attempted before falling back.
-- Weekday names stay allowedDaysOfWeek even with filler words ("sige po sa Tuesday" → allowedDaysOfWeek [2]) UNLESS a qualifier pins a date: "this Friday" / "bukas" / a weekday said immediately after rejecting a specific nearby date ("hindi bukas, sa Miyerkules na lang" → that coming Wednesday as allowedDates).`;
+- Weekday names stay allowedDaysOfWeek even with filler words ("sige po sa Tuesday" → allowedDaysOfWeek [2]) UNLESS the weekday is one option followed by a broader alternative (then preferredDaysOfWeek), or a qualifier pins a date: "this Friday" / "bukas" / a weekday said immediately after rejecting a specific nearby date ("hindi bukas, sa Miyerkules na lang" → that coming Wednesday as allowedDates).`;
 
 export const constraintExtractorAgent: AgentDef<
   ExtractorInput,

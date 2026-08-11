@@ -107,7 +107,8 @@ const NAMED: PatientSeed[] = [
     key: "miguel.torres",
     name: "Miguel Torres",
     prefDayPart: "pm",
-    notes: "Works day shifts in Ortigas; prefers late afternoons.",
+    notes:
+      "Preferred salutation: Sir. Works day shifts in Ortigas; prefers late afternoons.",
   },
   {
     id: "pat_andres",

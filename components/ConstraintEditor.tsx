@@ -536,7 +536,7 @@ export function ConstraintEditor({
             {totalCount > slots.length
               ? `Showing the first ${slots.length} of ${totalCount} valid slots`
               : `${totalCount} valid slot${totalCount === 1 ? "" : "s"}`} (hard
-            constraints enforced; ranked by preferences):
+            constraints enforced; earliest day first, then preferences):
           </p>
           {slots.map((s: any) => (
             <div

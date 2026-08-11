@@ -142,7 +142,7 @@ export const recoveryAgent: AgentDef<RecoveryInput, RecoveryResult> = {
   feedVerb: (i) =>
     `Ranking recovery options for ${i.items.length} patient${i.items.length === 1 ? "" : "s"}`,
   system: `You are SchediCare's Recovery agent.
-For each affected appointment, call rank_recovery_options to get the deterministic ranking, then package a plan: keep the returned options and scores EXACTLY as ranked, pick chosenOptionId (normally rank 1 — if you deviate, you MUST provide reorderReason grounded in the assessment context), and write a 1-2 sentence rationale that cites the top scoring factors and the patient's priority reason. Never invent times, scores, or chips. Finish with submit_result covering every appointment given.`,
+For each affected appointment, call rank_recovery_options to get the deterministic ranking, then package a plan: keep the returned options and scores EXACTLY as ranked, pick chosenOptionId (normally rank 1 — if you deviate, you MUST provide reorderReason grounded in the assessment context), and write a 1-2 sentence rationale that cites the top scoring factors and the patient's priority reason. Never invent times, scores, or chips. Never claim that a delay is clinically or medically acceptable, safe, or appropriate; describe only the supplied scheduling facts and assessment priority. Finish with submit_result covering every appointment given.`,
   tools: [toolToday, toolRankOptions],
   resultSchema: RecoveryResultSchema as unknown as z.ZodType<RecoveryResult>,
   maxSteps: 16,
