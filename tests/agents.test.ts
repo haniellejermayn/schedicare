@@ -91,7 +91,7 @@ describe("staff-facing agent copy", () => {
 });
 
 describe("patient-facing draft copy", () => {
-  const taglishItem = (honorific?: "Ma'am" | "Sir"): DraftItem => ({
+  const taglishItem = (honorific?: "Ma'am" | "Sir" | "Ms."): DraftItem => ({
     patientId: "pat_grace",
     patientName: "Grace Villanueva",
     ...(honorific ? { honorific } : {}),
@@ -168,6 +168,7 @@ describe("patient-facing draft copy", () => {
   it("uses only an explicit honorific and never infers one from the name", () => {
     expect(honorificFromNotes("Preferred salutation: Ma'am.")).toBe("Ma'am");
     expect(honorificFromNotes("Preferred salutation: sir")).toBe("Sir");
+    expect(honorificFromNotes("Preferred salutation: Ms.")).toBe("Ms.");
     expect(honorificFromNotes("Patient is named Miguel Torres.")).toBeUndefined();
     expect(
       commsDraftAgent.buildPrompt({
@@ -260,6 +261,61 @@ describe("patient-facing draft copy", () => {
       },
     ).result.drafts[0].body;
     expect(wrongExplicitTitle).toMatch(/^Hello po Ma'am Grace,/);
+  });
+
+  it("seeds Ms. explicitly for Camille and Grace", () => {
+    freshSeed();
+    const patients = db
+      .select({ id: schema.patients.id, notes: schema.patients.notes })
+      .from(schema.patients)
+      .all();
+    for (const id of ["pat_camille", "pat_grace"]) {
+      const patient = patients.find((candidate) => candidate.id === id);
+      expect(honorificFromNotes(patient?.notes), id).toBe("Ms.");
+    }
+    expect(commsDraftAgent.system).toMatch(
+      /never infer Ma'am, Sir, or Ms\. from a name/i,
+    );
+
+    const draft = bannedContentLint(
+      "reschedule_offer",
+      [taglishItem("Ms.")],
+      {
+        drafts: [
+          {
+            patientId: "pat_grace",
+            appointmentId: "appt_grace",
+            subject: "ignored",
+            body: "Hello po Ms. Grace,\n\nThank you po sa reply. Available po si Dr. Santos sa Saturday, August 15 nang 8:00 AM. Okay po ba ito sa inyo?",
+          },
+        ],
+      },
+    );
+    expect(draft.warnings).toHaveLength(0);
+    expect(draft.result.drafts[0].body).toMatch(/^Hello po Ms\. Grace,/);
+
+    const camilleFallback = rebuiltOfferDraft({
+      patientId: "pat_camille",
+      patientName: "Camille Ocampo",
+      honorific: "Ms.",
+      appointmentId: "appt_camille",
+      context: {
+        doctorName: "Dr. Elena Santos",
+        proposedDoctorName: "Dr. Elena Santos",
+        originalWhen: "Tue Aug 11 · 10:40 AM",
+        proposedWhen: "Wed Aug 12 · 9:30 AM",
+        reason: "unexpected_unavailability",
+      },
+    });
+    expect(camilleFallback.body).toMatch(/^Hi Ms\. Camille,/);
+
+    const camilleConfirmation = confirmationAckTemplate({
+      patientName: "Camille Ocampo",
+      honorific: "Ms.",
+      when: "Thu Aug 13 · 9:30 AM",
+      doctorName: "Dr. Elena Santos",
+    });
+    expect(camilleConfirmation.body).toMatch(/^Hi Ms\. Camille,/);
   });
 
   it("grounds Miguel's Sir salutation in explicit seeded data", () => {

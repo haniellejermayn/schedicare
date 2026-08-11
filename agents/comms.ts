@@ -14,15 +14,24 @@ export const SIGNOFF = `Warm regards,\n${CLINIC_NAME}\n(02) 8641 0117`;
 
 export const REPLY_REGISTERS = ["english", "taglish", "tagalog"] as const;
 export type ReplyRegister = (typeof REPLY_REGISTERS)[number];
+export const PATIENT_HONORIFICS = ["Ma'am", "Sir", "Ms."] as const;
+export type PatientHonorific = (typeof PATIENT_HONORIFICS)[number];
 
 /** Read only an explicitly recorded salutation; never infer one from a name. */
 export function honorificFromNotes(
   notes: string | null | undefined,
-): "Ma'am" | "Sir" | undefined {
+): PatientHonorific | undefined {
   const value = notes
-    ?.match(/\bPreferred salutation:\s*(Ma'am|Sir)\b/i)?.[1]
-    ?.toLowerCase();
-  return value === "ma'am" ? "Ma'am" : value === "sir" ? "Sir" : undefined;
+    ?.match(/\bPreferred salutation:\s*(Ma'am|Sir|Ms\.?)(?=[\s.,;]|$)/i)?.[1]
+    ?.toLowerCase()
+    .replace(/\.$/, "");
+  return value === "ma'am"
+    ? "Ma'am"
+    : value === "sir"
+      ? "Sir"
+      : value === "ms"
+        ? "Ms."
+        : undefined;
 }
 
 /** Conservative register signal; drafting receives only this enum, not reply text. */
@@ -91,7 +100,7 @@ export { normalizeMailBody } from "@/lib/mailText";
 export const DraftItemSchema = z.object({
   patientId: z.string(),
   patientName: z.string(),
-  honorific: z.enum(["Ma'am", "Sir"]).optional(),
+  honorific: z.enum(PATIENT_HONORIFICS).optional(),
   appointmentId: z.string().optional(),
   replyRegister: z.enum(REPLY_REGISTERS).optional(),
   context: z.object({
@@ -170,6 +179,7 @@ function template(
 ): { subject: string; body: string } {
   const c = item.context;
   const first = item.patientName.split(" ")[0];
+  const greeting = `Hi ${item.honorific ? `${item.honorific} ` : ""}${first}`;
   const taglishGreeting = `Hello po ${item.honorific ? `${item.honorific} ` : ""}${first}`;
   // A cross-doctor offer must say so explicitly (P0 copy rule): name the
   // covering arrangement and keep the "wait for your usual doctor" door open
@@ -204,32 +214,32 @@ function template(
           : `${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""} is open`;
         return {
           subject: standardSubject("reschedule_offer", c),
-          body: `Hi ${first},\n\nThanks for letting us know. ${slotLine}. Would that work for you?${waitOption}\n\n${SIGNOFF}`,
+          body: `${greeting},\n\nThanks for letting us know. ${slotLine}. Would that work for you?${waitOption}\n\n${SIGNOFF}`,
         };
       }
       return {
         subject: standardSubject("reschedule_offer", c),
-        body: `Hi ${first},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${longWhen(c.originalWhen)}. We're very sorry for the inconvenience.\n\nWe can offer you ${longWhen(c.proposedWhen)}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know if this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
+        body: `${greeting},\n\n${c.doctorName ?? "Your doctor"} has an unexpected emergency and can no longer see you on ${longWhen(c.originalWhen)}. We're very sorry for the inconvenience.\n\nWe can offer you ${longWhen(c.proposedWhen)}${crossDoctor ? ` with ${c.proposedDoctorName}, who is covering for ${c.doctorName}` : c.proposedDoctorName && c.proposedDoctorName !== c.doctorName ? ` with ${c.proposedDoctorName}` : ""}.\n\nJust reply to let us know if this works for you, or tell us what suits you better (for example "mornings only" or "anything after 4 PM") and we'll find another slot.${waitOption}\n\n${SIGNOFF}`,
       };
     case "confirm_nudge":
       return {
         subject: standardSubject("confirm_nudge", c),
-        body: `Hi ${first},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help. Or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
+        body: `${greeting},\n\nJust checking in: you're booked with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}, and we haven't received your confirmation yet.\n\nA quick reply to say it still works would be a big help. Or let us know if you need a different time and we'll happily rearrange.\n\n${SIGNOFF}`,
       };
     case "preventive":
       return {
         subject: standardSubject("preventive", c),
-        body: `Hi ${first},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all. Reply with what suits you better and we'll move it. If it still works, a quick reply to confirm would help us plan.\n\n${SIGNOFF}`,
+        body: `${greeting},\n\nA friendly reminder about your appointment with ${c.doctorName ?? "us"} on ${longWhen(c.originalWhen)}.\n\nIf that time has become difficult, no problem at all. Reply with what suits you better and we'll move it. If it still works, a quick reply to confirm would help us plan.\n\n${SIGNOFF}`,
       };
     case "waitlist_offer":
       return {
         subject: standardSubject("waitlist_offer", c),
-        body: `Hi ${first},\n\nGood news: a slot just opened on ${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and we'd like to offer it to you from our waitlist.\n\nIf you'd like it, please let us know. If not, you'll keep your place on the waitlist.\n\n${SIGNOFF}`,
+        body: `${greeting},\n\nGood news: a slot just opened on ${longWhen(c.proposedWhen)}${c.proposedDoctorName ? ` with ${c.proposedDoctorName}` : ""}, and we'd like to offer it to you from our waitlist.\n\nIf you'd like it, please let us know. If not, you'll keep your place on the waitlist.\n\n${SIGNOFF}`,
       };
     case "cancel_ack":
       return {
         subject: standardSubject("cancel_ack", c),
-        body: `Hi ${first},\n\nConfirming we've cancelled your appointment on ${longWhen(c.originalWhen)}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
+        body: `${greeting},\n\nConfirming we've cancelled your appointment on ${longWhen(c.originalWhen)}${c.doctorName ? ` with ${c.doctorName}` : ""}. ${c.extraNote ?? "If you'd like a new time, just reply and we'll set one up."}\n\n${SIGNOFF}`,
       };
   }
 }
@@ -271,13 +281,15 @@ export function rebuiltOfferDraft(item: DraftItem): {
  */
 export function confirmationAckTemplate(i: {
   patientName: string;
+  honorific?: PatientHonorific;
   when: string;
   doctorName: string;
 }): { subject: string; body: string } {
   const first = i.patientName.split(" ")[0];
+  const greeting = `Hi ${i.honorific ? `${i.honorific} ` : ""}${first}`;
   return {
     subject: standardSubject("booking_ack", { when: i.when }),
-    body: `Hi ${first},\n\nYou're all set. Your appointment is confirmed for ${longWhen(i.when)} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
+    body: `${greeting},\n\nYou're all set. Your appointment is confirmed for ${longWhen(i.when)} with ${i.doctorName}. See you then!\n\n${SIGNOFF}`,
   };
 }
 
@@ -365,7 +377,7 @@ Hard rules:
 - PRIVACY: the doctor's personal reason is never shared with patients. Say only "an unexpected emergency" or "is unexpectedly unavailable", even if a specific reason appears anywhere in the context or conversation.
 - End every email with EXACTLY this sign-off block, nothing else after it:
 ${SIGNOFF}
-- Match only the supplied replyRegister enum. english: warm, plain English. taglish: natural Filipino clinic communication with a simple English/Taglish base and natural uses of "po"; prefer phrases such as "Thank you po sa reply", "Available po", and "Okay po ba ito sa inyo?" over translated-sounding Filipino. Use the supplied honorific only when present; never infer Ma'am or Sir from a name. tagalog: conversational Filipino, never stiff or ceremonial. Never imitate slang, anger, misspellings, or excessive informality.
+- Match only the supplied replyRegister enum. english: warm, plain English. taglish: natural Filipino clinic communication with a simple English/Taglish base and natural uses of "po"; prefer phrases such as "Thank you po sa reply", "Available po", and "Okay po ba ito sa inyo?" over translated-sounding Filipino. Use the supplied honorific only when present; never infer Ma'am, Sir, or Ms. from a name. tagalog: conversational Filipino, never stiff or ceremonial. Never imitate slang, anger, misspellings, or excessive informality.
 - Avoid translated constructions such as "Nakuha po namin ang inyong", "Salamat po sa inyong tugon", or repeated "ang inyong" phrasing. Use short, everyday clinic language instead, such as "Thank you po sa reply" or "Noted po". Also avoid overly formal Tagalog such as "ipinababatid", "makipag-ugnayan", and "kung inyong nanaisin".
 - When asking whether another doctor is acceptable, use: "If okay po sa inyo, pwede po namin kayo i-assign sa ibang doctor na available. Just let us know po."
 - FIRST CONTACT (context.reason is anything except "counter"): state the single clear action conversationally. Invite a natural reply to confirm ("just reply to let us know this works"), or a reply with a preferred time. Never demand an all-caps YES.

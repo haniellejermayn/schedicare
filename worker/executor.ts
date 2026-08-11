@@ -27,7 +27,11 @@ import {
 import { SimulatedCalendarProvider } from "@/integrations/calendar/simulated";
 import { SimulatedMailProvider } from "@/integrations/mail/simulated";
 import { getDoctor, getPatient } from "@/agents/tools";
-import { confirmationAckTemplate, normalizeMailBody } from "@/agents/comms";
+import {
+  confirmationAckTemplate,
+  honorificFromNotes,
+  normalizeMailBody,
+} from "@/agents/comms";
 import { personaReply } from "@/sim/personas";
 import { enqueueEvent } from "./queue";
 
@@ -379,6 +383,7 @@ export async function sendConfirmationAck(
       .get();
     const tpl = confirmationAckTemplate({
       patientName: patient.name,
+      honorific: honorificFromNotes(patient.notes),
       when: fmtWhen(args.startUtc),
       doctorName: args.doctorName,
     });
