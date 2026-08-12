@@ -329,8 +329,8 @@ export default function PatientPage() {
                   >
                     Your {typeLabel(a.type).toLowerCase()} on{" "}
                     <b className="tnum text-ink">{fmtWhenManila(a.startUtc)}</b>{" "}
-                    with {a.doctorName} had to be moved. We&apos;ve emailed you
-                    new times — once you reply, your new visit appears here.
+                    with {a.doctorName} had to be moved. We&apos;ve emailed you a
+                    new time — confirm it below, or reply to the email.
                   </p>
                 ))}
               </Card>
