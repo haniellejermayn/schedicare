@@ -1,17 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Network boundary between the patient view and the staff console.
+ * Network boundary between the read-only audience view and the rest of the app.
  *
  * `npm run dev:lan` binds 0.0.0.0 so a phone can scan the projected QR and open
- * /book. That also puts /ops on the venue wi-fi, and this app has no login — so
+ * /live. That also puts /ops on the venue wi-fi, and this app has no login — so
  * without this, anyone in the room could open the front desk and approve
  * recommendations, which sends real mail and writes real calendar events.
  *
  * The split is the Host header: a request that arrived at localhost came from
  * the machine running the server (the presenting laptop), and gets everything.
  * A request that arrived at the LAN address came from another device, and may
- * reach only what /book actually needs.
+ * reach only what /live actually needs.
  *
  * IMPORTANT FOR THE PRESENTER: use http://localhost:3000 on the laptop, not the
  * LAN IP. Browsing to http://192.168.x.x:3000/ops would lock you out of your
@@ -27,15 +27,14 @@ import { NextResponse, type NextRequest } from "next/server";
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
 /** Pages another device may open. */
-const PATIENT_PAGES = ["/book"];
+const AUDIENCE_PAGES = ["/live"];
 
-/** Exact endpoints /book calls, with the methods it calls them by. */
-const PATIENT_APIS: ReadonlyArray<{ path: RegExp; methods: readonly string[] }> = [
-  { path: /^\/api\/patients$/, methods: ["GET"] },
-  { path: /^\/api\/doctors$/, methods: ["GET"] },
-  { path: /^\/api\/slots$/, methods: ["GET"] },
-  { path: /^\/api\/appointments$/, methods: ["GET", "POST"] },
-  { path: /^\/api\/appointments\/[^/]+$/, methods: ["PATCH"] },
+/** Exact read-only endpoint used by the audience board. */
+const AUDIENCE_APIS: ReadonlyArray<{
+  path: RegExp;
+  methods: readonly string[];
+}> = [
+  { path: /^\/api\/live\/demo$/, methods: ["GET"] },
 ];
 
 /** Anything in /public — the logo, icons. Public by definition. */
@@ -49,8 +48,12 @@ export function middleware(req: NextRequest) {
 
   const allowed =
     STATIC_FILE.test(pathname) ||
-    PATIENT_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
-    PATIENT_APIS.some((r) => r.path.test(pathname) && r.methods.includes(method));
+    AUDIENCE_PAGES.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    ) ||
+    AUDIENCE_APIS.some(
+      (r) => r.path.test(pathname) && r.methods.includes(method),
+    );
 
   if (allowed) return NextResponse.next();
 
@@ -67,6 +70,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   // Skip Next's own asset and HMR routes entirely — they must keep working on
-  // a phone or the patient view cannot render or hot-reload.
+  // a phone or the audience view cannot render or hot-reload.
   matcher: ["/((?!_next).*)"],
 };

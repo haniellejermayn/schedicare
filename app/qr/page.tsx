@@ -7,8 +7,19 @@ import { Card, Chip, Eyebrow, PageTitle } from "@/components/ui";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+function audienceTarget(override?: string): string | null {
+  if (!override) return bestLanUrl("/live");
+  try {
+    const url = new URL(override);
+    if (url.pathname === "/") url.pathname = "/live";
+    return url.toString();
+  } catch {
+    return override;
+  }
+}
+
 /**
- * A scannable link to the patient view, sized for a projector.
+ * A scannable link to the read-only audience board, sized for a projector.
  *
  * `?url=` overrides the detected address. That is the escape hatch for a public
  * tunnel (cloudflared / ngrok): paste the https URL and the code re-encodes, so
@@ -20,7 +31,7 @@ export default async function QrPage({
   searchParams: { url?: string };
 }) {
   const override = searchParams.url?.trim();
-  const target = override || bestLanUrl("/book");
+  const target = audienceTarget(override);
   const addresses = lanAddresses();
   const isTunnel = Boolean(override);
 
@@ -37,8 +48,8 @@ export default async function QrPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitle subtitle="Point a phone camera at the code to open the patient view.">
-        Scan to open on your phone
+      <PageTitle subtitle="Point a phone camera at the code to follow Camille, Miguel, and Grace live.">
+        Scan to follow the recovery
       </PageTitle>
 
       {!target ? (
@@ -123,9 +134,9 @@ export default async function QrPage({
                 <li>
                   <b className="text-ink">No phones at all.</b> Project{" "}
                   <code className="rounded bg-surface-alt px-1.5 py-0.5 font-mono text-[13px]">
-                    /book?frame=phone
+                    /live
                   </code>{" "}
-                  instead — the patient view inside a phone bezel.
+                  instead — it is the same read-only live board.
                 </li>
               </ul>
             </Card>

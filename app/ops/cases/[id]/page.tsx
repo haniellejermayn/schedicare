@@ -140,14 +140,15 @@ function ActivityRow({ it, tech }: { it: any; tech: boolean }) {
   );
 }
 
-function SummaryLine({ s, state }: { s: any; state: string }) {
-  if (!s || s.affected === 0) return null;
+function SummaryLine({ s }: { s: any }) {
+  if (!s || s.total === 0) return null;
   const bits = [
-    `${s.affected} patient${s.affected === 1 ? "" : "s"}`,
+    `${s.total} patient${s.total === 1 ? "" : "s"}`,
     s.confirmed > 0 && `${s.confirmed} confirmed`,
-    s.rebooked - s.confirmed > 0 &&
-      `${s.rebooked - s.confirmed} waiting to hear back`,
-    s.declinedOrCallback > 0 && `${s.declinedOrCallback} to call`,
+    s.waitingForYou > 0 && `${s.waitingForYou} waiting for you`,
+    s.waitingOnPatient > 0 && `${s.waitingOnPatient} waiting on patient`,
+    s.toCall > 0 && `${s.toCall} to call`,
+    s.closedManually > 0 && `${s.closedManually} closed by staff`,
   ].filter(Boolean);
   return <p className="text-[13px] text-muted">{bits.join(" · ")}</p>;
 }
@@ -202,6 +203,8 @@ function needsDecision(rec: any): boolean {
 function statusTitle(rec: any): string {
   const oc = outcomeLabel(rec);
   if (oc.label === "Confirmed") return "Confirmed";
+  if (rec.outcome === "handled") return "Declined — closed by staff";
+  if (rec.outcome === "released") return "Declined — hold released";
   if (oc.label.startsWith("Declined")) return "Declined — needs a call";
   if (oc.label === "Message sent" || oc.label === "Waiting for reply")
     return "Approved — sent, no reply yet";
@@ -483,6 +486,7 @@ export default function CasePage() {
     let waitingForYou = 0;
     let waitingOnPatient = 0;
     let toCall = 0;
+    let closedManually = 0;
     for (const p of patients) {
       const rec = p.activeRec;
       if (!rec) continue;
@@ -492,6 +496,10 @@ export default function CasePage() {
       }
       if (needsDecision(rec)) {
         waitingForYou++;
+        continue;
+      }
+      if (["called", "handled", "released"].includes(rec.outcome)) {
+        closedManually++;
         continue;
       }
       const oc = outcomeLabel(rec);
@@ -504,7 +512,14 @@ export default function CasePage() {
       else if (oc.label === "Message sent" || oc.label === "Waiting for reply")
         waitingOnPatient++;
     }
-    return { total, confirmed, waitingForYou, waitingOnPatient, toCall };
+    return {
+      total,
+      confirmed,
+      waitingForYou,
+      waitingOnPatient,
+      toCall,
+      closedManually,
+    };
   }, [patients, pendingConstraints]);
 
   useEffect(() => {
@@ -650,7 +665,7 @@ export default function CasePage() {
           </div>
         </div>
         <div className="mt-1">
-          <SummaryLine s={data?.scoreboard} state={c.state} />
+          <SummaryLine s={metrics} />
         </div>
       </div>
 
@@ -683,7 +698,7 @@ export default function CasePage() {
 
       {/* Metric tiles */}
       {metrics && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
           <div className="rounded-[10px] border border-line bg-white px-[13px] py-2">
             <span className="tnum block text-[16px] font-bold leading-none text-ink">
               {metrics.total}
@@ -722,6 +737,14 @@ export default function CasePage() {
             </span>
             <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
               To call
+            </span>
+          </div>
+          <div className="rounded-[10px] border border-line bg-surface-alt px-[13px] py-2">
+            <span className="tnum block text-[16px] font-bold leading-none text-ink">
+              {metrics.closedManually}
+            </span>
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Closed by staff
             </span>
           </div>
         </div>
@@ -900,6 +923,11 @@ export default function CasePage() {
                             p.chosenOptionId),
                       );
                       const theme = statusToneClass[oc.tone];
+                      const declinedOutcome = [
+                        "declined",
+                        "handled",
+                        "released",
+                      ].includes(rec.outcome);
                       const wantsFollowUp =
                         selectedPatient.conv?.currentRecommendationId ===
                           rec.id &&
@@ -914,12 +942,41 @@ export default function CasePage() {
                           <div className="text-[11px] font-bold uppercase tracking-wider text-muted">
                             {statusTitle(rec)}
                           </div>
-                          {rec.kind === "reschedule" && to && (
+                          {rec.kind === "reschedule" && to && !declinedOutcome && (
                             <RescheduleLine
                               fromLabel={p.from?.when}
                               toUtc={to.startUtc}
                               doctorName={to.doctorName}
                             />
+                          )}
+                          {rec.kind === "reschedule" && to && declinedOutcome && (
+                            <div className="mt-2 space-y-2 text-[13px]">
+                              <div className="grid grid-cols-[105px_1fr] gap-2">
+                                <span className="text-muted">Original visit</span>
+                                <span className="tnum text-ink-soft">
+                                  {p.from?.when ?? "—"} · cancelled by clinic
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-[105px_1fr] gap-2">
+                                <span className="text-muted">Proposed time</span>
+                                <span className="tnum font-semibold text-bad line-through decoration-bad/60">
+                                  {fmtWhenManila(to.startUtc)} · declined
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-[105px_1fr] gap-2 border-t border-bad-line pt-2">
+                                <span className="text-muted">Final outcome</span>
+                                <span className="font-semibold text-ink">
+                                  {rec.outcome === "handled"
+                                    ? "No replacement booked; staff follow-up completed"
+                                    : rec.outcome === "released"
+                                      ? "Temporary hold released"
+                                      : "No replacement booked; staff follow-up needed"}
+                                </span>
+                              </div>
+                              {["handled", "released"].includes(rec.outcome) && (
+                                <Chip tone="neutral">Closed by staff</Chip>
+                              )}
+                            </div>
                           )}
                           {rec.kind !== "reschedule" && (
                             <p className="tnum text-[15px] font-bold text-ink">

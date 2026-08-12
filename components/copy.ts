@@ -57,9 +57,9 @@ export function outcomeLabel(rec: {
 }): { label: string; tone: Tone } {
   if (rec.outcome === "called") return { label: "Called by staff", tone: "ok" };
   if (rec.outcome === "handled")
-    return { label: "Handled manually", tone: "ok" };
+    return { label: "Declined — closed by staff", tone: "bad" };
   if (rec.outcome === "released")
-    return { label: "Hold released", tone: "neutral" };
+    return { label: "Declined — hold released", tone: "bad" };
   if (rec.status === "rejected")
     return { label: "Will call instead", tone: "neutral" };
   if (rec.status === "failed")

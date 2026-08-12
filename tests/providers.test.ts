@@ -277,6 +277,10 @@ describe("google providers with injected doubles (no network)", () => {
     expect(listed[0].startUtc).toBe(new Date("2026-08-13T01:00:00.000Z").toISOString());
     await provider.deleteEvent("primary", created.id);
     expect(store).toHaveLength(0);
+    fake.events.delete.mockRejectedValueOnce(
+      Object.assign(new Error("Resource has been deleted"), { code: 410 }),
+    );
+    await expect(provider.deleteEvent("primary", created.id)).resolves.toBeUndefined();
     expect(fake.events.insert).toHaveBeenCalledOnce();
   });
 

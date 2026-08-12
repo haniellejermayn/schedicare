@@ -12,7 +12,8 @@ import { Nav } from "@/components/Nav";
  */
 export function AppChrome({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const isPatientView = path?.startsWith("/book") ?? false;
+  const isPatientView =
+    path?.startsWith("/book") || path?.startsWith("/live") || false;
 
   if (isPatientView) return <>{children}</>;
 

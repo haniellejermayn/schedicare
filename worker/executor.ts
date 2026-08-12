@@ -68,7 +68,7 @@ export async function deleteCalendarEvent(
     // Deleting an event that is already absent is an idempotent success.
     // Seeded demo appointments may reference simulated event IDs that never
     // existed in Google Calendar.
-    if (pick.live && status === 404) {
+    if (pick.live && (status === 404 || status === 410)) {
       markCalendarHealthy("Original event was already absent");
 
       timeline(

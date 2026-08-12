@@ -99,7 +99,14 @@ export class GoogleCalendarProvider implements CalendarProvider {
   }
 
   async deleteEvent(calendarId: string, id: string): Promise<void> {
-    await this.cal.events.delete({ calendarId, eventId: id });
+    try {
+      await this.cal.events.delete({ calendarId, eventId: id });
+    } catch (error) {
+      const status =
+        (error as { code?: number; response?: { status?: number } }).code ??
+        (error as { response?: { status?: number } }).response?.status;
+      if (status !== 404 && status !== 410) throw error;
+    }
   }
 
   /** Destructive demo setup operation. Callers must validate the calendar ID. */

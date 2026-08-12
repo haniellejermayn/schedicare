@@ -91,8 +91,10 @@ Search the constraints. If only another doctor can satisfy the timing, choose
 **Ask about another doctor**, approve the natural Taglish clarification, then
 reply `Okay lang po, please check another doctor.` Approve the resulting offer
 and confirm it from the patient inbox. End in Google Calendar: Camille and
-Miguel are confirmed; Grace's hold is gone. Return briefly to the case Activity
-tab for the audit trail.
+Miguel are confirmed; Grace's hold is gone. On Grace's patient card, use
+**Follow up → Declined** to record the completed staff handling, then point out
+the red declined outcome and separate **Closed by staff** summary. Return
+briefly to the case Activity tab for the audit trail.
 
 Close with:
 
@@ -108,9 +110,11 @@ Close with:
   correctly labelled outbound `SENT` and ignored by inbound polling.
 - Do not reset after approving offers unless you are prepared to clean the
   already-created Google Calendar events manually.
-- Do not use `dev:lan`, `/qr`, or a public tunnel in the flagship demo. The
-  mobile booking surface is outside the agent-recovery story, and this demo app
-  has no authentication boundary between patient and staff routes.
+- If using the audience QR, expose only the new `/live` board. Remote devices
+  are middleware-limited to that fictional, read-only status surface and its
+  GET endpoint; `/book`, patient APIs, and staff routes remain unavailable.
+- Test `dev:lan` or the public tunnel on one phone before the room fills. Keep
+  `/live` projected as the fallback if venue wi-fi isolates devices.
 
 ## Recovery
 
