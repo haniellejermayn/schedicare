@@ -4,14 +4,15 @@ import { NextResponse, type NextRequest } from "next/server";
  * Network boundary between the read-only audience view and the rest of the app.
  *
  * `npm run dev:lan` binds 0.0.0.0 so a phone can scan the projected QR and open
- * /live. That also puts /ops on the venue wi-fi, and this app has no login — so
+ * /live and the static /book prototype. That also puts /ops on the venue wi-fi,
+ * and this app has no login — so
  * without this, anyone in the room could open the front desk and approve
  * recommendations, which sends real mail and writes real calendar events.
  *
  * The split is the Host header: a request that arrived at localhost came from
  * the machine running the server (the presenting laptop), and gets everything.
  * A request that arrived at the LAN address came from another device, and may
- * reach only what /live actually needs.
+ * reach only the audience pages and the single endpoint /live actually needs.
  *
  * IMPORTANT FOR THE PRESENTER: use http://localhost:3000 on the laptop, not the
  * LAN IP. Browsing to http://192.168.x.x:3000/ops would lock you out of your
@@ -27,7 +28,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
 /** Pages another device may open. */
-const AUDIENCE_PAGES = ["/live"];
+const AUDIENCE_PAGES = ["/live", "/book"];
 
 /** Exact read-only endpoint used by the audience board. */
 const AUDIENCE_APIS: ReadonlyArray<{

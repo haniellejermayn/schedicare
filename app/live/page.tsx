@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePoll } from "@/lib/usePoll";
 import { Chip, Logo, cn } from "@/components/ui";
 import type { Tone } from "@/components/copy";
@@ -141,6 +142,16 @@ export default function LiveDemoPage() {
                     {patient.settled ? "Case settled" : "Updating live"}
                   </span>
                 </div>
+                <Link
+                  href={`/book?patient=${patient.id.replace(/^pat_/, "")}`}
+                  className={cn(
+                    "mt-4 inline-flex w-full items-center justify-center rounded-ctl border border-strong bg-white px-3 py-2",
+                    "text-[13px] font-semibold text-ink shadow-cut transition-[background-color,box-shadow,transform] duration-fast ease-snappy",
+                    "hover:bg-surface-alt active:translate-y-px active:shadow-none",
+                  )}
+                >
+                  See patient view prototype
+                </Link>
               </article>
             ))}
           </div>
@@ -149,7 +160,7 @@ export default function LiveDemoPage() {
         <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[12px] text-muted">
           <span>Fictional demo patients only</span>
           <span aria-hidden>·</span>
-          <span>No contact details or patient actions</span>
+          <span>Prototype actions are not submitted</span>
           <span aria-hidden>·</span>
           <span>Scheduling status only</span>
         </footer>
@@ -157,4 +168,3 @@ export default function LiveDemoPage() {
     </main>
   );
 }
-

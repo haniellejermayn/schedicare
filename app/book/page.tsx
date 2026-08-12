@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { usePoll } from "@/lib/usePoll";
+import { useSearchParams } from "next/navigation";
 import {
-  jfetch,
   fmtTimeManila,
   fmtWhenManila,
   fmtDayManila,
@@ -33,6 +32,87 @@ const WEEKDAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"];
 
 /** Dates visible in the strip at once before paging. */
 const DATE_PAGE_SIZE = 5;
+
+const DEMO_TODAY = "2026-08-13";
+
+const PATIENTS = [
+  { id: "pat_camille", slug: "camille", name: "Camille Dela Cruz" },
+  { id: "pat_miguel", slug: "miguel", name: "Miguel Santos" },
+  { id: "pat_grace", slug: "grace", name: "Grace Villanueva" },
+] as const;
+
+const DOCTORS = [
+  { id: "doc_santos", name: "Dr. Elena Santos" },
+  { id: "doc_reyes", name: "Dr. Marco Reyes" },
+] as const;
+
+type DemoAppointment = {
+  id: string;
+  status: string;
+  source?: string;
+  type: (typeof TYPES)[number]["id"];
+  startUtc: string;
+  doctorName: string;
+};
+
+const APPOINTMENTS: Record<string, DemoAppointment[]> = {
+  pat_camille: [
+    {
+      id: "camille-original",
+      status: "superseded",
+      type: "routine",
+      startUtc: "2026-08-14T02:40:00.000Z",
+      doctorName: "Dr. Elena Santos",
+    },
+    {
+      id: "camille-recovered",
+      status: "confirmed",
+      source: "schedicare",
+      type: "routine",
+      startUtc: "2026-08-15T01:30:00.000Z",
+      doctorName: "Dr. Marco Reyes",
+    },
+  ],
+  pat_miguel: [
+    {
+      id: "miguel-original",
+      status: "superseded",
+      type: "follow_up",
+      startUtc: "2026-08-14T05:30:00.000Z",
+      doctorName: "Dr. Elena Santos",
+    },
+    {
+      id: "miguel-recovered",
+      status: "confirmed",
+      source: "schedicare",
+      type: "follow_up",
+      startUtc: "2026-08-15T06:20:00.000Z",
+      doctorName: "Dr. Marco Reyes",
+    },
+  ],
+  pat_grace: [
+    {
+      id: "grace-cancelled",
+      status: "cancelled_by_patient",
+      type: "routine",
+      startUtc: "2026-08-14T01:50:00.000Z",
+      doctorName: "Dr. Elena Santos",
+    },
+  ],
+};
+
+const SLOT_TIMES = [
+  "2026-08-15T01:30:00.000Z",
+  "2026-08-15T02:20:00.000Z",
+  "2026-08-17T00:40:00.000Z",
+  "2026-08-17T05:30:00.000Z",
+  "2026-08-18T01:00:00.000Z",
+  "2026-08-18T06:00:00.000Z",
+  "2026-08-19T02:00:00.000Z",
+  "2026-08-19T05:40:00.000Z",
+  "2026-08-20T01:20:00.000Z",
+  "2026-08-20T06:20:00.000Z",
+];
 
 function toDayKey(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -74,41 +154,34 @@ function patientStatus(a: {
 }
 
 export default function PatientPage() {
+  const searchParams = useSearchParams();
+  const requestedPatient = PATIENTS.find(
+    (patient) => patient.slug === searchParams.get("patient"),
+  );
   const [tab, setTab] = useState<PatientTab>("visits");
-
-  const { data: patientsData } = usePoll<any>("/api/patients", 30000);
-  const patients = patientsData?.patients ?? [];
-  const [patientId, setPatientId] = useState("pat_maria");
-
-  const { data: docList } = usePoll<any>("/api/doctors", 60000);
-  const doctors: Array<{ id: string; name: string }> = docList?.doctors ?? [
-    { id: "doc_santos", name: "Dr. Elena Santos" },
-    { id: "doc_reyes", name: "Dr. Marco Reyes" },
-  ];
-
-  const { data: apptData, refresh: refreshAppts } = usePoll<any>(
-    `/api/appointments?patientId=${patientId}`,
-    4000,
+  const [patientId, setPatientId] = useState<string>(
+    requestedPatient?.id ?? "pat_camille",
   );
-  const myAppts = (apptData?.appointments ?? []).filter(
-    (a: any) => a.patientId === patientId,
-  );
-  const upcoming = myAppts.filter((a: any) =>
+
+  const myAppts = APPOINTMENTS[patientId] ?? [];
+  const upcoming = myAppts.filter((a) =>
     ["booked", "confirmed"].includes(a.status),
   );
-  const disrupted = myAppts.filter((a: any) => a.status === "superseded");
-  const past = myAppts.filter((a: any) =>
+  const disrupted = myAppts.filter((a) => a.status === "superseded");
+  const past = myAppts.filter((a) =>
     ["completed", "no_show"].includes(a.status) ||
     a.status?.startsWith("cancelled"),
   );
 
   const [doctorId, setDoctorId] = useState("doc_santos");
   const [type, setType] = useState<(typeof TYPES)[number]["id"]>("routine");
-  const { data: slotData } = usePoll<any>(
-    `/api/slots?doctorId=${doctorId}&type=${type}`,
-    8000,
-  );
-  const slots = slotData?.slots ?? [];
+  const slots = SLOT_TIMES.map((startUtc, index) => ({
+    startUtc,
+    day: startUtc.slice(0, 10),
+    doctorId,
+    type,
+    id: `${doctorId}-${type}-${index}`,
+  }));
 
   const slotMap = useMemo(() => {
     const m: Record<string, any[]> = {};
@@ -119,22 +192,20 @@ export default function PatientPage() {
   const [picked, setPicked] = useState<any | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [monthDate, setMonthDate] = useState<Date>(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    return new Date(2026, 7, 1);
   });
   // The day strip shows a window of DATE_PAGE_SIZE dates; the full month grid
   // lives behind "Pick a date" so the booking step stays short on a phone.
   const [dateOffset, setDateOffset] = useState(0);
   const [expandedOpen, setExpandedOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<any | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<DemoAppointment | null>(null);
 
   useEffect(() => {
-    if (doctors.length && !doctors.find((d) => d.id === doctorId)) {
-      setDoctorId(doctors[0].id);
+    if (!DOCTORS.find((d) => d.id === doctorId)) {
+      setDoctorId(DOCTORS[0].id);
     }
-  }, [doctors, doctorId]);
+  }, [doctorId]);
 
   useEffect(() => {
     const keys = Object.keys(slotMap);
@@ -190,58 +261,27 @@ export default function PatientPage() {
     return cells;
   }, [monthDate]);
 
-  async function book() {
+  function book() {
     if (!picked) return;
-    setBusy(true);
-    try {
-      const res = await jfetch<any>("/api/appointments", {
-        method: "POST",
-        body: JSON.stringify({
-          patientId,
-          doctorId: picked.doctorId,
-          type,
-          startUtc: picked.startUtc,
-        }),
-      });
-      setToast(`Booked ${res.when}. We'll email you a reminder.`);
-      setPicked(null);
-      setTab("visits");
-      refreshAppts();
-    } catch (e) {
-      setToast((e as Error).message);
-      setPicked(null);
-    } finally {
-      setBusy(false);
-    }
+    setToast(
+      `Prototype preview: ${fmtWhenManila(picked.startUtc)} was not booked.`,
+    );
+    setPicked(null);
   }
 
-  async function act(appt: any, action: "confirm" | "cancel") {
-    setBusy(true);
-    try {
-      const res = await jfetch<any>(`/api/appointments/${appt.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ action }),
-      });
-      setToast(
-        action === "confirm"
-          ? "You're confirmed. See you then."
-          : res.backfill
-            ? "Cancelled. Your slot goes back to the clinic."
-            : "Cancelled.",
-      );
-      setCancelTarget(null);
-      refreshAppts();
-    } catch (e) {
-      setToast((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  function act(action: "confirm" | "cancel") {
+    setToast(
+      action === "confirm"
+        ? "Prototype preview: no confirmation was sent."
+        : "Prototype preview: no appointment was cancelled.",
+    );
+    setCancelTarget(null);
   }
 
-  const me = patients.find((p: any) => p.id === patientId);
+  const me = PATIENTS.find((p) => p.id === patientId);
   const firstName = (me?.name ?? "").split(" ")[0];
   const selectedSlots = selectedDay ? (slotMap[selectedDay] ?? []) : [];
-  const today = toDayKey(new Date());
+  const today = DEMO_TODAY;
 
   const availableDates = Object.keys(slotMap)
     .filter((d) => d >= today)
@@ -290,6 +330,15 @@ export default function PatientPage() {
   return (
     <PatientShell tab={tab} onTabChange={setTab}>
       <div className="flex flex-col gap-4">
+        <Card className="border-accent-line bg-accent-soft px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip tone="accent">Interactive prototype</Chip>
+            <span className="text-[13px] font-semibold text-ink">
+              Explore freely. Nothing here changes a real appointment.
+            </span>
+          </div>
+        </Card>
+
         {toast && (
           <div
             role="status"
@@ -329,8 +378,8 @@ export default function PatientPage() {
                   >
                     Your {typeLabel(a.type).toLowerCase()} on{" "}
                     <b className="tnum text-ink">{fmtWhenManila(a.startUtc)}</b>{" "}
-                    with {a.doctorName} had to be moved. We&apos;ve emailed you a
-                    new time — confirm it below, or reply to the email.
+                    with {a.doctorName} had to be moved. The clinic arranged the
+                    replacement shown below.
                   </p>
                 ))}
               </Card>
@@ -375,19 +424,17 @@ export default function PatientPage() {
                           <Button
                             variant="success"
                             className="flex-1"
-                            disabled={busy}
-                            onClick={() => act(a, "confirm")}
+                            onClick={() => act("confirm")}
                           >
-                            Confirm
+                            Preview confirmation
                           </Button>
                         )}
                         <Button
                           variant="secondary"
                           className={st.action === "confirm" ? "" : "flex-1"}
-                          disabled={busy}
                           onClick={() => setCancelTarget(a)}
                         >
-                          Cancel
+                          Preview cancellation
                         </Button>
                       </div>
                     </Card>
@@ -423,14 +470,14 @@ export default function PatientPage() {
 
             {/* Demo affordance, labelled as one. */}
             <label className="mt-2 flex flex-col gap-1.5 rounded-card border border-dashed border-line bg-surface-alt px-4 py-3">
-              <span className="eyebrow">Demo — view as patient</span>
+              <span className="eyebrow">Choose a demo patient</span>
               <Select
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
-                aria-label="View as patient"
+                aria-label="Choose a demo patient"
                 className="bg-white"
               >
-                {patients.map((p: any) => (
+                {PATIENTS.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -444,7 +491,7 @@ export default function PatientPage() {
 
             <section className="flex flex-col gap-2">
               <Eyebrow>Doctor</Eyebrow>
-              {doctors.map((d) => (
+              {DOCTORS.map((d) => (
                 <ChoiceCard
                   key={d.id}
                   selected={doctorId === d.id}
@@ -654,15 +701,15 @@ export default function PatientPage() {
       <Modal
         open={!!picked}
         onClose={() => setPicked(null)}
-        title="Confirm this booking?"
+        title="Preview this booking?"
         sheetOnMobile
         footer={
           <>
             <Button variant="secondary" onClick={() => setPicked(null)}>
               Back
             </Button>
-            <Button disabled={busy} loading={busy} onClick={book}>
-              Book it
+            <Button onClick={book}>
+              Preview booking
             </Button>
           </>
         }
@@ -674,7 +721,7 @@ export default function PatientPage() {
             </span>
             <span className="text-[14px] text-muted">
               {typeLabel(type)} with{" "}
-              {doctors.find((d) => d.id === doctorId)?.name}
+              {DOCTORS.find((d) => d.id === doctorId)?.name}
             </span>
             <span className="text-[14px] text-muted">
               Riverside Family Clinic
@@ -687,7 +734,7 @@ export default function PatientPage() {
       <Modal
         open={!!cancelTarget}
         onClose={() => setCancelTarget(null)}
-        title="Cancel this visit?"
+        title="Preview cancellation?"
         sheetOnMobile
         footer={
           <>
@@ -696,11 +743,9 @@ export default function PatientPage() {
             </Button>
             <Button
               variant="danger"
-              disabled={busy}
-              loading={busy}
-              onClick={() => act(cancelTarget, "cancel")}
+              onClick={() => act("cancel")}
             >
-              Yes, cancel
+              Preview cancellation
             </Button>
           </>
         }
@@ -710,8 +755,9 @@ export default function PatientPage() {
             <span className="tnum font-semibold text-ink">
               {fmtWhenManila(cancelTarget.startUtc)}
             </span>{" "}
-            with {cancelTarget.doctorName}. Your slot goes back to the clinic and
-            may be offered to someone on the waitlist.
+            with {cancelTarget.doctorName}. In a connected patient app, this
+            would ask the clinic to release the slot. This prototype sends
+            nothing.
           </p>
         )}
       </Modal>
