@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { usePoll, useFeed } from "@/lib/usePoll";
-import { jfetch, fmtWhenManila, agentLabel } from "@/lib/format";
+import { jfetch, fmtWhenManila, agentLabel, fmtTimeManila } from "@/lib/format";
 import {
   Button,
   Chip,
@@ -223,6 +223,182 @@ const statusToneClass: Record<string, string> = {
   bad: "border-bad-line bg-bad-soft",
   neutral: "border-line bg-surface-alt",
 };
+
+function toDayKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  const d = parts.find((p) => p.type === "day")?.value ?? "";
+  return `${y}-${m}-${d}`;
+}
+
+function CompactSlotPicker({
+  slots,
+  selectedStartUtc,
+  onSelect,
+}: {
+  slots: any[];
+  selectedStartUtc: string;
+  onSelect: (startUtc: string) => void;
+}) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [dateOffset, setDateOffset] = useState(0);
+
+  const slotMap = useMemo(() => {
+    const m: Record<string, any[]> = {};
+    for (const s of slots) {
+      const day = s.day ?? toDayKey(new Date(s.startUtc));
+      (m[day] ??= []).push(s);
+    }
+    return m;
+  }, [slots]);
+
+  const today = toDayKey(new Date());
+  const availableDates = useMemo(
+    () => Object.keys(slotMap).filter((d) => d >= today).sort(),
+    [slotMap, today],
+  );
+
+  const pageSize = 5;
+  const visibleDates = availableDates.slice(dateOffset, dateOffset + pageSize);
+  const canPrev = dateOffset > 0;
+  const canNext = dateOffset + pageSize < availableDates.length;
+
+  useEffect(() => {
+    if (availableDates.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    const available = availableDates.filter((d) => d >= today);
+    if (available.length === 0) {
+      setSelectedDay(null);
+      return;
+    }
+    setSelectedDay((prev) => {
+      if (prev && available.includes(prev)) return prev;
+      return available[0];
+    });
+  }, [availableDates, today]);
+
+  useEffect(() => {
+    if (selectedDay && selectedStartUtc) {
+      const daySlots = slotMap[selectedDay] ?? [];
+      if (!daySlots.some((s) => s.startUtc === selectedStartUtc)) {
+        onSelect("");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay, slotMap]);
+
+  useEffect(() => {
+    if (!selectedDay) return;
+    const index = availableDates.indexOf(selectedDay);
+    if (index < 0) return;
+    setDateOffset((prev) =>
+      index < prev || index >= prev + pageSize
+        ? Math.min(
+            Math.max(0, index - Math.floor(pageSize / 2)),
+            Math.max(0, availableDates.length - pageSize),
+          )
+        : prev,
+    );
+  }, [selectedDay, availableDates, pageSize]);
+
+  if (availableDates.length === 0) {
+    return <div className="mt-1"><Empty>No open slots for this doctor and type.</Empty></div>;
+  }
+
+  return (
+    <div className="mt-1 rounded-card border border-line bg-white p-2">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setDateOffset((prev) => Math.max(0, prev - pageSize))}
+          disabled={!canPrev}
+          className="rounded border border-line px-1.5 py-1 text-[13px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Previous dates"
+        >
+          ‹
+        </button>
+        <div className="grid flex-1 grid-cols-5 gap-1">
+          {visibleDates.map((day) => {
+            const dateObj = new Date(`${day}T00:00:00+08:00`);
+            const weekday = dateObj.toLocaleDateString("en-US", {
+              weekday: "short",
+              timeZone: "Asia/Manila",
+            });
+            const dayNum = dateObj.toLocaleDateString("en-US", {
+              day: "numeric",
+              timeZone: "Asia/Manila",
+            });
+            const isSelected = selectedDay === day;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => {
+                  setSelectedDay(day);
+                  onSelect("");
+                }}
+                className={[
+                  "rounded border px-1 py-1 text-center text-[10px] font-bold transition",
+                  isSelected
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                  !isSelected ? "text-muted" : "",
+                ].join(" ")}
+              >
+                <span className="block">{weekday}</span>
+                <span className="tnum block text-[12px] leading-none">{dayNum}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            setDateOffset((prev) =>
+              Math.min(prev + pageSize, Math.max(0, availableDates.length - pageSize)),
+            )
+          }
+          disabled={!canNext}
+          className="rounded border border-line px-1.5 py-1 text-[13px] text-muted hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Next dates"
+        >
+          ›
+        </button>
+      </div>
+      {selectedDay && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {slotMap[selectedDay]?.length ? (
+            slotMap[selectedDay].map((s: any) => (
+              <button
+                key={s.startUtc}
+                type="button"
+                onClick={() => onSelect(s.startUtc)}
+                className={[
+                  "tnum rounded-full border px-2.5 py-1 text-[11px] font-bold transition",
+                  selectedStartUtc === s.startUtc
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-line bg-white text-ink hover:border-accent hover:bg-accent-soft",
+                ].join(" ")}
+              >
+                {fmtTimeManila(s.startUtc)}
+              </button>
+            ))
+          ) : (
+            <p className="text-[11px] text-muted">No slots on this day</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CasePage() {
   const { id } = useParams<{ id: string }>();
@@ -1095,18 +1271,11 @@ export default function CasePage() {
         {followOutcome === "choose_another" && (
           <label className="mt-3 block text-[12px] font-bold text-muted">
             Valid date and time
-            <select
-              value={followSlot}
-              onChange={(event) => setFollowSlot(event.target.value)}
-              className="mt-1 w-full rounded-ctl border border-line bg-white px-3 py-2 text-[14px] text-ink"
-            >
-              <option value="">Select a time</option>
-              {followSlots.map((slot: any) => (
-                <option key={slot.startUtc} value={slot.startUtc}>
-                  {fmtWhenManila(slot.startUtc)}
-                </option>
-              ))}
-            </select>
+            <CompactSlotPicker
+              slots={followSlots}
+              selectedStartUtc={followSlot}
+              onSelect={setFollowSlot}
+            />
           </label>
         )}
       </Modal>
