@@ -3,7 +3,7 @@
  * Ctrl-C stops both.
  */
 import "@/eval/loadEnv"; // .env.local / .env — must be the FIRST import
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { seed } from "@/sim/seed";
 import { syncConnectedDemoCalendars } from "@/scripts/demoCalendarSync";
 
@@ -37,8 +37,19 @@ async function main() {
       env: process.env,
     }),
   ];
+  let stopping = false;
   const stop = () => {
-    for (const p of procs) p.kill("SIGINT");
+    if (stopping) return;
+    stopping = true;
+    for (const p of procs) {
+      if (process.platform === "win32" && p.pid) {
+        spawnSync("taskkill", ["/pid", String(p.pid), "/T", "/F"], {
+          stdio: "ignore",
+        });
+      } else {
+        p.kill("SIGINT");
+      }
+    }
     setTimeout(() => process.exit(0), 500);
   };
   process.on("SIGINT", stop);

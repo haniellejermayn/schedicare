@@ -47,7 +47,8 @@ with identical data shapes — degrading to _staff review_, never to dumber
 automation ([docs/FALLBACK_MODE.md](docs/FALLBACK_MODE.md)).
 For live replies, keep `AUTO_SIMULATE_REPLIES=false` and use a
 `DEMO_PATIENT_EMAIL` inbox different from the OAuth-connected clinic Gmail.
-See the timed [live demo runbook](docs/DEMO_RUNBOOK.md).
+For presentation day, use the concise [operator checklist](docs/DEMO_CHECKLIST.md).
+See the [timed live demo runbook](docs/DEMO_RUNBOOK.md) for recovery notes.
 
 ## What it does
 
