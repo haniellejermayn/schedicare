@@ -18,6 +18,20 @@ import type { Tone } from "@/components/copy";
 
 type Tab = "connections" | "demo" | "audit";
 
+/**
+ * `/qr` and `/book` are deliberately absent from the staff nav, which leaves no
+ * way to reach them but typing a URL. These give the front desk a door to both
+ * without putting the patient surface in the console's navigation.
+ * Anchors rather than Buttons so they can open in their own tab; the classes
+ * mirror Button's small primary/secondary so they read as the same control.
+ */
+const PATIENT_LINK =
+  "inline-flex items-center justify-center gap-1.5 rounded-ctl px-4 py-2 text-[14px] font-semibold shadow-cut transition-[background-color,box-shadow,transform] duration-fast ease-snappy active:translate-y-[1px] active:shadow-none";
+const PATIENT_LINK_PRIMARY =
+  "border border-accent-press bg-accent text-white hover:bg-accent-press";
+const PATIENT_LINK_SECONDARY =
+  "border border-strong bg-white text-ink hover:bg-surface-alt";
+
 function healthTone(h: any): Tone {
   if (!h) return "neutral";
   return h.status === "ok" ? "ok" : h.status === "error" ? "bad" : "neutral";
@@ -424,6 +438,32 @@ function DemoData() {
             {busy === "reset" ? <Spinner /> : "Reset demo data"}
           </Button>
         </div>
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="text-[15px] font-bold text-ink">Patient view</h3>
+        <p className="mt-1 text-[13px] text-muted">
+          Two ways to show the phone booking surface. Neither is in the staff
+          nav on purpose — a patient arrives by scanning, not by browsing.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a href="/qr" target="_blank" rel="noreferrer" className={cn(PATIENT_LINK, PATIENT_LINK_PRIMARY)}>
+            Scan code for phones
+          </a>
+          <a href="/book?frame=phone" target="_blank" rel="noreferrer" className={cn(PATIENT_LINK, PATIENT_LINK_SECONDARY)}>
+            Projected phone view
+          </a>
+          <a href="/book" target="_blank" rel="noreferrer" className={cn(PATIENT_LINK, PATIENT_LINK_SECONDARY)}>
+            Open full width
+          </a>
+        </div>
+        <p className="mt-2 text-[11px] leading-snug text-muted">
+          The scan code only resolves if the server was started with{" "}
+          <b className="font-semibold text-ink">npm run dev:lan</b> — plain{" "}
+          <b className="font-semibold text-ink">npm run dev</b> binds to
+          localhost and no phone can reach it. The projected view needs about
+          880px of window height; on a 768p screen zoom to 80%.
+        </p>
       </Card>
 
       {m && (

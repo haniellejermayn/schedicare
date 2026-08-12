@@ -245,6 +245,21 @@ export function Tabs<T extends string>({
 
 /* ------------------------------------------------------------------ modal */
 
+/**
+ * A modal normally portals to `document.body`, which is right everywhere except
+ * inside the `?frame=phone` bezel — there it escapes the frame and covers the
+ * projected screen. Any element carrying this id captures the portal instead.
+ * Nothing else renders one, so staff routes keep the `document.body` behaviour.
+ *
+ * The host must also establish a containing block (a transform is enough) or
+ * the panel's `fixed` positioning still resolves against the viewport.
+ */
+export const MODAL_HOST_ID = "schedicare-modal-host";
+
+function modalHost(): HTMLElement {
+  return document.getElementById(MODAL_HOST_ID) ?? document.body;
+}
+
 export function Modal({
   open,
   onClose,
@@ -299,6 +314,8 @@ export function Modal({
     <div
       className={cn(
         "fixed inset-0 z-[9999] isolate flex items-end justify-center sm:items-center",
+        // The bezel host is pointer-events-none so it stays inert when empty.
+        "pointer-events-auto",
         sheetOnMobile ? "p-0 sm:p-4" : "p-4",
       )}
       role="dialog"
@@ -333,7 +350,7 @@ export function Modal({
         {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
       </div>
     </div>,
-    document.body,
+    modalHost(),
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { Logo, cn } from "@/components/ui";
+import { Logo, MODAL_HOST_ID, cn } from "@/components/ui";
 
 export type PatientTab = "visits" | "book";
 
@@ -57,6 +57,14 @@ export function PatientShell(props: {
           <div className="h-full overflow-y-auto pt-7">
             <PatientChrome {...props} framed />
           </div>
+          {/* Catches modal portals so a sheet stays inside the frame instead of
+              covering the projected screen. The transform is load-bearing: it
+              makes this the containing block for the panel's `fixed` position.
+              Inert until a modal mounts into it. */}
+          <div
+            id={MODAL_HOST_ID}
+            className="pointer-events-none absolute inset-0 z-[60] [transform:translateZ(0)]"
+          />
         </div>
       </div>
     </div>
